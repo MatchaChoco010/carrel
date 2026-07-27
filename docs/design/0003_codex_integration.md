@@ -1,7 +1,7 @@
 # Codex の使い分けとレート制限の運用
 
 - created: 2026-07-27
-- status: ready for review
+- status: reviewing
 - implementation: not-started
 
 ## 解決したい問題

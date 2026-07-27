@@ -1,7 +1,7 @@
 # 論文とチャットのデータ契約
 
 - created: 2026-07-27
-- status: ready for review
+- status: reviewing
 - implementation: not-started
 
 ## 解決したい問題
