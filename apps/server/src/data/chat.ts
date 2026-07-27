@@ -1,5 +1,6 @@
 import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
+import { EPOCH_ISO_DATE_TIME, parseIsoDateTime, type IsoDateTime } from './datetime.ts'
 import { joinDocument, splitDocument } from './frontmatter.ts'
 import { chatDayDir, chatFileName, chatsDir } from './layout.ts'
 
@@ -7,14 +8,14 @@ export type ChatRole = 'user' | 'assistant'
 
 export type ChatMessage = {
   role: ChatRole
-  at: string
+  at: IsoDateTime
   text: string
 }
 
 export type ChatMeta = {
   id: string
-  created: string
-  updated: string
+  created: IsoDateTime
+  updated: IsoDateTime
   title: string
   titleSource: 'auto' | 'user'
   summary: string
@@ -49,8 +50,8 @@ const FRONTMATTER_KEYS = {
   forkedFrom: 'forked_from',
 } as const
 
-// 発言の区切り。役割と時刻の両方が揃った行だけを境界とみなすので、応答の本文に
-// 現れる見出しと取り違えない。
+// 発言の区切り。役割と、日時として読める文字列の両方が揃った行だけを境界と
+// みなすので、応答の本文に現れる見出しと取り違えない。
 const MESSAGE_HEADING = /^## (user|assistant) · (\S+)$/
 
 function asString(value: unknown): string | null {
@@ -64,11 +65,10 @@ function asStringArray(value: unknown): string[] {
 
 export function parseChatMeta(raw: Record<string, unknown>, fallbackId: string): ChatMeta {
   const titleSource = raw[FRONTMATTER_KEYS.titleSource]
-  const now = new Date(0).toISOString()
   return {
     id: asString(raw[FRONTMATTER_KEYS.id]) ?? fallbackId,
-    created: asString(raw[FRONTMATTER_KEYS.created]) ?? now,
-    updated: asString(raw[FRONTMATTER_KEYS.updated]) ?? now,
+    created: parseIsoDateTime(raw[FRONTMATTER_KEYS.created]) ?? EPOCH_ISO_DATE_TIME,
+    updated: parseIsoDateTime(raw[FRONTMATTER_KEYS.updated]) ?? EPOCH_ISO_DATE_TIME,
     title: asString(raw[FRONTMATTER_KEYS.title]) ?? 'untitled',
     titleSource: titleSource === 'user' ? 'user' : 'auto',
     summary: asString(raw[FRONTMATTER_KEYS.summary]) ?? '',
@@ -101,7 +101,7 @@ export function serializeChatMeta(meta: ChatMeta): Record<string, unknown> {
 export function parseMessages(body: string): ChatMessage[] {
   const lines = body.split('\n')
   const messages: ChatMessage[] = []
-  let current: { role: ChatRole; at: string; lines: string[] } | null = null
+  let current: { role: ChatRole; at: IsoDateTime; lines: string[] } | null = null
 
   const flush = (): void => {
     if (current === null) return
@@ -110,9 +110,10 @@ export function parseMessages(body: string): ChatMessage[] {
 
   for (const line of lines) {
     const match = MESSAGE_HEADING.exec(line)
-    if (match) {
+    const at = match === null ? null : parseIsoDateTime(match[2])
+    if (match !== null && at !== null) {
       flush()
-      current = { role: match[1] as ChatRole, at: match[2] as string, lines: [] }
+      current = { role: match[1] as ChatRole, at, lines: [] }
       continue
     }
     if (current !== null) current.lines.push(line)

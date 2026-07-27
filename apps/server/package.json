@@ -14,6 +14,8 @@
   "dependencies": {
     "@hono/node-server": "^1.15.0",
     "hono": "^4.9.0",
+    "vfile": "^6.0.3",
+    "vfile-matter": "^5.0.1",
     "ws": "^8.18.0",
     "yaml": "^2.9.0"
   },

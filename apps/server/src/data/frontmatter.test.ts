@@ -42,3 +42,18 @@ test('YAML として配列やスカラーが来ても空のメタとして扱う
   assert.deepEqual(splitDocument('---\n- a\n- b\n---\n\n本文\n').meta, {})
   assert.deepEqual(splitDocument('---\njust a string\n---\n\n本文\n').meta, {})
 })
+
+test('日時を Date へ変換せず、書かれたオフセットのまま保つ', () => {
+  const text = '---\ncreated: 2026-07-27T15:04:12+09:00\nadded_at: 2026-07-27\n---\n\n本文\n'
+  const { meta } = splitDocument(text)
+  assert.equal(meta['created'], '2026-07-27T15:04:12+09:00')
+  assert.equal(meta['added_at'], '2026-07-27')
+})
+
+test('日時を含む frontmatter を書き戻しても値が変わらない', () => {
+  const text = '---\ncreated: 2026-07-27T15:04:12+09:00\n---\n\n本文\n'
+  const once = splitDocument(text)
+  const twice = splitDocument(joinDocument(once))
+  assert.deepEqual(twice.meta, once.meta)
+  assert.equal(twice.body, once.body)
+})

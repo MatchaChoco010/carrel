@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
+import { EPOCH_ISO_DATE_TIME, parseIsoDateTime, type IsoDateTime } from './datetime.ts'
 import { joinDocument, splitDocument } from './frontmatter.ts'
 import { paperDir, paperFile, papersDir, type PaperFileKind } from './layout.ts'
 import { isValidSlug } from './slug.ts'
@@ -15,7 +16,7 @@ export type PaperMeta = {
   sourceUrl: string | null
   pdfUrl: string | null
   tags: string[]
-  addedAt: string
+  addedAt: IsoDateTime
 }
 
 export type Paper = {
@@ -70,7 +71,7 @@ export function parsePaperMeta(raw: Record<string, unknown>, fallbackSlug: strin
     sourceUrl: asString(raw[FRONTMATTER_KEYS.sourceUrl]),
     pdfUrl: asString(raw[FRONTMATTER_KEYS.pdfUrl]),
     tags: asStringArray(raw[FRONTMATTER_KEYS.tags]),
-    addedAt: asString(raw[FRONTMATTER_KEYS.addedAt]) ?? new Date(0).toISOString(),
+    addedAt: parseIsoDateTime(raw[FRONTMATTER_KEYS.addedAt]) ?? EPOCH_ISO_DATE_TIME,
   }
 }
 

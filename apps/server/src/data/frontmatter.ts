@@ -1,4 +1,6 @@
-import { parse, stringify } from 'yaml'
+import { VFile } from 'vfile'
+import { matter } from 'vfile-matter'
+import { stringify } from 'yaml'
 
 export type Document = {
   meta: Record<string, unknown>
@@ -8,30 +10,22 @@ export type Document = {
 const FENCE = '---'
 
 /**
- * 先頭の `---` で囲まれた YAML を本文から切り離す。
+ * 先頭の frontmatter を本文から切り離す。
  *
- * frontmatter が無いファイルも読めるようにする。手で置いた markdown や、
- * 本文だけを持つ副次ファイルが対象になるため。
+ * 解析は vfile-matter に任せる。YAML 1.2 の `yaml` を使うため、日時が文字列の
+ * まま保たれる(YAML 1.1 の実装は `Date` へ変換し、書き戻しでオフセットを失う)。
  */
 export function splitDocument(text: string): Document {
-  const normalized = text.startsWith('﻿') ? text.slice(1) : text
-  const lines = normalized.split('\n')
-  if (lines[0]?.trim() !== FENCE) {
-    return { meta: {}, body: normalized }
-  }
+  const file = new VFile(text.startsWith('﻿') ? text.slice(1) : text)
+  matter(file, { strip: true })
 
-  const end = lines.findIndex((line, i) => i > 0 && line.trim() === FENCE)
-  if (end === -1) {
-    return { meta: {}, body: normalized }
-  }
+  const parsed: unknown = file.data.matter
+  const meta =
+    typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {}
 
-  const yamlText = lines.slice(1, end).join('\n')
-  const body = lines.slice(end + 1).join('\n')
-  const parsed: unknown = yamlText.trim().length > 0 ? parse(yamlText) : {}
-  const meta = typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
-    ? (parsed as Record<string, unknown>)
-    : {}
-
+  const body = String(file)
   return { meta, body: body.startsWith('\n') ? body.slice(1) : body }
 }
 
