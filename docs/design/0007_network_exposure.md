@@ -1,7 +1,7 @@
 # ネットワークの公開範囲
 
 - created: 2026-07-27
-- status: ready for review
+- status: reviewing
 - implementation: in-progress
 
 ## 解決したい問題
