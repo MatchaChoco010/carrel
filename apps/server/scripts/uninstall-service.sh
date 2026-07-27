@@ -1,9 +1,6 @@
 #!/bin/sh
-# install-service.sh が置いたものを取り除く。
-#
-# 設定($XDG_CONFIG_HOME/pct)と索引($XDG_STATE_HOME/pct)は消さない。
-# 索引は作り直せるが、設定とフィードの取得位置はユーザーの状態だからである。
-# 消したい場合は手で削除する。
+# install-service.sh が置いたユニットを取り除く。
+# 設定と索引は残す。消す場合は最後に表示するコマンドを実行する。
 
 set -eu
 

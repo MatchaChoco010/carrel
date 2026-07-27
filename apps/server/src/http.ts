@@ -1,7 +1,6 @@
 import { Hono } from 'hono'
 import type { Config } from './config.ts'
-import { saveConfig } from './config.ts'
-import { mergeConfig } from './config.ts'
+import { mergeConfig, saveConfig } from './config.ts'
 
 export type AppDeps = {
   getConfig: () => Config
@@ -23,7 +22,6 @@ export function createApp(deps: AppDeps): Hono {
 
   app.get('/api/config', (c) => c.json(deps.getConfig()))
 
-  // 設定は既定値の上に重ねてから保存する。部分的な更新をそのまま受けられる。
   app.put('/api/config', async (c) => {
     let body: unknown
     try {
@@ -31,6 +29,7 @@ export function createApp(deps: AppDeps): Hono {
     } catch {
       return c.json({ error: 'JSON として読めない本文が送られた' }, 400)
     }
+    // 現在の設定に受け取った値を重ねてから検証する。部分的な更新をそのまま受けられる。
     const next = mergeConfig({ ...deps.getConfig(), ...(body as Record<string, unknown>) })
     await saveConfig(next)
     deps.setConfig(next)

@@ -9,8 +9,8 @@ Type=simple
 ExecStart=@NODE@ @SERVER_ENTRY@
 Restart=on-failure
 RestartSec=5
-# 変換と埋め込みの生成は dGPU で行う。ROCm は iGPU も 1 つのデバイスとして
-# 列挙するため、明示的に dGPU へ固定しないとそちらへ載ることがある。
+# ROCm は iGPU も 1 つのデバイスとして列挙するため、外すと変換や埋め込みの
+# 生成が iGPU に載ることがある。
 Environment=ROCR_VISIBLE_DEVICES=0
 Environment=NODE_ENV=production
 StandardOutput=journal

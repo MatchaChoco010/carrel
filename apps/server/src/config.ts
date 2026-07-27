@@ -3,19 +3,14 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { configDir, configFile } from './paths.ts'
 
-// 設定はローカルディスクの JSON ファイルに置く(0001「設定の置き場所」)。
-// $PCT_DATA の中に置けないのは、$PCT_DATA の場所そのものが設定項目だからである。
-
 export type Config = {
-  /** 論文とチャットを置くディレクトリ。NAS のマウント先。 */
   dataDir: string
   server: {
+    host: string
     port: number
   }
   arxiv: {
-    /** 購読するカテゴリ。 */
     categories: string[]
-    /** 取得の間隔(分)。 */
     fetchIntervalMinutes: number
     /** 取得位置の記録が無いときに遡る日数。 */
     initialLookbackDays: number
@@ -28,7 +23,7 @@ export type Config = {
 
 export const defaultConfig: Config = {
   dataDir: join(homedir(), 'pct-data'),
-  server: { port: 7817 },
+  server: { host: '0.0.0.0', port: 7817 },
   arxiv: {
     categories: ['cs.GR'],
     fetchIntervalMinutes: 180,
@@ -43,8 +38,8 @@ export const defaultConfig: Config = {
 /**
  * 保存された設定を既定値の上に重ねる。
  *
- * 未知のキーは捨て、欠けているキーは既定値で埋める。設定ファイルを手で編集して
- * 一部だけを書いた場合でも起動できるようにするため。
+ * 欠けているキーと範囲外の値は既定値で埋め、未知のキーは捨てる。
+ * 設定ファイルを手で編集して一部だけを書いた場合でも起動できる。
  */
 export function mergeConfig(stored: unknown): Config {
   if (typeof stored !== 'object' || stored === null) return structuredClone(defaultConfig)
@@ -57,7 +52,11 @@ export function mergeConfig(stored: unknown): Config {
 
   const server = raw['server']
   if (typeof server === 'object' && server !== null) {
-    const port = (server as Record<string, unknown>)['port']
+    const s = server as Record<string, unknown>
+    if (typeof s['host'] === 'string' && s['host'].length > 0) {
+      merged.server.host = s['host']
+    }
+    const port = s['port']
     if (typeof port === 'number' && Number.isInteger(port) && port > 0 && port < 65536) {
       merged.server.port = port
     }
@@ -67,8 +66,7 @@ export function mergeConfig(stored: unknown): Config {
   if (typeof arxiv === 'object' && arxiv !== null) {
     const a = arxiv as Record<string, unknown>
     if (Array.isArray(a['categories'])) {
-      const categories = a['categories'].filter((c): c is string => typeof c === 'string' && c.length > 0)
-      merged.arxiv.categories = categories
+      merged.arxiv.categories = a['categories'].filter((c): c is string => typeof c === 'string' && c.length > 0)
     }
     if (typeof a['fetchIntervalMinutes'] === 'number' && a['fetchIntervalMinutes'] > 0) {
       merged.arxiv.fetchIntervalMinutes = a['fetchIntervalMinutes']
@@ -107,15 +105,11 @@ export async function loadConfig(): Promise<Config> {
   return mergeConfig(JSON.parse(text))
 }
 
-/**
- * 設定を書く。
- *
- * 同じディレクトリへ書いてから rename することで、書き込み中に読まれても
- * 中途半端な内容を渡さない。
- */
 export async function saveConfig(config: Config): Promise<void> {
   const file = configFile()
   await mkdir(configDir(), { recursive: true })
+  // 書き込み中に読まれても中途半端な内容を渡さないよう、同じディレクトリへ
+  // 書いてから rename する。
   const tmp = join(dirname(file), `.config.json.${process.pid}.tmp`)
   await writeFile(tmp, `${JSON.stringify(config, null, 2)}\n`, 'utf8')
   await rename(tmp, file)

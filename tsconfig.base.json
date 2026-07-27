@@ -10,9 +10,6 @@
     "exactOptionalPropertyTypes": true,
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
-    // ソースでは .ts 拡張子で import し、emit 時に .js へ書き換える。
-    // これにより Node の型剥がし実行(dev)とビルド結果の実行(本番)の
-    // どちらでも同じ import が通る。
     "allowImportingTsExtensions": true,
     "rewriteRelativeImportExtensions": true,
     "skipLibCheck": true,

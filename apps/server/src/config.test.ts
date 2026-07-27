@@ -15,6 +15,12 @@ test('書かれたキーだけを既定値の上に重ねる', () => {
   assert.equal(merged.server.port, defaultConfig.server.port)
 })
 
+test('待ち受けるアドレスを設定で変えられる', () => {
+  assert.equal(mergeConfig({ server: { host: '127.0.0.1' } }).server.host, '127.0.0.1')
+  assert.equal(mergeConfig({}).server.host, '0.0.0.0')
+  assert.equal(mergeConfig({ server: { host: '' } }).server.host, defaultConfig.server.host)
+})
+
 test('範囲の外れた値は既定値のまま残す', () => {
   assert.equal(mergeConfig({ server: { port: 0 } }).server.port, defaultConfig.server.port)
   assert.equal(mergeConfig({ server: { port: 70000 } }).server.port, defaultConfig.server.port)

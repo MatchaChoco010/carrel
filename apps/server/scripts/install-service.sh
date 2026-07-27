@@ -1,8 +1,6 @@
 #!/bin/sh
 # pct サーバーを systemd の user service として導入する。
-#
-# PC の起動時からログインなしで動かすため lingering を有効にする(0001)。
-# アンインストールは uninstall-service.sh。
+# 取り除くときは uninstall-service.sh を実行する。
 
 set -eu
 
@@ -24,7 +22,7 @@ mkdir -p "$unit_dir"
 sed -e "s#@NODE@#$node_bin#" -e "s#@SERVER_ENTRY@#$entry#" \
   "$server_dir/build/pct-server.service" > "$unit"
 
-# ユーザーがログインしていなくてもサービスを動かす。
+# ログインしていない状態でもサービスを動かすために lingering を有効にする。
 if ! loginctl show-user "$(id -un)" --property=Linger 2>/dev/null | grep -q 'Linger=yes'; then
   echo "lingering を有効にする(sudo が必要)"
   sudo loginctl enable-linger "$(id -un)"
