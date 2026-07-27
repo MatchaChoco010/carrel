@@ -6,7 +6,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=@NODE@ @SERVER_ENTRY@
+ExecStart=@NODE@ --disable-warning=ExperimentalWarning @SERVER_ENTRY@
 Restart=on-failure
 RestartSec=5
 # ROCm は iGPU も 1 つのデバイスとして列挙するため、外すと変換や埋め込みの

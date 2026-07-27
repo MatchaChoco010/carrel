@@ -3,21 +3,50 @@ import { mkdir } from 'node:fs/promises'
 import type { Server } from 'node:http'
 import { WebSocketServer } from 'ws'
 import { loadConfig, type Config } from './config.ts'
+import { Collection } from './data/collection.ts'
+import { IndexDb } from './db/index-db.ts'
+import { StateDb } from './db/state-db.ts'
 import { createApp } from './http.ts'
 import { Hub } from './hub.ts'
-import { stateDir } from './paths.ts'
+import { indexDbFile, stateDbFile, stateDir } from './paths.ts'
 
 async function main(): Promise<void> {
   let config: Config = await loadConfig()
   await mkdir(stateDir(), { recursive: true })
 
   const hub = new Hub()
+  const index = new IndexDb(indexDbFile())
+  const state = new StateDb(stateDbFile())
+
+  const collection = new Collection(config.dataDir, index, {
+    onPaperChanged: (slug) => hub.broadcast({ type: 'paper.changed', payload: { slug } }),
+    onPaperRemoved: (slug) => hub.broadcast({ type: 'paper.removed', payload: { slug } }),
+    onChatChanged: (path) => hub.broadcast({ type: 'chat.changed', payload: { path } }),
+    onChatRemoved: (path) => hub.broadcast({ type: 'chat.removed', payload: { path } }),
+  })
+
+  await collection.ensureDirs()
+  const scanned = await collection.scan()
+  console.log(
+    `索引を同期した: 論文 ${scanned.papersIndexed} 件を読み込み ${scanned.papersRemoved} 件を除去、` +
+      `チャット ${scanned.chatsIndexed} 件を読み込み ${scanned.chatsRemoved} 件を除去`,
+  )
+  collection.startWatching()
+
   const app = createApp({
     getConfig: () => config,
     setConfig: (next) => {
       config = next
     },
     clientCount: () => hub.size,
+    index,
+    collection,
+    rebuildIndex: async () => {
+      index.reset()
+      const result = await collection.scan()
+      hub.broadcast({ type: 'index.rebuilt', payload: result })
+      return result
+    },
   })
 
   const server = serve({
@@ -30,11 +59,15 @@ async function main(): Promise<void> {
   wss.on('connection', (socket) => hub.add(socket))
 
   console.log(`listening on http://${config.server.host}:${config.server.port}`)
+  console.log(`data dir: ${config.dataDir}`)
 
   const shutdown = (signal: string): void => {
     console.log(`${signal} を受けたので終了する`)
+    collection.stopWatching()
     hub.closeAll()
     server.close()
+    index.close()
+    state.close()
     // close は既存の keep-alive 接続が閉じるのを待つため、期限を切って終了する。
     setTimeout(() => process.exit(0), 500).unref()
   }
