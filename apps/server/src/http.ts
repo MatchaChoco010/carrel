@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import type { CodexService } from './codex/service.ts'
 import type { Collection, ScanResult } from './data/collection.ts'
 import type { Config } from './config.ts'
 import { mergeConfig, saveConfig } from './config.ts'
@@ -11,6 +12,7 @@ export type AppDeps = {
   index: IndexDb
   collection: Collection
   rebuildIndex: () => Promise<ScanResult>
+  codex: CodexService
 }
 
 export function createApp(deps: AppDeps): Hono {
@@ -51,6 +53,18 @@ export function createApp(deps: AppDeps): Hono {
   )
 
   app.post('/api/index/rebuild', async (c) => c.json(await deps.rebuildIndex()))
+
+  app.get('/api/codex/status', (c) =>
+    c.json({ running: deps.codex.running, rateLimits: deps.codex.rateLimits }),
+  )
+
+  app.post('/api/codex/rate-limits/refresh', async (c) => {
+    try {
+      return c.json({ rateLimits: await deps.codex.refreshRateLimits() })
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 503)
+    }
+  })
 
   app.delete('/api/papers/:slug', async (c) => {
     const slug = c.req.param('slug')
