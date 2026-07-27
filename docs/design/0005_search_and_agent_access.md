@@ -1,7 +1,7 @@
 # 検索とエージェントへのコレクションの公開
 
 - created: 2026-07-27
-- status: ready for review
+- status: approved
 - implementation: not-started
 
 ## 解決したい問題

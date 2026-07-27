@@ -1,7 +1,7 @@
 # 論文とチャットのデータ契約
 
 - created: 2026-07-27
-- status: ready for review
+- status: approved
 - implementation: not-started
 
 ## 解決したい問題
@@ -113,7 +113,8 @@ $PCT_DATA/
       paper.ja.md       日本語訳の本文
       abstract.md       英語の abstract
       abstract.ja.md    日本語訳の abstract
-      paper.raw.md      数式の照合を行う前の変換結果
+      paper.raw.md      照合を行う前の変換結果
+      verification.md   照合でページごとに何をどう変えたかの記録
       original.pdf      取得した原本
       assets/           本文から参照する図表の画像
       pages/            PDF を 1 ページずつ画像化したもの
@@ -126,11 +127,15 @@ $PCT_DATA/
 `paper.ja.md`、`abstract.md`、`abstract.ja.md` は、そのファイルが何なのかを単体で判別できるように slug と言語だけを frontmatter に持ち、論文のメタデータは重複させない。
 同じ情報を複数のファイルに置くと、片方だけ編集されたときにどちらが正か決められなくなるからである。
 
-`paper.raw.md` は、数式の照合によって本文がどう変わったかをユーザーが確認するために残す。
-照合は AI の判断であり、正しい数式を誤って書き換える可能性がある(0004)。
-差分を見られる形が無いと、誤った修正に気づく手段が無くなる。
+`paper.raw.md` と `verification.md` は、照合によって本文がどう変わったかをユーザーが確認するために残す。
+照合はページ画像と変換結果を突き合わせる AI の判断であり、正しかった箇所を誤って書き換える可能性がある(0004)。
+`paper.raw.md` との差分が「何が変わったか」を、`verification.md` が「なぜそう変えたか」を示す。
+差分だけでは、変更が妥当な修正なのか AI の書き換えなのかを区別できない。
 
-`pages/` は数式の照合に使ったページ画像である。
+`verification.md` はページ単位で、変更の内容・その判断の根拠・どちらの情報源を採ったかを持つ。
+変更点の多いページが分かる形にすることで、原本の PDF と突き合わせるべき箇所をユーザーが絞れる。
+
+`pages/` は照合に使ったページ画像で、PDF の全ページぶんを持つ。
 照合をやり直すときに PDF から作り直す必要が無くなる。
 
 ### 論文の frontmatter が持つ情報
