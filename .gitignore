@@ -4,3 +4,8 @@
 # dependencies of harness/scripts
 harness/scripts/node_modules/
 # --- agent-harness sync: end of managed block ---
+
+# --- pct ---
+node_modules/
+dist/
+*.tsbuildinfo

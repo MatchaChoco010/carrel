@@ -1,0 +1,21 @@
+[Unit]
+Description=pct (paper collection tool) server
+Documentation=https://github.com/MatchaChoco010/paper-collection-tool
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=@NODE@ @SERVER_ENTRY@
+Restart=on-failure
+RestartSec=5
+# ROCm は iGPU も 1 つのデバイスとして列挙するため、外すと変換や埋め込みの
+# 生成が iGPU に載ることがある。
+Environment=ROCR_VISIBLE_DEVICES=0
+Environment=NODE_ENV=production
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pct
+
+[Install]
+WantedBy=default.target
