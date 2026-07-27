@@ -11,6 +11,6 @@ pct(paper collection tool)の設計判断の記録。
 | [0004](0004_paper_ingestion_and_feed.md) | 論文の取り込みと arXiv フィード | approved | not-started |
 | [0005](0005_search_and_agent_access.md) | 検索とエージェントへのコレクションの公開 | approved | not-started |
 | [0006](0006_chat_lifecycle.md) | チャットのライフサイクル | approved | not-started |
-| [0007](0007_network_exposure.md) | ネットワークの公開範囲 | reviewing | in-progress |
+| [0007](0007_network_exposure.md) | ネットワークの公開範囲 | approved | done (2026-07-27) |
 
 件数: 7
