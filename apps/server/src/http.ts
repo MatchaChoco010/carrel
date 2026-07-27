@@ -1,11 +1,16 @@
 import { Hono } from 'hono'
+import type { Collection, ScanResult } from './data/collection.ts'
 import type { Config } from './config.ts'
 import { mergeConfig, saveConfig } from './config.ts'
+import type { IndexDb } from './db/index-db.ts'
 
 export type AppDeps = {
   getConfig: () => Config
   setConfig: (config: Config) => void
   clientCount: () => number
+  index: IndexDb
+  collection: Collection
+  rebuildIndex: () => Promise<ScanResult>
 }
 
 export function createApp(deps: AppDeps): Hono {
@@ -34,6 +39,23 @@ export function createApp(deps: AppDeps): Hono {
     await saveConfig(next)
     deps.setConfig(next)
     return c.json(next)
+  })
+
+  app.get('/api/index/status', (c) =>
+    c.json({
+      papers: deps.index.countPapers(),
+      chats: deps.index.countChats(),
+      staleEmbeddings: deps.index.staleEmbeddingSlugs().length,
+      tags: deps.index.tagCounts(),
+    }),
+  )
+
+  app.post('/api/index/rebuild', async (c) => c.json(await deps.rebuildIndex()))
+
+  app.delete('/api/papers/:slug', async (c) => {
+    const slug = c.req.param('slug')
+    await deps.collection.deletePaper(slug)
+    return c.json({ deleted: slug })
   })
 
   return app

@@ -7,14 +7,15 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "dev": "node --watch --experimental-strip-types src/main.ts",
-    "start": "node dist/main.js",
-    "test": "node --experimental-strip-types --test 'src/**/*.test.ts'"
+    "dev": "node --watch --disable-warning=ExperimentalWarning --experimental-strip-types src/main.ts",
+    "start": "node --disable-warning=ExperimentalWarning dist/main.js",
+    "test": "node --disable-warning=ExperimentalWarning --experimental-strip-types --test 'src/**/*.test.ts'"
   },
   "dependencies": {
     "@hono/node-server": "^1.15.0",
     "hono": "^4.9.0",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
