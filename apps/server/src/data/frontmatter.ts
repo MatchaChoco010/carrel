@@ -1,6 +1,5 @@
-import { VFile } from 'vfile'
-import { matter } from 'vfile-matter'
-import { stringify } from 'yaml'
+import matter from 'gray-matter'
+import { parse, stringify } from 'yaml'
 
 export type Document = {
   meta: Record<string, unknown>
@@ -9,24 +8,44 @@ export type Document = {
 
 const FENCE = '---'
 
+// gray-matter の既定のエンジンは YAML 1.1 で、日時を Date へ変換する。書き戻すと
+// ファイルに書かれたオフセットが UTC へ畳まれるため、YAML 1.2 の yaml に差し替える。
+const OPTIONS = {
+  engines: {
+    yaml: {
+      parse: (input: string): object => {
+        const value: unknown = parse(input)
+        return typeof value === 'object' && value !== null ? value : {}
+      },
+      stringify: (input: object): string => stringify(input),
+    },
+  },
+}
+
 /**
  * 先頭の frontmatter を本文から切り離す。
  *
- * 解析は vfile-matter に任せる。YAML 1.2 の `yaml` を使うため、日時が文字列の
- * まま保たれる(YAML 1.1 の実装は `Date` へ変換し、書き戻しでオフセットを失う)。
+ * `$PCT_DATA` は人が触るので、YAML として壊れているファイルが混ざりうる。
+ * その場合は例外にせず、frontmatter が無いものとして本文だけを返す。
+ * 走査の途中で 1 ファイルのために全体が止まらないようにする。
  */
 export function splitDocument(text: string): Document {
-  const file = new VFile(text.startsWith('﻿') ? text.slice(1) : text)
-  matter(file, { strip: true })
+  const normalized = text.startsWith('﻿') ? text.slice(1) : text
 
-  const parsed: unknown = file.data.matter
+  let data: unknown
+  let content: string
+  try {
+    const parsed = matter(normalized, OPTIONS)
+    data = parsed.data
+    content = parsed.content
+  } catch {
+    return { meta: {}, body: normalized }
+  }
+
   const meta =
-    typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : {}
+    typeof data === 'object' && data !== null && !Array.isArray(data) ? (data as Record<string, unknown>) : {}
 
-  const body = String(file)
-  return { meta, body: body.startsWith('\n') ? body.slice(1) : body }
+  return { meta, body: content.startsWith('\n') ? content.slice(1) : content }
 }
 
 export function joinDocument(document: Document): string {
