@@ -1,7 +1,7 @@
 # pct の全体アーキテクチャと配置
 
 - created: 2026-07-27
-- status: reviewing
+- status: approved
 - implementation: not-started
 
 ## 解決したい問題
