@@ -1,0 +1,5 @@
+# bot(GitHub App)の資格情報
+.env
+
+# harness/scripts の依存
+harness/scripts/node_modules/
