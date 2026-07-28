@@ -1,4 +1,4 @@
-/** 取り込みの段階。前の段階の成果物を入力に、自分の成果物を作る。 */
+/** 取り込みの段階。 */
 export type IngestStage = 'resolve' | 'fetch' | 'convert' | 'verify' | 'translate' | 'register'
 
 export const INGEST_STAGES: IngestStage[] = ['resolve', 'fetch', 'convert', 'verify', 'translate', 'register']

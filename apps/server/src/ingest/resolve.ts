@@ -80,12 +80,7 @@ export type ResolveDeps = {
   model: string
 }
 
-/**
- * URL から原本の所在と書誌情報を確定する。
- *
- * 既知の出所は規則で解き、外れたものだけエージェントへ委ねる。規則だけでは
- * 未知の出所で必ず失敗し、すべて委ねると arXiv の 1 本にも枠を使うため。
- */
+/** URL から原本の所在と書誌情報を確定する。 */
 export async function resolveSource(sourceUrl: string, deps: ResolveDeps): Promise<ResolveOutcome> {
   const bySourceUrl = deps.known.bySourceUrl(sourceUrl)
   if (bySourceUrl !== null) return { kind: 'duplicate', slug: bySourceUrl, reason: 'sourceUrl' }

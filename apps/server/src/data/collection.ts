@@ -88,9 +88,9 @@ export class Collection {
   }
 
   async #indexPaper(slug: string, knownMtimeMs?: number, knownBodyHash?: string): Promise<boolean> {
-    // 取り込みの途中の論文は索引へ載せない。すべての成果物が揃ってから
-    // 検索の対象にする。
     if (this.#incomplete().has(slug)) {
+      // 索引に載った後で未完了に戻ることがある(取り込み済みの論文を同じ slug で
+      // 取り込み直した場合など)ので、載っていたものは外す。
       if (knownMtimeMs !== undefined) {
         this.#index.deletePaper(slug)
         this.#events.onPaperRemoved?.(slug)

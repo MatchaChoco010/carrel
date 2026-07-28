@@ -41,12 +41,6 @@ function toRecord(row: Row): IngestRecord {
   }
 }
 
-/**
- * 取り込みが始まっているかを扱う。
- *
- * 検索の索引とは別のデータにしてある。索引へ載せるのは全段階が終わった論文
- * だけなので、取り込みの開始を索引で表すことはできない。
- */
 export class IngestStore {
   readonly #db: DatabaseSync
   readonly #now: () => number
@@ -112,7 +106,7 @@ export class IngestStore {
     return row === undefined ? null : toRecord(row)
   }
 
-  /** まだ全段階が終わっていない論文。索引へ載せてはいけない。 */
+  /** まだ全段階が終わっていない論文。 */
   incompleteSlugs(): Set<string> {
     const rows = this.#db.prepare(`select slug from ingests where status <> 'done'`).all() as Array<{ slug: string }>
     return new Set(rows.map((r) => r.slug))

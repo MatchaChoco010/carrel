@@ -31,11 +31,7 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-/**
- * 段階が完了しているかを、成果物の存在で判定する。
- *
- * 中断の理由(枠の枯渇、異常終了、再起動)に関わらず同じ判定で再開できる。
- */
+/** 段階が完了しているかを、成果物の存在で判定する。 */
 export async function completedStages(dataDir: string, slug: string): Promise<Set<IngestStage>> {
   const done = new Set<IngestStage>()
   if (await exists(paperFile(dataDir, slug, 'body'))) done.add('resolve')
@@ -63,12 +59,7 @@ function toMeta(slug: string, source: ResolvedSource, sourceUrl: string): PaperM
   }
 }
 
-/**
- * 解決と取得までを行う。
- *
- * 索引へは載せない。載せるのは全段階が終わったときで、その処理は登録の段階
- * (#16)が持つ。取り込みが始まっているかどうかは取り込みの記録が答える。
- */
+/** 解決と取得までを行う。 */
 export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<IngestResult> {
   const outcome = await resolveSource(url, {
     codex: deps.codex,
@@ -97,7 +88,6 @@ export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<Inge
     (candidate) => taken.has(candidate),
   )
 
-  // 取り込みの開始を先に記録する。以降の段階が終わるまで索引へは載らない。
   deps.ingests.start({
     slug,
     sourceUrl,
