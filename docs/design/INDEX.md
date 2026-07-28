@@ -12,5 +12,7 @@ pct(paper collection tool)の設計判断の記録。
 | [0005](0005_search_and_agent_access.md) | 検索とエージェントへのコレクションの公開 | approved | not-started |
 | [0006](0006_chat_lifecycle.md) | チャットのライフサイクル | approved | not-started |
 | [0007](0007_network_exposure.md) | ネットワークの公開範囲 | approved | done (2026-07-27) |
+| [0008](0008_conversion_runtime.md) | 論文の変換に使う実装と実行環境 | ready for review | not-started |
+| [0009](0009_text_authority_in_verification.md) | 照合で文字の正をどこに置くか | ready for review | not-started |
 
-件数: 7
+件数: 9
