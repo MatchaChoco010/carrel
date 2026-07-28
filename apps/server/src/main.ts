@@ -11,7 +11,7 @@ import { createApp } from './http.ts'
 import { JobQueue } from './jobs/queue.ts'
 import { JobStore } from './jobs/store.ts'
 import { Hub } from './hub.ts'
-import { indexDbFile, stateDbFile, stateDir } from './paths.ts'
+import { indexDbFile, stateDbFile, stateDir, webRoot } from './paths.ts'
 
 async function main(): Promise<void> {
   let config: Config = await loadConfig()
@@ -68,6 +68,7 @@ async function main(): Promise<void> {
     },
     codex,
     jobs,
+    webRoot: await webRoot(),
   })
 
   const server = serve({

@@ -1,5 +1,7 @@
+import { access } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join, relative } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 function xdg(envName: string, fallback: string): string {
   const value = process.env[envName]
@@ -24,4 +26,19 @@ export function indexDbFile(): string {
 
 export function stateDbFile(): string {
   return join(stateDir(), 'state.sqlite')
+}
+
+/**
+ * ビルド済みの Web クライアントの場所。
+ *
+ * 開発時は vite の開発サーバーが配信するので、無ければ配信しない。
+ */
+export async function webRoot(): Promise<string | null> {
+  const candidate = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'web', 'dist')
+  try {
+    await access(join(candidate, 'index.html'))
+    return relative(process.cwd(), candidate)
+  } catch {
+    return null
+  }
 }
