@@ -10,6 +10,7 @@ import { StateDb } from './db/state-db.ts'
 import { createApp } from './http.ts'
 import { JobQueue } from './jobs/queue.ts'
 import { JobStore } from './jobs/store.ts'
+import { IngestStore } from './ingest/store.ts'
 import { Hub } from './hub.ts'
 import { indexDbFile, stateDbFile, stateDir, webRoot } from './paths.ts'
 
@@ -20,13 +21,15 @@ async function main(): Promise<void> {
   const hub = new Hub()
   const index = new IndexDb(indexDbFile())
   const state = new StateDb(stateDbFile())
+  const ingests = new IngestStore(state.db)
 
   const collection = new Collection(config.dataDir, index, {
     onPaperChanged: (slug) => hub.broadcast({ type: 'paper.changed', payload: { slug } }),
     onPaperRemoved: (slug) => hub.broadcast({ type: 'paper.removed', payload: { slug } }),
     onChatChanged: (path) => hub.broadcast({ type: 'chat.changed', payload: { path } }),
     onChatRemoved: (path) => hub.broadcast({ type: 'chat.removed', payload: { path } }),
-  })
+  },
+  () => ingests.incompleteSlugs())
 
   await collection.ensureDirs()
   const scanned = await collection.scan()
@@ -68,6 +71,7 @@ async function main(): Promise<void> {
     },
     codex,
     jobs,
+    ingests,
     webRoot: await webRoot(),
   })
 

@@ -13,6 +13,9 @@ export type ScanResult = {
   chatsRemoved: number
 }
 
+/** まだ全段階が終わっていない論文を教える口。 */
+export type IncompleteImports = () => Set<string>
+
 export type CollectionEvents = {
   onPaperChanged?: (slug: string) => void
   onPaperRemoved?: (slug: string) => void
@@ -24,13 +27,20 @@ export class Collection {
   readonly #dataDir: string
   readonly #index: IndexDb
   readonly #events: CollectionEvents
+  readonly #incomplete: IncompleteImports
   #watchers: FSWatcher[] = []
   #pending = new Map<string, NodeJS.Timeout>()
 
-  constructor(dataDir: string, index: IndexDb, events: CollectionEvents = {}) {
+  constructor(
+    dataDir: string,
+    index: IndexDb,
+    events: CollectionEvents = {},
+    incomplete: IncompleteImports = () => new Set(),
+  ) {
     this.#dataDir = dataDir
     this.#index = index
     this.#events = events
+    this.#incomplete = incomplete
   }
 
   async ensureDirs(): Promise<void> {
@@ -78,6 +88,16 @@ export class Collection {
   }
 
   async #indexPaper(slug: string, knownMtimeMs?: number, knownBodyHash?: string): Promise<boolean> {
+    if (this.#incomplete().has(slug)) {
+      // 索引に載った後で未完了に戻ることがある(取り込み済みの論文を同じ slug で
+      // 取り込み直した場合など)ので、載っていたものは外す。
+      if (knownMtimeMs !== undefined) {
+        this.#index.deletePaper(slug)
+        this.#events.onPaperRemoved?.(slug)
+      }
+      return false
+    }
+
     const paper = await readPaper(this.#dataDir, slug)
     if (paper === null) {
       if (knownMtimeMs !== undefined) {

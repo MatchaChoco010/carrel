@@ -5,6 +5,8 @@ import type { Collection, ScanResult } from './data/collection.ts'
 import type { Config } from './config.ts'
 import { mergeConfig, saveConfig } from './config.ts'
 import type { IndexDb } from './db/index-db.ts'
+import { discardIngest, ingestFromUrl } from './ingest/pipeline.ts'
+import type { IngestStore } from './ingest/store.ts'
 import type { JobQueue } from './jobs/queue.ts'
 
 export type AppDeps = {
@@ -16,6 +18,7 @@ export type AppDeps = {
   rebuildIndex: () => Promise<ScanResult>
   codex: CodexService
   jobs: JobQueue
+  ingests: IngestStore
   /** ビルド済みの Web クライアントの場所。無ければ配信しない。 */
   webRoot: string | null
 }
@@ -77,9 +80,38 @@ export function createApp(deps: AppDeps): Hono {
     return c.json({ counts: deps.jobs.counts(), jobs })
   })
 
+  app.post('/api/papers/import', async (c) => {
+    let body: unknown
+    try {
+      body = await c.req.json()
+    } catch {
+      return c.json({ error: 'JSON として読めない本文が送られた' }, 400)
+    }
+    const url = (body as { url?: unknown }).url
+    if (typeof url !== 'string' || url.trim().length === 0) {
+      return c.json({ error: 'url を指定すること' }, 400)
+    }
+
+    try {
+      const result = await ingestFromUrl(url.trim(), {
+        dataDir: deps.getConfig().dataDir,
+        index: deps.index,
+        ingests: deps.ingests,
+        codex: deps.codex.client,
+        model: deps.getConfig().chat.defaultModel,
+      })
+      return c.json(result)
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 502)
+    }
+  })
+
+  app.get('/api/ingests', (c) => c.json({ ingests: deps.ingests.list() }))
+
   app.delete('/api/papers/:slug', async (c) => {
     const slug = c.req.param('slug')
     await deps.collection.deletePaper(slug)
+    await discardIngest(deps.getConfig().dataDir, slug, deps.ingests)
     return c.json({ deleted: slug })
   })
 

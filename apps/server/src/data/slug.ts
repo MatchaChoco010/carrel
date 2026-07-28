@@ -34,14 +34,29 @@ export function lastNameOf(author: string): string {
   return normalizeName(parts[parts.length - 1] ?? '')
 }
 
-export function normalizeKeyword(keyword: string): string {
-  const words = keyword
+function words(value: string): string[] {
+  return value
     .normalize('NFKD')
     .replace(/\p{M}+/gu, '')
     .toLowerCase()
     .split(/[^a-z0-9]+/)
     .filter((w) => w.length > 0)
-  return words.slice(0, 3).join('-')
+}
+
+/**
+ * slug の語幹を作る。
+ *
+ * タイトルをそのまま渡された場合に備えて、コロンより前が 2 語までならそちらを
+ * 使う。`NeRF: Representing Scenes as ...` のように、略称をコロンの前に置く
+ * 書き方が多いため。
+ */
+export function normalizeKeyword(keyword: string): string {
+  const colon = keyword.indexOf(':')
+  if (colon > 0) {
+    const head = words(keyword.slice(0, colon))
+    if (head.length > 0 && head.length <= 2) return head.join('-')
+  }
+  return words(keyword).slice(0, 3).join('-')
 }
 
 function shortHash(identity: string): string {

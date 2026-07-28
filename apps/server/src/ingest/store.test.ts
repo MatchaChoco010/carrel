@@ -1,0 +1,149 @@
+import assert from 'node:assert/strict'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { test } from 'node:test'
+import { Collection } from '../data/collection.ts'
+import { writePaper, type PaperMeta } from '../data/paper.ts'
+import { IndexDb } from '../db/index-db.ts'
+import { StateDb } from '../db/state-db.ts'
+import { IngestStore } from './store.ts'
+
+function harness() {
+  const root = mkdtempSync(join(tmpdir(), 'pct-ingest-'))
+  const state = new StateDb(join(root, 'state.sqlite'))
+  const index = new IndexDb(join(root, 'index.sqlite'))
+  const ingests = new IngestStore(state.db)
+  const dataDir = join(root, 'data')
+  const collection = new Collection(dataDir, index, {}, () => ingests.incompleteSlugs())
+  return {
+    dataDir,
+    index,
+    ingests,
+    collection,
+    close: () => {
+      state.close()
+      index.close()
+      rmSync(root, { recursive: true, force: true })
+    },
+  }
+}
+
+const meta = (slug: string): PaperMeta => ({
+  slug,
+  title: 'T',
+  authors: ['A B'],
+  venue: null,
+  year: 2020,
+  arxivId: '2003.08934',
+  sourceUrl: 'https://arxiv.org/abs/2003.08934',
+  pdfUrl: 'https://arxiv.org/pdf/2003.08934',
+  tags: [],
+  addedAt: '2026-07-28T12:00:00+09:00' as PaperMeta['addedAt'],
+})
+
+test('取り込みの開始を記録し、識別子と URL の両方から引ける', () => {
+  const h = harness()
+  try {
+    h.ingests.start({
+      slug: 'a2020-x',
+      sourceUrl: 'https://arxiv.org/abs/2003.08934',
+      arxivId: '2003.08934',
+      originalUrl: 'https://arxiv.org/pdf/2003.08934',
+    })
+    assert.equal(h.ingests.byArxivId('2003.08934')?.slug, 'a2020-x')
+    assert.equal(h.ingests.bySourceUrl('https://arxiv.org/abs/2003.08934')?.slug, 'a2020-x')
+    assert.equal(h.ingests.bySourceUrl('https://arxiv.org/pdf/2003.08934')?.slug, 'a2020-x')
+    assert.equal(h.ingests.get('a2020-x')?.status, 'inProgress')
+  } finally {
+    h.close()
+  }
+})
+
+test('取り込みの途中の論文は索引へ載らない', async () => {
+  const h = harness()
+  try {
+    await h.collection.ensureDirs()
+    h.ingests.start({ slug: 'a2020-x', sourceUrl: 'u', arxivId: null, originalUrl: null })
+    await writePaper(h.dataDir, meta('a2020-x'), '本文\n')
+
+    const result = await h.collection.scan()
+    assert.equal(result.papersIndexed, 0)
+    assert.equal(h.index.countPapers(), 0)
+  } finally {
+    h.close()
+  }
+})
+
+test('全段階が終わってから索引へ載る', async () => {
+  const h = harness()
+  try {
+    await h.collection.ensureDirs()
+    h.ingests.start({ slug: 'a2020-x', sourceUrl: 'u', arxivId: null, originalUrl: null })
+    await writePaper(h.dataDir, meta('a2020-x'), '本文\n')
+    await h.collection.scan()
+    assert.equal(h.index.countPapers(), 0)
+
+    h.ingests.finish('a2020-x')
+    const result = await h.collection.scan()
+    assert.equal(result.papersIndexed, 1)
+    assert.equal(h.index.countPapers(), 1)
+  } finally {
+    h.close()
+  }
+})
+
+test('取り込みの記録が無い論文は、外部から置かれた完成品として索引へ載る', async () => {
+  const h = harness()
+  try {
+    await h.collection.ensureDirs()
+    await writePaper(h.dataDir, meta('handplaced2020-x'), '本文\n')
+
+    const result = await h.collection.scan()
+    assert.equal(result.papersIndexed, 1)
+    assert.equal(h.index.countPapers(), 1)
+  } finally {
+    h.close()
+  }
+})
+
+test('索引に載った後で取り込みが失敗に落ちたら、索引から外す', async () => {
+  const h = harness()
+  try {
+    await h.collection.ensureDirs()
+    await writePaper(h.dataDir, meta('a2020-x'), '本文\n')
+    await h.collection.scan()
+    assert.equal(h.index.countPapers(), 1)
+
+    h.ingests.start({ slug: 'a2020-x', sourceUrl: 'u', arxivId: null, originalUrl: null })
+    await writePaper(h.dataDir, meta('a2020-x'), '本文を書き換えた\n')
+    await h.collection.scan()
+    assert.equal(h.index.countPapers(), 0)
+  } finally {
+    h.close()
+  }
+})
+
+test('失敗した取り込みも、まだ完了していないものとして扱う', () => {
+  const h = harness()
+  try {
+    h.ingests.start({ slug: 'a2020-x', sourceUrl: 'u', arxivId: null, originalUrl: null })
+    h.ingests.fail('a2020-x', '取得できなかった')
+    assert.deepEqual([...h.ingests.incompleteSlugs()], ['a2020-x'])
+    assert.equal(h.ingests.get('a2020-x')?.lastError, '取得できなかった')
+  } finally {
+    h.close()
+  }
+})
+
+test('取り込みを取り消すと記録が消える', () => {
+  const h = harness()
+  try {
+    h.ingests.start({ slug: 'a2020-x', sourceUrl: 'u', arxivId: null, originalUrl: null })
+    h.ingests.remove('a2020-x')
+    assert.equal(h.ingests.get('a2020-x'), null)
+    assert.equal(h.ingests.incompleteSlugs().size, 0)
+  } finally {
+    h.close()
+  }
+})
