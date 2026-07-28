@@ -32,6 +32,25 @@ const MIGRATIONS: Migration[] = [
       create index jobs_state on jobs (state);
     `,
   },
+  {
+    version: 3,
+    up: `
+      create table ingests (
+        slug text primary key,
+        source_url text not null,
+        arxiv_id text,
+        original_url text,
+        stage text not null,
+        status text not null,
+        started_at integer not null,
+        updated_at integer not null,
+        last_error text
+      );
+      create index ingests_arxiv on ingests (arxiv_id);
+      create index ingests_source on ingests (source_url);
+      create index ingests_status on ingests (status);
+    `,
+  },
 ]
 
 /**

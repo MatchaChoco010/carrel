@@ -13,6 +13,9 @@ export type ScanResult = {
   chatsRemoved: number
 }
 
+/** まだ全段階が終わっていない論文を教える口。 */
+export type IncompleteImports = () => Set<string>
+
 export type CollectionEvents = {
   onPaperChanged?: (slug: string) => void
   onPaperRemoved?: (slug: string) => void
@@ -24,13 +27,20 @@ export class Collection {
   readonly #dataDir: string
   readonly #index: IndexDb
   readonly #events: CollectionEvents
+  readonly #incomplete: IncompleteImports
   #watchers: FSWatcher[] = []
   #pending = new Map<string, NodeJS.Timeout>()
 
-  constructor(dataDir: string, index: IndexDb, events: CollectionEvents = {}) {
+  constructor(
+    dataDir: string,
+    index: IndexDb,
+    events: CollectionEvents = {},
+    incomplete: IncompleteImports = () => new Set(),
+  ) {
     this.#dataDir = dataDir
     this.#index = index
     this.#events = events
+    this.#incomplete = incomplete
   }
 
   async ensureDirs(): Promise<void> {
@@ -78,6 +88,16 @@ export class Collection {
   }
 
   async #indexPaper(slug: string, knownMtimeMs?: number, knownBodyHash?: string): Promise<boolean> {
+    // 取り込みの途中の論文は索引へ載せない。すべての成果物が揃ってから
+    // 検索の対象にする。
+    if (this.#incomplete().has(slug)) {
+      if (knownMtimeMs !== undefined) {
+        this.#index.deletePaper(slug)
+        this.#events.onPaperRemoved?.(slug)
+      }
+      return false
+    }
+
     const paper = await readPaper(this.#dataDir, slug)
     if (paper === null) {
       if (knownMtimeMs !== undefined) {
@@ -111,17 +131,6 @@ export class Collection {
     this.#index.upsertChat(chat)
     this.#events.onChatChanged?.(chat.path)
     return true
-  }
-
-  /**
-   * 1 本の論文を今すぐ索引へ反映する。
-   *
-   * ファイル監視は書き込みから少し遅れて発火するため、書いた直後に索引を引く
-   * 処理(重複の判定や slug の衝突の判定)はその遅れに間に合わない。
-   */
-  async refreshPaper(slug: string): Promise<void> {
-    const known = this.#index.paperFingerprints().get(slug)
-    await this.#indexPaper(slug, known?.mtimeMs, known?.bodyHash)
   }
 
   /** 論文を削除する。ファイルを消してから索引を消す。 */

@@ -1,27 +1,26 @@
-import { access } from 'node:fs/promises'
-import { readFile } from 'node:fs/promises'
+import { access, readFile } from 'node:fs/promises'
 import type { CodexClient } from '../codex/client.ts'
-import type { Collection } from '../data/collection.ts'
-import { paperFile, paperOriginalPdf } from '../data/layout.ts'
-import { writePaper, type PaperMeta } from '../data/paper.ts'
-import { buildSlug } from '../data/slug.ts'
 import { nowIsoDateTime } from '../data/datetime.ts'
+import { paperFile, paperOriginalPdf } from '../data/layout.ts'
+import { deletePaperDir, writePaper, type PaperMeta } from '../data/paper.ts'
+import { buildSlug } from '../data/slug.ts'
 import type { IndexDb } from '../db/index-db.ts'
 import { fetchOriginal, looksLikePdf } from './fetch.ts'
 import { resolveSource } from './resolve.ts'
+import type { IngestStore } from './store.ts'
 import type { IngestStage, ResolvedSource } from './types.ts'
 
 export type IngestDeps = {
   dataDir: string
   index: IndexDb
-  collection: Collection
+  ingests: IngestStore
   codex: CodexClient
   model: string
 }
 
 export type IngestResult =
   | { kind: 'imported'; slug: string; stagesRun: IngestStage[] }
-  | { kind: 'duplicate'; slug: string; reason: 'arxivId' | 'sourceUrl' }
+  | { kind: 'duplicate'; slug: string; reason: 'arxivId' | 'sourceUrl'; state: 'imported' | 'inProgress' | 'failed' }
 
 async function exists(path: string): Promise<boolean> {
   try {
@@ -67,22 +66,27 @@ function toMeta(slug: string, source: ResolvedSource, sourceUrl: string): PaperM
 /**
  * 解決と取得までを行う。
  *
- * 以降の段階(変換・照合・翻訳・登録)は後続の作業で足す。
+ * 索引へは載せない。載せるのは全段階が終わったときで、その処理は登録の段階
+ * (#16)が持つ。取り込みが始まっているかどうかは取り込みの記録が答える。
  */
 export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<IngestResult> {
   const outcome = await resolveSource(url, {
     codex: deps.codex,
     model: deps.model,
     known: {
-      byArxivId: (id) => deps.index.findByArxivId(id),
-      bySourceUrl: (u) => deps.index.findBySourceUrl(u),
+      byArxivId: (id) => deps.index.findByArxivId(id) ?? deps.ingests.byArxivId(id)?.slug ?? null,
+      bySourceUrl: (u) => deps.index.findBySourceUrl(u) ?? deps.ingests.bySourceUrl(u)?.slug ?? null,
     },
   })
 
-  if (outcome.kind === 'duplicate') return outcome
+  if (outcome.kind === 'duplicate') {
+    const record = deps.ingests.get(outcome.slug)
+    const state = record === null ? 'imported' : record.status === 'done' ? 'imported' : record.status
+    return { ...outcome, state }
+  }
 
   const { source, sourceUrl } = outcome
-  const taken = deps.index.allSlugs()
+  const taken = new Set([...deps.index.allSlugs(), ...deps.ingests.takenSlugs()])
   const slug = buildSlug(
     {
       authors: source.authors,
@@ -93,19 +97,37 @@ export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<Inge
     (candidate) => taken.has(candidate),
   )
 
-  // frontmatter を先に書く。以降の段階はこのファイルの存在で再開点を判断する。
-  await writePaper(deps.dataDir, toMeta(slug, source, sourceUrl), source.abstract ?? '')
-  // 索引はファイル監視より先に更新する。続けて同じ論文が来たときに重複と
-  // 判定できるようにするため。
-  await deps.collection.refreshPaper(slug)
+  // 取り込みの開始を先に記録する。以降の段階が終わるまで索引へは載らない。
+  deps.ingests.start({
+    slug,
+    sourceUrl,
+    arxivId: source.arxivId,
+    originalUrl: source.originalUrl,
+  })
 
-  const fetched = await fetchOriginal(deps.dataDir, slug, source.originalUrl, source.kind)
-  if (source.kind === 'pdf') {
-    const head = await readFile(fetched.path, { encoding: null })
-    if (!looksLikePdf(head.subarray(0, 8))) {
-      throw new Error(`PDF として取得できなかった (content-type=${fetched.contentType}): ${source.originalUrl}`)
+  try {
+    await writePaper(deps.dataDir, toMeta(slug, source, sourceUrl), source.abstract ?? '')
+    deps.ingests.advance(slug, 'fetch')
+
+    const fetched = await fetchOriginal(deps.dataDir, slug, source.originalUrl, source.kind)
+    if (source.kind === 'pdf') {
+      const head = await readFile(fetched.path, { encoding: null })
+      if (!looksLikePdf(head.subarray(0, 8))) {
+        throw new Error(`PDF として取得できなかった (content-type=${fetched.contentType}): ${source.originalUrl}`)
+      }
     }
+    deps.ingests.advance(slug, 'convert')
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    deps.ingests.fail(slug, message)
+    throw error
   }
 
   return { kind: 'imported', slug, stagesRun: ['resolve', 'fetch'] }
+}
+
+/** 取り込みを取り消す。成果物と記録の両方を消す。 */
+export async function discardIngest(dataDir: string, slug: string, ingests: IngestStore): Promise<void> {
+  await deletePaperDir(dataDir, slug)
+  ingests.remove(slug)
 }

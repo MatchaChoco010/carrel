@@ -5,7 +5,8 @@ import type { Collection, ScanResult } from './data/collection.ts'
 import type { Config } from './config.ts'
 import { mergeConfig, saveConfig } from './config.ts'
 import type { IndexDb } from './db/index-db.ts'
-import { ingestFromUrl } from './ingest/pipeline.ts'
+import { discardIngest, ingestFromUrl } from './ingest/pipeline.ts'
+import type { IngestStore } from './ingest/store.ts'
 import type { JobQueue } from './jobs/queue.ts'
 
 export type AppDeps = {
@@ -17,6 +18,7 @@ export type AppDeps = {
   rebuildIndex: () => Promise<ScanResult>
   codex: CodexService
   jobs: JobQueue
+  ingests: IngestStore
   /** ビルド済みの Web クライアントの場所。無ければ配信しない。 */
   webRoot: string | null
 }
@@ -94,7 +96,7 @@ export function createApp(deps: AppDeps): Hono {
       const result = await ingestFromUrl(url.trim(), {
         dataDir: deps.getConfig().dataDir,
         index: deps.index,
-        collection: deps.collection,
+        ingests: deps.ingests,
         codex: deps.codex.client,
         model: deps.getConfig().chat.defaultModel,
       })
@@ -104,9 +106,12 @@ export function createApp(deps: AppDeps): Hono {
     }
   })
 
+  app.get('/api/ingests', (c) => c.json({ ingests: deps.ingests.list() }))
+
   app.delete('/api/papers/:slug', async (c) => {
     const slug = c.req.param('slug')
     await deps.collection.deletePaper(slug)
+    await discardIngest(deps.getConfig().dataDir, slug, deps.ingests)
     return c.json({ deleted: slug })
   })
 
