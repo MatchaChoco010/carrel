@@ -9,3 +9,4 @@ harness/scripts/node_modules/
 node_modules/
 dist/
 *.tsbuildinfo
+apps/converter/.venv/

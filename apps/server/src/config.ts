@@ -19,6 +19,16 @@ export type Config = {
     defaultModel: string
     defaultEffort: string
   }
+  converter: {
+    /** 変換器の venv の python。 */
+    python: string
+    /** llama.cpp の server 実行ファイル。 */
+    llamaServer: string
+    /** llama.cpp の共有ライブラリを置いたディレクトリ。 */
+    llamaLibDir: string
+    /** ページ画像の拡大率。 */
+    pageScale: number
+  }
 }
 
 export const defaultConfig: Config = {
@@ -32,6 +42,12 @@ export const defaultConfig: Config = {
   chat: {
     defaultModel: 'gpt-5.6-sol',
     defaultEffort: 'high',
+  },
+  converter: {
+    python: join(homedir(), 'ghq/github.com/MatchaChoco010/paper-collection-tool/apps/converter/.venv/bin/python'),
+    llamaServer: 'llama-server',
+    llamaLibDir: '',
+    pageScale: 2,
   },
 }
 
@@ -84,6 +100,18 @@ export function mergeConfig(stored: unknown): Config {
     }
     if (typeof c['defaultEffort'] === 'string' && c['defaultEffort'].length > 0) {
       merged.chat.defaultEffort = c['defaultEffort']
+    }
+  }
+
+  const converter = raw['converter']
+  if (typeof converter === 'object' && converter !== null) {
+    const c = converter as Record<string, unknown>
+    for (const key of ['python', 'llamaServer', 'llamaLibDir'] as const) {
+      const value = c[key]
+      if (typeof value === 'string') merged.converter[key] = value
+    }
+    if (typeof c['pageScale'] === 'number' && c['pageScale'] > 0) {
+      merged.converter.pageScale = c['pageScale']
     }
   }
 
