@@ -8,6 +8,8 @@ import { Collection } from './data/collection.ts'
 import { IndexDb } from './db/index-db.ts'
 import { StateDb } from './db/state-db.ts'
 import { createApp } from './http.ts'
+import { JobQueue } from './jobs/queue.ts'
+import { JobStore } from './jobs/store.ts'
 import { Hub } from './hub.ts'
 import { indexDbFile, stateDbFile, stateDir } from './paths.ts'
 
@@ -35,8 +37,19 @@ async function main(): Promise<void> {
   collection.startWatching()
 
   const codex = new CodexService({
-    onRateLimits: (view) => hub.broadcast({ type: 'codex.rateLimits', payload: view }),
+    onRateLimits: (view) => {
+      hub.broadcast({ type: 'codex.rateLimits', payload: view })
+      jobs.onQuotaChanged()
+    },
     onApprovalDeclined: (method) => hub.broadcast({ type: 'codex.approvalDeclined', payload: { method } }),
+  })
+
+  const jobs = new JobQueue(new JobStore(state.db), {
+    quota: {
+      blocked: () => codex.rateLimits?.reached === true,
+      resumeAt: () => codex.rateLimits?.nextResetAt ?? null,
+    },
+    onChange: (job) => hub.broadcast({ type: 'job.changed', payload: job }),
   })
 
   const app = createApp({
@@ -54,6 +67,7 @@ async function main(): Promise<void> {
       return result
     },
     codex,
+    jobs,
   })
 
   const server = serve({
@@ -68,6 +82,8 @@ async function main(): Promise<void> {
   console.log(`listening on http://${config.server.host}:${config.server.port}`)
   console.log(`data dir: ${config.dataDir}`)
 
+  jobs.start()
+
   // 会話スレッドが pct の MCP の口を呼ぶため、HTTP を開いた後に起動する。
   try {
     await codex.start()
@@ -81,6 +97,7 @@ async function main(): Promise<void> {
   const shutdown = (signal: string): void => {
     console.log(`${signal} を受けたので終了する`)
     collection.stopWatching()
+    jobs.stop()
     void codex.stop()
     hub.closeAll()
     server.close()

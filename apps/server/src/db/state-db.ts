@@ -11,6 +11,27 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 2,
+    up: `
+      create table jobs (
+        id integer primary key autoincrement,
+        kind text not null,
+        target text not null,
+        resource text not null,
+        priority text not null,
+        state text not null,
+        attempts integer not null default 0,
+        available_at integer not null,
+        created_at integer not null,
+        updated_at integer not null,
+        payload text not null default '',
+        last_error text
+      );
+      create index jobs_pick on jobs (resource, state, available_at);
+      create index jobs_state on jobs (state);
+    `,
+  },
 ]
 
 /**
@@ -23,6 +44,10 @@ export class StateDb {
 
   constructor(file: string) {
     this.#db = openDatabase(file, MIGRATIONS)
+  }
+
+  get db(): DatabaseSync {
+    return this.#db
   }
 
   close(): void {
