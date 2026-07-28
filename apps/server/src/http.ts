@@ -1,3 +1,4 @@
+import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
 import type { CodexService } from './codex/service.ts'
 import type { Collection, ScanResult } from './data/collection.ts'
@@ -15,6 +16,8 @@ export type AppDeps = {
   rebuildIndex: () => Promise<ScanResult>
   codex: CodexService
   jobs: JobQueue
+  /** ビルド済みの Web クライアントの場所。無ければ配信しない。 */
+  webRoot: string | null
 }
 
 export function createApp(deps: AppDeps): Hono {
@@ -79,6 +82,14 @@ export function createApp(deps: AppDeps): Hono {
     await deps.collection.deletePaper(slug)
     return c.json({ deleted: slug })
   })
+
+  // API 以外の要求は Web クライアントへ回す。パスを持たない要求も index.html を
+  // 返し、クライアント側の経路で解決させる。
+  if (deps.webRoot !== null) {
+    const root = deps.webRoot
+    app.use('/assets/*', serveStatic({ root }))
+    app.get('*', serveStatic({ root, path: 'index.html' }))
+  }
 
   return app
 }

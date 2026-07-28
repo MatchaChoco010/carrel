@@ -1,3 +1,6 @@
 packages:
   - apps/*
   - packages/*
+allowBuilds:
+  # vite の依存。ネイティブのバイナリを取り出すために必要。
+  esbuild: true
