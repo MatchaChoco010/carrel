@@ -1,7 +1,7 @@
 # 論文の変換に使う実装と実行環境
 
 - created: 2026-07-28
-- status: reviewing
+- status: approved
 - implementation: not-started
 
 ## 解決したい問題
