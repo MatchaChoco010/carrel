@@ -2,6 +2,7 @@ import { serve } from '@hono/node-server'
 import { mkdir } from 'node:fs/promises'
 import type { Server } from 'node:http'
 import { WebSocketServer } from 'ws'
+import { CodexService } from './codex/service.ts'
 import { loadConfig, type Config } from './config.ts'
 import { Collection } from './data/collection.ts'
 import { IndexDb } from './db/index-db.ts'
@@ -33,6 +34,11 @@ async function main(): Promise<void> {
   )
   collection.startWatching()
 
+  const codex = new CodexService({
+    onRateLimits: (view) => hub.broadcast({ type: 'codex.rateLimits', payload: view }),
+    onApprovalDeclined: (method) => hub.broadcast({ type: 'codex.approvalDeclined', payload: { method } }),
+  })
+
   const app = createApp({
     getConfig: () => config,
     setConfig: (next) => {
@@ -47,6 +53,7 @@ async function main(): Promise<void> {
       hub.broadcast({ type: 'index.rebuilt', payload: result })
       return result
     },
+    codex,
   })
 
   const server = serve({
@@ -61,9 +68,20 @@ async function main(): Promise<void> {
   console.log(`listening on http://${config.server.host}:${config.server.port}`)
   console.log(`data dir: ${config.dataDir}`)
 
+  // 会話スレッドが pct の MCP の口を呼ぶため、HTTP を開いた後に起動する。
+  try {
+    await codex.start()
+    const limits = codex.rateLimits
+    const windows = limits?.windows.map((w) => `${w.label} ${w.usedPercent}%`).join(' / ') ?? '不明'
+    console.log(`codex app-server を起動した (plan=${limits?.planType ?? '不明'}, ${windows})`)
+  } catch (error) {
+    console.error('codex app-server を起動できなかった', error)
+  }
+
   const shutdown = (signal: string): void => {
     console.log(`${signal} を受けたので終了する`)
     collection.stopWatching()
+    void codex.stop()
     hub.closeAll()
     server.close()
     index.close()
