@@ -34,8 +34,8 @@ class CodexRequestError extends Error {
 /**
  * `codex app-server` を子プロセスとして動かし、行区切りの JSON でやりとりする。
  *
- * 線上の形は JSON-RPC から `jsonrpc` フィールドを省いたもので、応答は `id` と
- * `result` / `error`、通知は `id` を持たない `method` で届く。
+ * やりとりするメッセージは JSON-RPC から `jsonrpc` フィールドを省いた形で、
+ * 応答は `id` と `result` / `error`、通知は `id` を持たない `method` で届く。
  */
 export class CodexClient extends EventEmitter {
   readonly #options: Required<CodexClientOptions>

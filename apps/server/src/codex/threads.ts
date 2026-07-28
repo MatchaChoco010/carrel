@@ -3,11 +3,10 @@ import {
   isAgentMessageItem,
   METHODS,
   NOTIFICATIONS,
+  type AskForApproval,
   type Notification,
-  type ApprovalPolicy,
   type ThreadStartParams,
   type TurnStartParams,
-  type UserInput,
 } from './protocol.ts'
 
 export type TurnOutcome = {
@@ -50,7 +49,7 @@ export async function startConversationThread(
 /** 1 つのジョブに対応する使い捨てのスレッド。指示と道具を最小にする。 */
 export async function startWorkThread(
   client: CodexClient,
-  options: { instructions: string; model: string; cwd?: string; approvalPolicy?: ApprovalPolicy },
+  options: { instructions: string; model: string; cwd?: string; approvalPolicy?: AskForApproval },
 ): Promise<string> {
   const params: ThreadStartParams = {
     ephemeral: true,
@@ -127,8 +126,4 @@ export function runTurn(
       reject(error instanceof Error ? error : new Error(String(error)))
     })
   })
-}
-
-export function textInput(text: string): UserInput[] {
-  return [{ type: 'text', text }]
 }

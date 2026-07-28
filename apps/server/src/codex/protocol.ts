@@ -1,13 +1,14 @@
-// app-server の線上の形。使う範囲だけを写している。
-// 公式の定義との食い違いは protocol.conformance.test.ts が検出する。
+import type { ThreadStartParams } from './generated/v2/ThreadStartParams.ts'
+import type { TurnStartParams } from './generated/v2/TurnStartParams.ts'
+import type { UserInput } from './generated/v2/UserInput.ts'
+
+export type { ThreadStartParams, TurnStartParams, UserInput }
+export type { RateLimitWindow } from './generated/v2/RateLimitWindow.ts'
+export type { AskForApproval } from './generated/v2/AskForApproval.ts'
+export type { SandboxMode } from './generated/v2/SandboxMode.ts'
+export type { ThreadItem } from './generated/v2/ThreadItem.ts'
 
 export type RequestId = number
-
-export type Request = {
-  id: RequestId
-  method: string
-  params?: unknown
-}
 
 export type Response = {
   id: RequestId
@@ -48,54 +49,6 @@ export const NOTIFICATIONS = {
   reasoningTextDelta: 'item/reasoning/textDelta',
 } as const
 
-export type SandboxMode = 'read-only' | 'workspace-write' | 'danger-full-access'
-
-export type ApprovalPolicy = 'untrusted' | 'on-request' | 'never'
-
-export type ThreadStartParams = {
-  cwd?: string
-  approvalPolicy?: ApprovalPolicy
-  sandbox?: SandboxMode
-  model?: string
-  baseInstructions?: string
-  developerInstructions?: string
-  ephemeral?: boolean
-  config?: Record<string, unknown>
-}
-
-export type UserInput =
-  | { type: 'text'; text: string }
-  | { type: 'image'; url: string }
-  | { type: 'localImage'; path: string }
-
-export type TurnStartParams = {
-  threadId: string
-  input: UserInput[]
-  model?: string
-  effort?: string
-  outputSchema?: unknown
-}
-
-export type RateLimitWindow = {
-  usedPercent: number
-  resetsAt: number | null
-  windowDurationMins: number | null
-}
-
-export type RateLimitSnapshot = {
-  primary: RateLimitWindow | null
-  secondary: RateLimitWindow | null
-  planType: string | null
-  rateLimitReachedType: string | null
-  credits: { hasCredits: boolean; unlimited: boolean; balance: string | null } | null
-}
-
-/**
- * 最終的な応答が載る item。
- *
- * `turn/completed` の `items` は空で `itemsView` が `notLoaded` になるため、
- * 応答本文はこの通知から拾う。
- */
 export type AgentMessageItem = {
   type: 'agentMessage'
   id: string
@@ -112,4 +65,8 @@ export function isAgentMessageItem(value: unknown): value is AgentMessageItem {
 /** 承認を求めるサーバ要求かどうか。 */
 export function isApprovalRequest(method: string): boolean {
   return method.includes('requestApproval') || method.endsWith('Approval')
+}
+
+export function textInput(text: string): UserInput[] {
+  return [{ type: 'text', text, text_elements: [] }]
 }

@@ -1,4 +1,12 @@
-import type { RateLimitSnapshot, RateLimitWindow } from './protocol.ts'
+import type { RateLimitWindow } from './protocol.ts'
+
+export type RateLimitSnapshot = {
+  primary: RateLimitWindow | null
+  secondary: RateLimitWindow | null
+  planType: string | null
+  rateLimitReachedType: string | null
+  credits: { hasCredits: boolean; unlimited: boolean; balance: string | null } | null
+}
 
 export type RateLimitWindowView = {
   usedPercent: number
@@ -19,10 +27,10 @@ export type RateLimitView = {
 }
 
 /**
- * 枠の呼び名は `windowDurationMins` から導く。
+ * 枠の呼び名を `windowDurationMins` から導く。
  *
- * primary と secondary のどちらがどの長さの枠かは固定ではなく、契約プランに
- * よって primary が週次のこともある。位置ではなく長さで呼ぶ。
+ * primary を 5 時間枠と決め打ちにすると、primary が週次を指す口座で誤った
+ * 呼び名になる(実測で確認)。長さは値として届くので、それを使う。
  */
 export function describeWindow(windowDurationMins: number | null): string {
   if (windowDurationMins === null) return '利用枠'

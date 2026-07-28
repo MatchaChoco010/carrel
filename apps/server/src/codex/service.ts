@@ -1,6 +1,12 @@
 import { CodexClient } from './client.ts'
-import { METHODS, NOTIFICATIONS, type Notification, type RateLimitSnapshot } from './protocol.ts'
-import { mergeSnapshot, parseRateLimitSnapshot, toRateLimitView, type RateLimitView } from './rate-limits.ts'
+import { METHODS, NOTIFICATIONS, type Notification } from './protocol.ts'
+import {
+  mergeSnapshot,
+  parseRateLimitSnapshot,
+  toRateLimitView,
+  type RateLimitSnapshot,
+  type RateLimitView,
+} from './rate-limits.ts'
 
 export type CodexServiceEvents = {
   onRateLimits?: (view: RateLimitView) => void
