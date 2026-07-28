@@ -1,7 +1,7 @@
 # 照合で文字の正をどこに置くか
 
 - created: 2026-07-28
-- status: ready for review
+- status: reviewing
 - implementation: not-started
 
 ## 解決したい問題
