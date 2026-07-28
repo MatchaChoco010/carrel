@@ -3,6 +3,7 @@ import { mkdir } from 'node:fs/promises'
 import type { Server } from 'node:http'
 import { WebSocketServer } from 'ws'
 import { CodexService } from './codex/service.ts'
+import { registerConvert } from './convert/job.ts'
 import { loadConfig, type Config } from './config.ts'
 import { Collection } from './data/collection.ts'
 import { IndexDb } from './db/index-db.ts'
@@ -12,7 +13,7 @@ import { JobQueue } from './jobs/queue.ts'
 import { JobStore } from './jobs/store.ts'
 import { IngestStore } from './ingest/store.ts'
 import { Hub } from './hub.ts'
-import { indexDbFile, stateDbFile, stateDir, webRoot } from './paths.ts'
+import { converterScript, indexDbFile, stateDbFile, stateDir, webRoot } from './paths.ts'
 
 async function main(): Promise<void> {
   let config: Config = await loadConfig()
@@ -53,6 +54,17 @@ async function main(): Promise<void> {
       resumeAt: () => codex.rateLimits?.nextResetAt ?? null,
     },
     onChange: (job) => hub.broadcast({ type: 'job.changed', payload: job }),
+  })
+
+  registerConvert(jobs, {
+    dataDir: config.dataDir,
+    ingests,
+    paths: {
+      python: config.converter.python,
+      script: converterScript(),
+      llamaServer: config.converter.llamaServer,
+      llamaLibDir: config.converter.llamaLibDir,
+    },
   })
 
   const app = createApp({

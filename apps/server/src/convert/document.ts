@@ -1,0 +1,71 @@
+import { BODY_KINDS, type ConvertedBlock, type ConvertedDocument } from './types.ts'
+
+/** 本文に連ねるブロックを、ページ順に並べて返す。 */
+export function bodyBlocks(document: ConvertedDocument): ConvertedBlock[] {
+  const kinds = new Set(BODY_KINDS)
+  return document.blocks
+    .filter((b) => kinds.has(b.kind) && b.markdown.length > 0)
+    .sort((a, b) => a.page - b.page || compareId(a.id, b.id))
+}
+
+/**
+ * 同じページの中の順序は、変換器が付けた識別子の末尾の連番で決まる。
+ *
+ * 識別子は `/page/12/Text/3` の形なので、文字列のまま比べると 3 が 21 より
+ * 後ろに来る。
+ */
+function compareId(a: string, b: string): number {
+  const na = trailingNumber(a)
+  const nb = trailingNumber(b)
+  if (na !== null && nb !== null && na !== nb) return na - nb
+  return a.localeCompare(b)
+}
+
+function trailingNumber(id: string): number | null {
+  const m = /\/(\d+)$/.exec(id)
+  return m === null ? null : Number(m[1])
+}
+
+/**
+ * 本文の markdown を組み立てる。
+ *
+ * 図は本文の流れの中へ、画像とキャプションを組にした形で差し込む(0004)。
+ * キャプションのブロックは本文に連ねないので、地の文には混ざらない。
+ */
+export function buildBody(document: ConvertedDocument, assetsDirName: string): string {
+  const blocksByPage = new Map<number, ConvertedBlock[]>()
+  for (const block of bodyBlocks(document)) {
+    const list = blocksByPage.get(block.page) ?? []
+    list.push(block)
+    blocksByPage.set(block.page, list)
+  }
+  const figuresByPage = new Map<number, ConvertedDocument['figures']>()
+  for (const figure of document.figures) {
+    const list = figuresByPage.get(figure.page) ?? []
+    list.push(figure)
+    figuresByPage.set(figure.page, list)
+  }
+
+  // 全面が図のページには本文のブロックが無い。本文の並びではなくページを軸に
+  // することで、そうしたページの図も落とさない。
+  const pages = [...new Set([...blocksByPage.keys(), ...figuresByPage.keys()])].sort((a, b) => a - b)
+
+  const parts: string[] = []
+  for (const page of pages) {
+    for (const block of blocksByPage.get(page) ?? []) parts.push(block.markdown)
+    for (const figure of figuresByPage.get(page) ?? []) parts.push(renderFigure(figure, assetsDirName))
+  }
+
+  return `${parts.join('\n\n')}\n`
+}
+
+function renderFigure(figure: ConvertedDocument['figures'][number], assetsDirName: string): string {
+  const image = `![](${assetsDirName}/${figure.image})`
+  if (figure.caption.length === 0) return image
+  return `<figure>\n\n${image}\n\n<figcaption>\n\n${figure.caption}\n\n</figcaption>\n\n</figure>`
+}
+
+/** ブロックの識別子からページ番号を引く表。照合がページ画像と組にするのに使う(0004)。 */
+export function pageIndex(document: ConvertedDocument): Map<string, number> {
+  return new Map(document.blocks.map((b) => [b.id, b.page]))
+}
