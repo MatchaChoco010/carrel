@@ -1,3 +1,4 @@
+import { FileText, ListTodo, MessagesSquare, Rss, Settings, type LucideIcon } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { api, type CodexStatus, type IndexStatus, type JobsResponse } from './api.ts'
 import { JobsPane } from './components/JobsPane.tsx'
@@ -6,14 +7,20 @@ import { useServerEvents, type ServerEvent } from './useServerEvents.ts'
 
 type Tab = 'feed' | 'papers' | 'chats' | 'jobs' | 'settings'
 
-const TABS: Array<{ id: Tab; icon: string; label: string }> = [
-  { id: 'feed', icon: '📡', label: 'フィード' },
-  { id: 'papers', icon: '📄', label: '論文リスト' },
-  { id: 'chats', icon: '💬', label: 'チャットリスト' },
-  { id: 'jobs', icon: '⚙️', label: 'ジョブ' },
+const TABS: Array<{ id: Tab; Icon: LucideIcon; label: string }> = [
+  { id: 'feed', Icon: Rss, label: 'フィード' },
+  { id: 'papers', Icon: FileText, label: '論文リスト' },
+  { id: 'chats', Icon: MessagesSquare, label: 'チャットリスト' },
+  { id: 'jobs', Icon: ListTodo, label: 'ジョブ' },
 ]
 
-const SETTINGS_TAB: { id: Tab; icon: string; label: string } = { id: 'settings', icon: '🔧', label: '設定' }
+const SETTINGS_TAB: { id: Tab; Icon: LucideIcon; label: string } = {
+  id: 'settings',
+  Icon: Settings,
+  label: '設定',
+}
+
+const ICON_SIZE = 18
 
 const NARROW = '(max-width: 820px)'
 
@@ -86,7 +93,7 @@ export function App() {
               aria-label={entry.label}
               aria-current={tab === entry.id}
             >
-              <span aria-hidden>{entry.icon}</span>
+              <entry.Icon size={ICON_SIZE} aria-hidden />
               {entry.id === 'jobs' && running > 0 && <span className="rail__badge">{running}</span>}
             </button>
           ))}
@@ -99,7 +106,7 @@ export function App() {
             title={SETTINGS_TAB.label}
             aria-label={SETTINGS_TAB.label}
           >
-            <span aria-hidden>{SETTINGS_TAB.icon}</span>
+            <SETTINGS_TAB.Icon size={ICON_SIZE} aria-hidden />
           </button>
         </div>
       </nav>
