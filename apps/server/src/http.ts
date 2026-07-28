@@ -4,6 +4,7 @@ import type { Collection, ScanResult } from './data/collection.ts'
 import type { Config } from './config.ts'
 import { mergeConfig, saveConfig } from './config.ts'
 import type { IndexDb } from './db/index-db.ts'
+import type { JobQueue } from './jobs/queue.ts'
 
 export type AppDeps = {
   getConfig: () => Config
@@ -13,6 +14,7 @@ export type AppDeps = {
   collection: Collection
   rebuildIndex: () => Promise<ScanResult>
   codex: CodexService
+  jobs: JobQueue
 }
 
 export function createApp(deps: AppDeps): Hono {
@@ -64,6 +66,12 @@ export function createApp(deps: AppDeps): Hono {
     } catch (error) {
       return c.json({ error: error instanceof Error ? error.message : String(error) }, 503)
     }
+  })
+
+  app.get('/api/jobs', (c) => {
+    const state = c.req.query('state')
+    const jobs = state === undefined ? deps.jobs.list() : deps.jobs.list([state as never])
+    return c.json({ counts: deps.jobs.counts(), jobs })
   })
 
   app.delete('/api/papers/:slug', async (c) => {
