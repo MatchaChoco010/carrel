@@ -29,7 +29,7 @@ export type RateLimitView = {
 /**
  * 枠の呼び名を `windowDurationMins` から導く。
  *
- * primary を 5 時間枠と決め打ちにすると、primary が週次を指す口座で誤った
+ * primary を 5 時間枠と決め打ちにすると、primary が週次を指すアカウントで誤った
  * 呼び名になる(実測で確認)。長さは値として届くので、それを使う。
  */
 export function describeWindow(windowDurationMins: number | null): string {
