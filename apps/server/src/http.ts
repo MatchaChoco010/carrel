@@ -5,6 +5,7 @@ import type { Collection, ScanResult } from './data/collection.ts'
 import type { Config } from './config.ts'
 import { mergeConfig, saveConfig } from './config.ts'
 import type { IndexDb } from './db/index-db.ts'
+import { ingestFromUrl } from './ingest/pipeline.ts'
 import type { JobQueue } from './jobs/queue.ts'
 
 export type AppDeps = {
@@ -75,6 +76,32 @@ export function createApp(deps: AppDeps): Hono {
     const state = c.req.query('state')
     const jobs = state === undefined ? deps.jobs.list() : deps.jobs.list([state as never])
     return c.json({ counts: deps.jobs.counts(), jobs })
+  })
+
+  app.post('/api/papers/import', async (c) => {
+    let body: unknown
+    try {
+      body = await c.req.json()
+    } catch {
+      return c.json({ error: 'JSON として読めない本文が送られた' }, 400)
+    }
+    const url = (body as { url?: unknown }).url
+    if (typeof url !== 'string' || url.trim().length === 0) {
+      return c.json({ error: 'url を指定すること' }, 400)
+    }
+
+    try {
+      const result = await ingestFromUrl(url.trim(), {
+        dataDir: deps.getConfig().dataDir,
+        index: deps.index,
+        collection: deps.collection,
+        codex: deps.codex.client,
+        model: deps.getConfig().chat.defaultModel,
+      })
+      return c.json(result)
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 502)
+    }
   })
 
   app.delete('/api/papers/:slug', async (c) => {

@@ -24,6 +24,18 @@ test('タイトル由来の語は 3 語までにする', () => {
   assert.equal(normalizeKeyword('3D Gaussian Splatting'), '3d-gaussian-splatting')
 })
 
+test('コロンより前が短ければ、そこを略称として使う', () => {
+  assert.equal(normalizeKeyword('NeRF: Representing Scenes as Neural Radiance Fields'), 'nerf')
+  assert.equal(normalizeKeyword('Mip-NeRF 360: Unbounded Anti-Aliased Neural Radiance Fields'), 'mip-nerf-360')
+})
+
+test('コロンより前が長い場合はタイトル全体から取る', () => {
+  assert.equal(
+    normalizeKeyword('Neural Radiance Fields for Unbounded Scenes: A Study'),
+    'neural-radiance-fields',
+  )
+})
+
 test('citekey 風の slug を作る', () => {
   const slug = buildSlug(
     { authors: ['Ben Mildenhall', 'Pratul P. Srinivasan'], year: 2020, keyword: 'NeRF', identity: 'arxiv:2003.08934' },

@@ -222,6 +222,26 @@ export class IndexDb {
     return rows.map((r) => r.slug)
   }
 
+  /** 同じ論文が既に取り込まれていないかを引く。 */
+  findByArxivId(arxivId: string): string | null {
+    const row = this.#db.prepare('select slug from papers where arxiv_id = ? limit 1').get(arxivId) as
+      | { slug: string }
+      | undefined
+    return row?.slug ?? null
+  }
+
+  findBySourceUrl(url: string): string | null {
+    const row = this.#db
+      .prepare('select slug from papers where source_url = ? or pdf_url = ? limit 1')
+      .get(url, url) as { slug: string } | undefined
+    return row?.slug ?? null
+  }
+
+  allSlugs(): Set<string> {
+    const rows = this.#db.prepare('select slug from papers').all() as Array<{ slug: string }>
+    return new Set(rows.map((r) => r.slug))
+  }
+
   countPapers(): number {
     const row = this.#db.prepare('select count(*) as n from papers').get() as { n: number }
     return row.n

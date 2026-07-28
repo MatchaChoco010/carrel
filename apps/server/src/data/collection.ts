@@ -113,6 +113,17 @@ export class Collection {
     return true
   }
 
+  /**
+   * 1 本の論文を今すぐ索引へ反映する。
+   *
+   * ファイル監視は書き込みから少し遅れて発火するため、書いた直後に索引を引く
+   * 処理(重複の判定や slug の衝突の判定)はその遅れに間に合わない。
+   */
+  async refreshPaper(slug: string): Promise<void> {
+    const known = this.#index.paperFingerprints().get(slug)
+    await this.#indexPaper(slug, known?.mtimeMs, known?.bodyHash)
+  }
+
   /** 論文を削除する。ファイルを消してから索引を消す。 */
   async deletePaper(slug: string): Promise<void> {
     await deletePaperDir(this.#dataDir, slug)
