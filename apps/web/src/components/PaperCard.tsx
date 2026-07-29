@@ -5,9 +5,8 @@ import { copyText } from '../clipboard.ts'
 
 export type PaperCardProps = {
   detail: PaperDetail
-  /** 一覧で共通の表示言語。 */
   lang: 'en' | 'ja'
-  /** 検索で当たった箇所。語句なしの一覧では無い。 */
+  /** 検索で当たった箇所。語句を入れずに一覧を出したときは無い。 */
   hit?: { path: string; excerpt: string } | undefined
   onOpen: (slug: string) => void
   onTagsChange: (slug: string, tags: string[]) => void
@@ -15,7 +14,6 @@ export type PaperCardProps = {
 }
 
 const ICON = 15
-/** 一覧で畳まずに出す abstract の長さ。 */
 const ABSTRACT_PREVIEW = 320
 
 export function PaperCard({ detail, lang, hit, onOpen, onTagsChange, onDelete }: PaperCardProps) {
@@ -27,9 +25,7 @@ export function PaperCard({ detail, lang, hit, onOpen, onTagsChange, onDelete }:
   const [copied, setCopied] = useState(false)
 
   const [expanded, setExpanded] = useState(false)
-  // 保存済みの訳をそのまま出す。切り替えで訳し直しは起こらない(#17)。
   const full = lang === 'ja' ? (detail.abstractJa ?? detail.abstract) : detail.abstract
-  // 一覧では長い abstract を畳む。開けば全文を読める。
   const abstract = full === null || expanded || full.length <= ABSTRACT_PREVIEW ? full : `${full.slice(0, ABSTRACT_PREVIEW)}…`
 
   const addTag = (): void => {
