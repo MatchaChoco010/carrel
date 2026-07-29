@@ -4,6 +4,7 @@ import type { Server } from 'node:http'
 import { WebSocketServer } from 'ws'
 import { CodexService } from './codex/service.ts'
 import { registerConvert } from './convert/job.ts'
+import { registerTranslate } from './translate/job.ts'
 import { registerVerify } from './verify/job.ts'
 import { loadConfig, type Config } from './config.ts'
 import { Collection } from './data/collection.ts'
@@ -72,8 +73,17 @@ async function main(): Promise<void> {
     dataDir: config.dataDir,
     ingests,
     codex: codex.client,
-    model: config.chat.defaultModel,
+    model: config.ingest.model,
+    effort: config.ingest.effort,
     textLayer: { python: config.converter.python, script: textLayerScript() },
+  })
+
+  registerTranslate(jobs, {
+    dataDir: config.dataDir,
+    ingests,
+    codex: codex.client,
+    model: config.ingest.model,
+    effort: config.ingest.effort,
   })
 
   const app = createApp({

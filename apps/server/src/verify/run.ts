@@ -6,6 +6,7 @@ import { runTurn, startWorkThread } from '../codex/threads.ts'
 import { parseDocument } from '../convert/runner.ts'
 import { paperBlocksFile } from '../convert/store.ts'
 import { paperFile, paperOriginalPdf, paperPagesDir } from '../data/layout.ts'
+import { readPaper, writePaper } from '../data/paper.ts'
 import { needsFocus, textGap } from './diff.ts'
 import { buildPageWork, type PageWork } from './pages.ts'
 import { buildVerifyPrompt, VERIFY_INSTRUCTIONS, VERIFY_OUTPUT_SCHEMA, type VerifyPageResult } from './prompt.ts'
@@ -16,6 +17,7 @@ export type VerifyDeps = {
   dataDir: string
   codex: CodexClient
   model: string
+  effort: string
   textLayer: TextLayerPaths
 }
 
@@ -59,6 +61,7 @@ async function verifyPage(work: PageWork, imagePath: string, deps: VerifyDeps): 
     threadId,
     input: imageAndTextInput(imagePath, buildVerifyPrompt(work.input)),
     outputSchema: VERIFY_OUTPUT_SCHEMA,
+    effort: deps.effort,
   })
   const result = parsePageResult(outcome.text)
   if (result === null) throw new Error(`${work.page + 1} ページ目の照合が形の違う応答を返した`)
@@ -89,6 +92,9 @@ export async function verifyPaper(slug: string, deps: VerifyDeps): Promise<void>
     reports.push({ page: page.page, changes: result.changes, remaining })
   }
 
-  await writeFile(paperFile(deps.dataDir, slug, 'body'), `${parts.join('\n\n')}\n`, 'utf8')
+  // frontmatter が正なので(0002)、本文だけを差し替えて書き戻す。
+  const paper = await readPaper(deps.dataDir, slug)
+  if (paper === null) throw new Error(`論文が読めない: ${slug}`)
+  await writePaper(deps.dataDir, paper.meta, `${parts.join('\n\n')}\n`)
   await writeFile(paperFile(deps.dataDir, slug, 'verification'), buildReport(reports), 'utf8')
 }
