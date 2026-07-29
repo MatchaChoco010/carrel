@@ -38,5 +38,7 @@ export function linkCitations(markdown: string): string {
   const tail = markdown.slice(at)
 
   const linked = body.replace(CITATION, (_whole, inner: string) => `[[${inner}]](#${REFERENCES_ID})`)
-  return `${linked}<a id="${REFERENCES_ID}"></a>\n\n${tail}`
+  // 目印は span で置く。a にすると本文のリンクと同じ扱いになり、描くときの
+  // 差し替えで id が落ちて飛び先が消える。
+  return `${linked}<span id="${REFERENCES_ID}"></span>\n\n${tail}`
 }
