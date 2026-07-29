@@ -479,9 +479,11 @@ body {
 }
 
 .abstract {
+  /* 本文と「続きを読む」を縦に積む。横に並べると畳んだ表示が潰れる。 */
   display: flex;
-  gap: 10px;
+  flex-direction: column;
   align-items: start;
+  gap: 4px;
 }
 
 .abstract p {
@@ -800,4 +802,29 @@ body {
 .paper-body {
   /* 広い画面では本文を左に寄せず、読みやすい幅に収める。 */
   padding-right: 14px;
+}
+
+/* 本文のリンク。引用は控えめに、外部リンクははっきり出す。 */
+.markdown a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+
+.markdown a.citation {
+  color: var(--text);
+  text-decoration-color: var(--text-muted);
+  text-decoration-style: dotted;
+}
+
+.markdown a.citation:hover {
+  color: var(--accent);
+  text-decoration-color: var(--accent);
+}
+
+/* 引用から飛んだ先を目立たせる。 */
+.markdown p:target,
+.markdown a:target + * {
+  background: rgba(106, 169, 255, 0.12);
 }

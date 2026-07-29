@@ -6,6 +6,8 @@ import { PaperFilters } from './PaperFilters.tsx'
 import { PaperView } from './PaperView.tsx'
 
 export type PapersPaneProps = {
+  lang: 'en' | 'ja'
+  onLangChange: (lang: 'en' | 'ja') => void
   tags: Array<{ tag: string; count: number }>
   /** 索引が変わったことを知らせる。取り込みや削除の後に再読み込みする。 */
   revision: number
@@ -15,7 +17,7 @@ export type PapersPaneProps = {
 const ICON = 16
 const DEBOUNCE = 250
 
-export function PapersPane({ tags, revision, onChanged }: PapersPaneProps) {
+export function PapersPane({ lang, onLangChange, tags, revision, onChanged }: PapersPaneProps) {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<SearchFilter>({})
   const [hits, setHits] = useState<SearchHit[]>([])
@@ -96,12 +98,28 @@ export function PapersPane({ tags, revision, onChanged }: PapersPaneProps) {
 
   const opened = open === null ? undefined : details.get(open)
   if (opened !== undefined) {
-    return <PaperView detail={opened} onBack={() => setOpen(null)} />
+    return (
+      <PaperView
+        detail={opened}
+        lang={lang}
+        onBack={() => setOpen(null)}
+        onTagsChange={(next) => void setTags(opened.meta.slug, next)}
+      />
+    )
   }
 
   return (
     <div className="papers">
       <div className="import">
+        {/* 表示の言語は一覧と本文で共通にする。まとめて日本語で読むための切り替え。 */}
+        <div className="lang">
+          <button type="button" className={lang === 'en' ? 'on' : ''} onClick={() => onLangChange('en')}>
+            EN
+          </button>
+          <button type="button" className={lang === 'ja' ? 'on' : ''} onClick={() => onLangChange('ja')}>
+            JA
+          </button>
+        </div>
         <input
           value={url}
           onChange={(e) => setUrl(e.target.value)}
@@ -133,6 +151,7 @@ export function PapersPane({ tags, revision, onChanged }: PapersPaneProps) {
               <PaperCard
                 key={hit.slug}
                 detail={detail}
+                lang={lang}
                 hit={hit.path.length > 0 ? { path: hit.path, excerpt: hit.excerpt } : undefined}
                 onOpen={setOpen}
                 onTagsChange={(slug, next) => void setTags(slug, next)}

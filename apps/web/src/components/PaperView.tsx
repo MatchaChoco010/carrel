@@ -3,25 +3,26 @@ import { useEffect, useState } from 'react'
 import { api, type PaperDetail } from '../api.ts'
 import { Markdown } from './Markdown.tsx'
 import { PaperMetaTable } from './PaperMetaTable.tsx'
+import { stripFrontMatterBlock } from '../frontMatterBlock.ts'
 import { copyText } from '../clipboard.ts'
 
 export type PaperViewProps = {
   detail: PaperDetail
+  lang: 'en' | 'ja'
   onBack: () => void
+  onTagsChange: (tags: string[]) => void
 }
 
 const ICON = 16
 
 type Pane = 'body' | 'verification' | 'raw'
 
-export function PaperView({ detail, onBack }: PaperViewProps) {
+export function PaperView({ detail, lang, onBack, onTagsChange }: PaperViewProps) {
   const { meta } = detail
-  const [lang, setLang] = useState<'en' | 'ja'>('en')
   const [pane, setPane] = useState<Pane>('body')
   const [raw, setRaw] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
-  const hasJa = detail.bodyJa !== null && detail.bodyJa.length > 0
   // abstract も本文と同じ言語の切り替えに従う。
   const abstract = lang === 'ja' ? (detail.abstractJa ?? detail.abstract) : detail.abstract
 
@@ -50,14 +51,6 @@ export function PaperView({ detail, onBack }: PaperViewProps) {
           <ArrowLeft size={ICON} aria-hidden /> 一覧
         </button>
 
-        <div className="lang">
-          <button type="button" className={lang === 'en' ? 'on' : ''} onClick={() => setLang('en')}>
-            EN
-          </button>
-          <button type="button" className={lang === 'ja' ? 'on' : ''} onClick={() => setLang('ja')} disabled={!hasJa}>
-            JA
-          </button>
-        </div>
 
         <button
           type="button"
@@ -90,7 +83,7 @@ export function PaperView({ detail, onBack }: PaperViewProps) {
       <article className="paper-body">
         <h1>{meta.title}</h1>
         {/* frontmatter が論文の正の情報なので、全項目を読めるようにする(0002)。 */}
-        <PaperMetaTable meta={meta} />
+        <PaperMetaTable meta={meta} onTagsChange={onTagsChange} />
         {abstract === null || abstract.length === 0 ? null : (
           <section className="paper-abstract">
             <h2>abstract</h2>
@@ -98,7 +91,8 @@ export function PaperView({ detail, onBack }: PaperViewProps) {
           </section>
         )}
         {/* 照合の記録と照合前の本文も markdown なので、同じ描き方でよい。 */}
-        <Markdown text={text} slug={meta.slug} />
+        {/* 題と著者欄は frontmatter が担当するので、本文の側では隠す。 */}
+        <Markdown text={pane === 'body' ? stripFrontMatterBlock(text) : text} slug={meta.slug} linkReferences={pane === 'body'} />
       </article>
     </div>
   )

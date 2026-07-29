@@ -5,6 +5,8 @@ import { copyText } from '../clipboard.ts'
 
 export type PaperCardProps = {
   detail: PaperDetail
+  /** 一覧で共通の表示言語。 */
+  lang: 'en' | 'ja'
   /** 検索で当たった箇所。語句なしの一覧では無い。 */
   hit?: { path: string; excerpt: string } | undefined
   onOpen: (slug: string) => void
@@ -16,10 +18,8 @@ const ICON = 15
 /** 一覧で畳まずに出す abstract の長さ。 */
 const ABSTRACT_PREVIEW = 320
 
-export function PaperCard({ detail, hit, onOpen, onTagsChange, onDelete }: PaperCardProps) {
+export function PaperCard({ detail, lang, hit, onOpen, onTagsChange, onDelete }: PaperCardProps) {
   const { meta } = detail
-  // 保存済みの訳を切り替えるだけで、訳し直しは起こさない(#17)。
-  const [lang, setLang] = useState<'en' | 'ja'>('en')
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [adding, setAdding] = useState(false)
@@ -27,10 +27,10 @@ export function PaperCard({ detail, hit, onOpen, onTagsChange, onDelete }: Paper
   const [copied, setCopied] = useState(false)
 
   const [expanded, setExpanded] = useState(false)
-  const full = lang === 'ja' ? detail.abstractJa : detail.abstract
+  // 保存済みの訳をそのまま出す。切り替えで訳し直しは起こらない(#17)。
+  const full = lang === 'ja' ? (detail.abstractJa ?? detail.abstract) : detail.abstract
   // 一覧では長い abstract を畳む。開けば全文を読める。
   const abstract = full === null || expanded || full.length <= ABSTRACT_PREVIEW ? full : `${full.slice(0, ABSTRACT_PREVIEW)}…`
-  const hasJa = detail.abstractJa !== null && detail.abstractJa.length > 0
 
   const addTag = (): void => {
     const tag = draft.trim()
@@ -87,22 +87,12 @@ export function PaperCard({ detail, hit, onOpen, onTagsChange, onDelete }: Paper
 
       {abstract === null || abstract.length === 0 ? null : (
         <div className="abstract">
-          <div className="lang">
-            <button type="button" className={lang === 'en' ? 'on' : ''} onClick={() => setLang('en')}>
-              EN
+          <p>{abstract}</p>
+          {full !== null && full.length > ABSTRACT_PREVIEW ? (
+            <button type="button" className="ghost" onClick={() => setExpanded(!expanded)}>
+              {expanded ? '畳む' : '続きを読む'}
             </button>
-            <button type="button" className={lang === 'ja' ? 'on' : ''} onClick={() => setLang('ja')} disabled={!hasJa}>
-              JA
-            </button>
-          </div>
-          <div>
-            <p>{abstract}</p>
-            {full !== null && full.length > ABSTRACT_PREVIEW ? (
-              <button type="button" className="ghost" onClick={() => setExpanded(!expanded)}>
-                {expanded ? '畳む' : '続きを読む'}
-              </button>
-            ) : null}
-          </div>
+          ) : null}
         </div>
       )}
 
@@ -132,8 +122,8 @@ export function PaperCard({ detail, hit, onOpen, onTagsChange, onDelete }: Paper
             placeholder="タグ"
           />
         ) : (
-          <button type="button" className="tag add" onClick={() => setAdding(true)} aria-label="タグを足す">
-            <Plus size={13} aria-hidden />
+          <button type="button" className="tag add" onClick={() => setAdding(true)}>
+            <Plus size={13} aria-hidden /> タグ
           </button>
         )}
       </div>
