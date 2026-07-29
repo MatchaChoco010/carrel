@@ -14,7 +14,7 @@ export type ConvertDeps = {
   dataDir: string
   ingests: IngestStore
   paths: ConverterPaths
-  /** 次の段階を積む。取り込みは段階の連なりとして進む(0004)。 */
+  /** 次の段階を積む。 */
   onDone: (slug: string) => void
 }
 

@@ -71,7 +71,6 @@ export class IngestStore {
 
   advance(slug: string, stage: IngestStage): void {
     const now = this.#now()
-    // いま終わった段階を閉じ、次の段階を開く。所要時間を画面で見せるため。
     const current = this.get(slug)?.stage
     if (current !== undefined) this.finishStage(slug, current, now)
     this.startStage(slug, stage, now)
@@ -93,7 +92,7 @@ export class IngestStore {
       .run(at, slug, stage)
   }
 
-  /** 段階ごとの所要時間(ミリ秒)。まだ終わっていない段階は finishedAt が null。 */
+  /** 実行中の段階は finishedAt が null になる。 */
   stages(slug: string): Array<{ stage: IngestStage; startedAt: number; finishedAt: number | null }> {
     const rows = this.#db
       .prepare('select stage, started_at, finished_at from ingest_stages where slug = ? order by started_at')

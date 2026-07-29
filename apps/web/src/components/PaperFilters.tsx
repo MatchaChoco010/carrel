@@ -17,7 +17,6 @@ function toYear(value: string): number | undefined {
   return Number.isInteger(n) && n > 0 ? n : undefined
 }
 
-/** 語句と構造化条件の入力。条件は組み合わせて使える(0005)。 */
 export function PaperFilters({ query, filter, tags, onQueryChange, onFilterChange }: PaperFiltersProps) {
   const set = <K extends keyof SearchFilter>(key: K, value: SearchFilter[K]): void => {
     const next = { ...filter }

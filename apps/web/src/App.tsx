@@ -142,7 +142,6 @@ export function App() {
           <div className="pane__body">
             {tab === 'jobs' ? (
               <div className="jobs-tab">
-                {/* 取り込みの進みを段階ごとに見せる。何がどこまで進んだかが分かる。 */}
                 <IngestsPane ingests={ingests} />
                 <JobsPane jobs={jobs} />
               </div>
