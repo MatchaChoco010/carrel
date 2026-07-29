@@ -1,7 +1,7 @@
 # 変換から文字の読み取りを外し、照合に任せる
 
 - created: 2026-07-29
-- status: draft
+- status: ready for review
 - implementation: not-started
 
 ## 解決したい問題
