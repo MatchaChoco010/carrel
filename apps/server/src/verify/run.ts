@@ -12,6 +12,7 @@ import { buildPageWork, type PageWork } from './pages.ts'
 import {
   buildVerifyPrompt,
   IMAGE_LINE,
+  TRANSCRIBE_INSTRUCTIONS,
   VERIFY_INSTRUCTIONS,
   VERIFY_OUTPUT_SCHEMA,
   type VerifyPageResult,
@@ -61,7 +62,7 @@ export function parsePageResult(text: string): VerifyPageResult | null {
  */
 async function verifyPage(work: PageWork, imagePath: string, deps: VerifyDeps): Promise<VerifyPageResult> {
   const threadId = await startWorkThread(deps.codex, {
-    instructions: VERIFY_INSTRUCTIONS,
+    instructions: work.input.transcribe ? TRANSCRIBE_INSTRUCTIONS : VERIFY_INSTRUCTIONS,
     model: deps.model,
     serviceTier: deps.serviceTier,
   })
@@ -124,7 +125,7 @@ export async function verifyPaper(slug: string, deps: VerifyDeps): Promise<void>
     const after = textGap(layer.pages[page.page] ?? '', markdown)
     const remaining = needsFocus(after) ? after : null
 
-    return { markdown, report: { page: page.page, changes: result.changes, remaining } }
+    return { markdown, report: { page: page.page, changes: result.changes, remaining, transcribed: page.input.transcribe } }
   })
 
   const parts = done.map((d) => d.markdown.trim()).filter((text) => text.length > 0)

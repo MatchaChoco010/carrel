@@ -6,6 +6,8 @@ export type PageReport = {
   changes: VerifyChange[]
   /** 照合の後にも残った文字の欠落。無ければ null。 */
   remaining: TextGap | null
+  /** 突き合わせる相手が無く、紙面の画像から書き起こしたページ。 */
+  transcribed: boolean
 }
 
 const KIND_LABELS: Record<VerifyChange['kind'], string> = {
@@ -33,6 +35,7 @@ export function buildReport(reports: PageReport[]): string {
   const lines: string[] = []
   const changed = reports.filter((r) => r.changes.length > 0)
   const withRemaining = reports.filter((r) => r.remaining !== null)
+  const transcribed = reports.filter((r) => r.transcribed)
 
   lines.push('# 照合の記録', '')
   lines.push(
@@ -40,6 +43,14 @@ export function buildReport(reports: PageReport[]): string {
   )
   if (withRemaining.length > 0) {
     lines.push(`${withRemaining.length} ページに、照合の後も文字の欠落が残っている。`)
+  }
+  if (transcribed.length > 0) {
+    lines.push('')
+    lines.push('## 書き起こしたページ', '')
+    lines.push(
+      `次のページには PDF に埋め込まれた文字が無く、紙面の画像から書き起こした: ${transcribed.map((r) => r.page + 1).join(', ')}。`,
+    )
+    lines.push('突き合わせる相手が無いので、固有名詞や数値の読み違いが残っていても検出できない。')
   }
   lines.push('')
 
