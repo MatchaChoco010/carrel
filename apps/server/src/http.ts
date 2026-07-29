@@ -6,6 +6,9 @@ import type { Config } from './config.ts'
 import { mergeConfig, saveConfig } from './config.ts'
 import type { IndexDb } from './db/index-db.ts'
 import { extractArxivId } from './ingest/arxiv.ts'
+import { ChatSessions } from './chat/session.ts'
+import type { CodexModel } from './codex/models.ts'
+import { readChat } from './data/chat.ts'
 import { FeedStore } from './feed/store.ts'
 import { discardIngest, ingestFromUrl } from './ingest/pipeline.ts'
 import type { IngestStore } from './ingest/store.ts'
@@ -31,6 +34,11 @@ export type AppDeps = {
   jobs: JobQueue
   ingests: IngestStore
   feed: FeedStore
+  chats: ChatSessions
+  /** 会話を作る。 */
+  createChat: (options: { model: string | null; effort: string | null; papers?: string[] }) => Promise<{ path: string }>
+  /** 選べるモデルの一覧。 */
+  models: () => Promise<CodexModel[]>
   /** フィードの取得を今すぐ積む。 */
   refreshFeed: () => void
   /** ビルド済みの Web クライアントの場所。無ければ配信しない。 */
@@ -155,6 +163,56 @@ export function createApp(deps: AppDeps): Hono {
     } catch (error) {
       return c.json({ error: error instanceof Error ? error.message : String(error) }, 502)
     }
+  })
+
+  // `@` の補完に使う。本文は要らないので slug だけを返す。
+  app.get('/api/papers/slugs', (c) => c.json({ slugs: [...deps.index.allSlugs()].sort() }))
+
+  app.get('/api/codex/models', async (c) => c.json({ models: await deps.models() }))
+
+  app.post('/api/chats', async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as {
+      model?: unknown
+      effort?: unknown
+      papers?: unknown
+    }
+    const created = await deps.createChat({
+      model: typeof body.model === 'string' ? body.model : null,
+      effort: typeof body.effort === 'string' ? body.effort : null,
+      papers: Array.isArray(body.papers) ? body.papers.filter((p): p is string => typeof p === 'string') : [],
+    })
+    return c.json(created)
+  })
+
+  // 会話の場所は `chats/YYYY/MM/DD/...` の相対パスなので、経路ではなく問い合わせで受ける。
+  app.get('/api/chats/one', async (c) => {
+    const path = c.req.query('path')
+    if (path === undefined || path.length === 0) return c.json({ error: 'path を指定すること' }, 400)
+    const dataDir = deps.getConfig().dataDir
+    const chat = await readChat(dataDir, join(dataDir, path))
+    if (chat === null) return c.json({ error: `会話が見つからない: ${path}` }, 404)
+    return c.json({ meta: chat.meta, messages: chat.messages, path: chat.path, running: deps.chats.isRunning(chat.path) })
+  })
+
+  app.post('/api/chats/messages', async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as {
+      path?: unknown
+      text?: unknown
+      model?: unknown
+      effort?: unknown
+    }
+    if (typeof body.path !== 'string' || typeof body.text !== 'string' || body.text.trim().length === 0) {
+      return c.json({ error: 'path と text を指定すること' }, 400)
+    }
+    const dataDir = deps.getConfig().dataDir
+    // 応答を待たずに返す。進みは WebSocket で流す。
+    void deps.chats
+      .send(join(dataDir, body.path), body.text.trim(), {
+        ...(typeof body.model === 'string' ? { model: body.model } : {}),
+        ...(typeof body.effort === 'string' ? { effort: body.effort } : {}),
+      })
+      .catch(() => {})
+    return c.json({ accepted: true })
   })
 
   app.get('/api/feed', (c) => c.json({ items: deps.feed.list(), unread: deps.feed.unreadCount() }))

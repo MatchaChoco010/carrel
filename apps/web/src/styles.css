@@ -1013,3 +1013,153 @@ body {
   font-size: 13px;
   line-height: 1.75;
 }
+
+/* --- チャット --- */
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  gap: 10px;
+}
+
+.chat--empty {
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.chat--empty button,
+.chat__controls button {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 7px 12px;
+  font: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chat__log {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.turn {
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+/* 発言の向きは背景で分ける。左右に振ると本文の幅が狭くなる。 */
+.turn--user {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+}
+
+.turn--assistant {
+  border: 1px solid transparent;
+}
+
+.turn--running {
+  border-color: var(--border);
+}
+
+.turn__waiting {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.turn .markdown {
+  max-width: none;
+  font-size: 13px;
+}
+
+.chat__compose {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chat__controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat__controls select {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 12px;
+}
+
+.chat__controls button {
+  margin-left: auto;
+}
+
+.suggest {
+  position: relative;
+}
+
+.suggest textarea {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+
+/* 候補は入力欄の上に出す。入力欄が画面の下端にあるため。 */
+.suggest__list {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  max-height: 200px;
+  overflow: auto;
+  z-index: 2;
+}
+
+.suggest__list button {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: var(--text);
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 12px;
+  font-family: ui-monospace, monospace;
+  cursor: pointer;
+}
+
+.suggest__list button.on,
+.suggest__list button:hover {
+  background: var(--surface);
+  color: var(--accent);
+}
