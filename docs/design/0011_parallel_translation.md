@@ -1,7 +1,7 @@
 # 翻訳を節ごとに並べて走らせる
 
 - created: 2026-07-29
-- status: ready for review
+- status: approved
 - implementation: not-started
 
 ## 解決したい問題
