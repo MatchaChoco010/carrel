@@ -876,7 +876,7 @@ body {
   font-size: 12px;
 }
 
-/* 段階を横に並べる。1 段階ぶんの幅は等しくし、実時間には対応させない。 */
+/* 1 段階ぶんの幅は等しくする。実時間には対応させない。 */
 .ingest__stages {
   display: grid;
   grid-template-columns: repeat(6, 1fr);

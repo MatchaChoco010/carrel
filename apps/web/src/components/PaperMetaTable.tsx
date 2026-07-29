@@ -11,17 +11,11 @@ export type PaperMetaTableProps = {
 const ICON = 13
 
 function formatDate(value: string): string {
-  // frontmatter の時刻は時差を保った形で入っている(0002)。表示は日付までで足りる。
+  // 時刻は時差つきで入っているので、日付の部分だけを取る。
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value)
   return m === null ? value : `${m[1]}-${m[2]}-${m[3]}`
 }
 
-/**
- * frontmatter の内容を一覧で出す。
- *
- * frontmatter が論文の正の情報なので(0002)、本文のページで全項目を読めるように
- * する。本文の側にも著者欄が残るが、そちらは紙面をそのまま写したものである。
- */
 export function PaperMetaTable({ meta, onTagsChange }: PaperMetaTableProps) {
   const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState('')

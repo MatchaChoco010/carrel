@@ -112,7 +112,6 @@ async function main(): Promise<void> {
 
   const app = createApp({
     search: (query) => search(query, { index, chunks, embed }),
-    // 解決と取得が済んだら、残りの段階をキューへ流す(0004)。
     onIngested: (slug) => enqueueConvert(jobs, slug),
     getConfig: () => config,
     setConfig: (next) => {
