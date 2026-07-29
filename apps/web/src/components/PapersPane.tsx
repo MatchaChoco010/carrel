@@ -50,7 +50,6 @@ export function PapersPane({ lang, onLangChange, tags, revision, onChanged }: Pa
     }
   }, [query, filter])
 
-  // 入力のたびに問い合わせず、少し待ってからまとめて送る。
   useEffect(() => {
     const timer = setTimeout(() => void load(), DEBOUNCE)
     return () => clearTimeout(timer)

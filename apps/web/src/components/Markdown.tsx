@@ -16,17 +16,9 @@ export type MarkdownProps = {
 }
 
 /**
- * 論文の本文を markdown として描く。
- *
- * 表(remark-gfm)と数式(remark-math と rehype-katex)を扱う。変換の段階が数式を
- * `$$` で囲むので(0008)、そのまま組版される。図とキャプションは `<figure>` で
- * 返るため(0004)、生の HTML も通す。
- */
-/**
  * 同じページの中の目印へ送る。
  *
- * 本文は画面の中の枠がスクロールしており、素の `#id` の移動では枠が動かず URL に
- * `#id` が付くだけになる。目印の要素を自分で探して枠を動かす。
+ * 本文は画面の中の枠がスクロールするので、素の `#id` の移動では枠が動かない。
  */
 function scrollToAnchor(event: MouseEvent<HTMLAnchorElement>, id: string): void {
   const target = document.getElementById(id)
@@ -53,7 +45,6 @@ export function Markdown({ text, slug, linkReferences = false }: MarkdownProps) 
             return <img src={typeof source === 'string' ? source : ''} alt={alt ?? ''} loading="lazy" />
           },
           a: ({ href, children }) => {
-            // 参考文献へのリンクは同じページの中を飛ぶ。
             const internal = typeof href === 'string' && href.startsWith('#')
             return (
               <a
