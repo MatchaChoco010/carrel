@@ -266,3 +266,41 @@ test('完了した古い仕事を捨てられる', async () => {
     h.close()
   }
 })
+
+test('論文を消すと、その論文のまだ走り出していない仕事が取り消される', () => {
+  const h = makeHarness()
+  try {
+    h.store.enqueue({ kind: 'convert', target: '消す論文', resource: 'gpu', priority: 'foreground' })
+    h.store.enqueue({ kind: 'verify', target: '消す論文', resource: 'codex', priority: 'foreground' })
+    h.store.enqueue({ kind: 'convert', target: '残す論文', resource: 'gpu', priority: 'foreground' })
+
+    const result = h.store.cancelPending('消す論文')
+
+    assert.deepEqual(result, { cancelled: 2, running: 0 })
+    assert.deepEqual(
+      h.store.list().map((j) => j.target),
+      ['残す論文'],
+    )
+  } finally {
+    h.close()
+  }
+})
+
+test('実行中の仕事は取り消さずに数だけ返す', () => {
+  const h = makeHarness()
+  try {
+    const running = h.store.enqueue({ kind: 'convert', target: '消す論文', resource: 'gpu', priority: 'foreground' })
+    h.store.setState(running.id, 'running')
+    h.store.enqueue({ kind: 'verify', target: '消す論文', resource: 'codex', priority: 'foreground' })
+
+    const result = h.store.cancelPending('消す論文')
+
+    assert.deepEqual(result, { cancelled: 1, running: 1 })
+    assert.deepEqual(
+      h.store.list().map((j) => j.kind),
+      ['convert'],
+    )
+  } finally {
+    h.close()
+  }
+})

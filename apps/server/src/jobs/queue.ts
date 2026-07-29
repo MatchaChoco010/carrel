@@ -86,6 +86,10 @@ export class JobQueue {
   }
 
   /** 枠の状態が変わったことを伝える。 */
+  cancelPending(target: string): { cancelled: number; running: number } {
+    return this.#store.cancelPending(target)
+  }
+
   onQuotaChanged(): void {
     if (this.#quota.blocked()) {
       const moved = this.#store.markWaitingForQuota(QUOTA_BOUND)
