@@ -49,7 +49,13 @@ export async function startConversationThread(
 /** 1 つのジョブに対応する使い捨てのスレッド。指示と道具を最小にする。 */
 export async function startWorkThread(
   client: CodexClient,
-  options: { instructions: string; model: string; cwd?: string; approvalPolicy?: AskForApproval },
+  options: {
+    instructions: string
+    model: string
+    cwd?: string
+    approvalPolicy?: AskForApproval
+    serviceTier?: string | null
+  },
 ): Promise<string> {
   const params: ThreadStartParams = {
     ephemeral: true,
@@ -59,6 +65,7 @@ export async function startWorkThread(
     baseInstructions: options.instructions,
   }
   if (options.approvalPolicy !== undefined) params.approvalPolicy = options.approvalPolicy
+  if (options.serviceTier !== undefined && options.serviceTier !== null) params.serviceTier = options.serviceTier
   return readThreadId(await client.request(METHODS.threadStart, params))
 }
 
