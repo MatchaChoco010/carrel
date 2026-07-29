@@ -1,5 +1,5 @@
 import 'katex/dist/katex.min.css'
-import { useMemo } from 'react'
+import { useMemo, type MouseEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
 import rehypeRaw from 'rehype-raw'
@@ -22,6 +22,19 @@ export type MarkdownProps = {
  * `$$` で囲むので(0008)、そのまま組版される。図とキャプションは `<figure>` で
  * 返るため(0004)、生の HTML も通す。
  */
+/**
+ * 同じページの中の目印へ送る。
+ *
+ * 本文は画面の中の枠がスクロールしており、素の `#id` の移動では枠が動かず URL に
+ * `#id` が付くだけになる。目印の要素を自分で探して枠を動かす。
+ */
+function scrollToAnchor(event: MouseEvent<HTMLAnchorElement>, id: string): void {
+  const target = document.getElementById(id)
+  if (target === null) return
+  event.preventDefault()
+  target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
 export function Markdown({ text, slug, linkReferences = false }: MarkdownProps) {
   const source = useMemo(() => (linkReferences ? linkCitations(text) : text), [text, linkReferences])
 
@@ -46,7 +59,9 @@ export function Markdown({ text, slug, linkReferences = false }: MarkdownProps) 
               <a
                 href={href}
                 className={internal ? 'citation' : undefined}
-                {...(internal ? {} : { target: '_blank', rel: 'noreferrer' })}
+                {...(internal
+                  ? { onClick: (event: MouseEvent<HTMLAnchorElement>) => scrollToAnchor(event, href.slice(1)) }
+                  : { target: '_blank', rel: 'noreferrer' })}
               >
                 {children}
               </a>
