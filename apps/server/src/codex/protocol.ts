@@ -70,3 +70,11 @@ export function isApprovalRequest(method: string): boolean {
 export function textInput(text: string): UserInput[] {
   return [{ type: 'text', text, text_elements: [] }]
 }
+
+/** 手元のファイルの画像と本文を 1 つのターンの入力にする。 */
+export function imageAndTextInput(imagePath: string, text: string): UserInput[] {
+  return [
+    { type: 'localImage', path: imagePath },
+    { type: 'text', text, text_elements: [] },
+  ]
+}

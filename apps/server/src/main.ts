@@ -4,6 +4,7 @@ import type { Server } from 'node:http'
 import { WebSocketServer } from 'ws'
 import { CodexService } from './codex/service.ts'
 import { registerConvert } from './convert/job.ts'
+import { registerVerify } from './verify/job.ts'
 import { loadConfig, type Config } from './config.ts'
 import { Collection } from './data/collection.ts'
 import { IndexDb } from './db/index-db.ts'
@@ -13,7 +14,7 @@ import { JobQueue } from './jobs/queue.ts'
 import { JobStore } from './jobs/store.ts'
 import { IngestStore } from './ingest/store.ts'
 import { Hub } from './hub.ts'
-import { converterScript, indexDbFile, stateDbFile, stateDir, webRoot } from './paths.ts'
+import { converterScript, indexDbFile, stateDbFile, stateDir, textLayerScript, webRoot } from './paths.ts'
 
 async function main(): Promise<void> {
   let config: Config = await loadConfig()
@@ -65,6 +66,14 @@ async function main(): Promise<void> {
       llamaServer: config.converter.llamaServer,
       llamaLibDir: config.converter.llamaLibDir,
     },
+  })
+
+  registerVerify(jobs, {
+    dataDir: config.dataDir,
+    ingests,
+    codex: codex.client,
+    model: config.chat.defaultModel,
+    textLayer: { python: config.converter.python, script: textLayerScript() },
   })
 
   const app = createApp({
