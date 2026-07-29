@@ -21,6 +21,7 @@ export function registerRegister(queue: JobQueue, deps: RegisterDeps & { ingests
     try {
       await registerPaper(slug, deps)
       // 全段階が成功したので、ここで初めて検索の対象になる(0004)。
+      // registerPaper の最後は同期処理なので、ここまで監視の処理は割り込めない。
       deps.ingests.finish(slug)
     } catch (error) {
       deps.ingests.fail(slug, error instanceof Error ? error.message : String(error))

@@ -10,7 +10,10 @@ export function enqueueTranslate(queue: JobQueue, slug: string): Job {
   return queue.enqueue({ kind: TRANSLATE_JOB, target: slug, resource: 'codex', priority: 'foreground' })
 }
 
-export function registerTranslate(queue: JobQueue, deps: TranslateDeps & { ingests: IngestStore }): void {
+export function registerTranslate(
+  queue: JobQueue,
+  deps: TranslateDeps & { ingests: IngestStore; onDone: (slug: string) => void },
+): void {
   queue.register(TRANSLATE_JOB, async (job) => {
     const slug = job.target
     try {
@@ -25,6 +28,7 @@ export function registerTranslate(queue: JobQueue, deps: TranslateDeps & { inges
         )
       }
       deps.ingests.advance(slug, 'register')
+      deps.onDone(slug)
     } catch (error) {
       deps.ingests.fail(slug, error instanceof Error ? error.message : String(error))
       throw error
