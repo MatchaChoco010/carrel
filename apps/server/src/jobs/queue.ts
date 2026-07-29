@@ -86,7 +86,6 @@ export class JobQueue {
   }
 
   /** 枠の状態が変わったことを伝える。 */
-  /** その論文の、まだ走り出していない仕事を取り消す。 */
   cancelPending(target: string): { cancelled: number; running: number } {
     return this.#store.cancelPending(target)
   }
