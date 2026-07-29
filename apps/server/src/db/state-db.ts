@@ -67,7 +67,7 @@ const MIGRATIONS: Migration[] = [
   {
     version: 5,
     up: `
-      -- フィードの項目。arXiv の識別子で一意とし、版が上がっても増やさない。
+      -- フィードの項目。arXiv の識別子で一意とし、バージョンが上がっても増やさない。
       create table feed_items (
         arxiv_id text primary key,
         category text not null,

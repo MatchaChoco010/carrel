@@ -13,7 +13,7 @@ export function isArxivUrl(url: string): boolean {
   }
 }
 
-/** URL または識別子そのものから、版を除いた arXiv の識別子を取り出す。 */
+/** URL または識別子そのものから、バージョンを除いた arXiv の識別子を取り出す。 */
 export function extractArxivId(value: string): string | null {
   const modern = MODERN_ID.exec(value)
   if (modern !== null) return modern[1] as string

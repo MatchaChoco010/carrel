@@ -41,7 +41,7 @@ export class FeedStore {
   /**
    * 取った項目を未読として入れ、新しく入った数を返す。
    *
-   * 既に持っている識別子は無視する。版が上がっただけの再投稿を新着にしない。
+   * 既に持っている識別子は無視する。バージョンが上がっただけの再投稿を新着にしない。
    */
   add(entries: FeedEntry[]): number {
     const insert = this.#db.prepare(

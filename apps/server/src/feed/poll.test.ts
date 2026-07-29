@@ -118,7 +118,7 @@ test('記録があればそこから取る', async () => {
   }
 })
 
-test('版が上がっただけの再投稿は新着にしない', async () => {
+test('バージョンが上がっただけの再投稿は新着にしない', async () => {
   const h = makeHarness()
   try {
     const fetcher = async (): Promise<ReturnType<typeof respond>> =>
