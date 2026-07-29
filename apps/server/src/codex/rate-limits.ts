@@ -13,7 +13,7 @@ export type RateLimitWindowView = {
   /** 回復時刻(エポック秒)。分からなければ null。 */
   resetsAt: number | null
   windowDurationMins: number | null
-  /** 画面に出す枠の呼び名。 */
+  /** 画面に出す制限の呼び名。 */
   label: string
 }
 
@@ -22,28 +22,28 @@ export type RateLimitView = {
   planType: string | null
   reached: boolean
   reachedType: string | null
-  /** 次に枠が回復する時刻。待機の解除に使う。 */
+  /** 次に制限が解除される時刻。待機の解除に使う。 */
   nextResetAt: number | null
 }
 
 /**
- * 枠の呼び名を `windowDurationMins` から導く。
+ * 制限の呼び名を `windowDurationMins` から導く。
  *
- * primary を 5 時間枠と決め打ちにすると、primary が週次を指すアカウントで誤った
- * 呼び名になる(実測で確認)。長さは値として届くので、それを使う。
+ * primary を 5 時間の制限と決め打ちにすると、primary が週次を指すアカウントで
+ * 誤った呼び名になる(実測で確認)。長さは値として届くので、それを使う。
  */
 export function describeWindow(windowDurationMins: number | null): string {
-  if (windowDurationMins === null) return '利用枠'
+  if (windowDurationMins === null) return '利用制限'
   if (windowDurationMins % (60 * 24 * 7) === 0) {
     const weeks = windowDurationMins / (60 * 24 * 7)
-    return weeks === 1 ? '週次枠' : `${weeks} 週間枠`
+    return weeks === 1 ? '週次制限' : `${weeks} 週間の制限`
   }
   if (windowDurationMins % (60 * 24) === 0) {
     const days = windowDurationMins / (60 * 24)
-    return days === 1 ? '日次枠' : `${days} 日間枠`
+    return days === 1 ? '日次制限' : `${days} 日間の制限`
   }
-  if (windowDurationMins % 60 === 0) return `${windowDurationMins / 60} 時間枠`
-  return `${windowDurationMins} 分枠`
+  if (windowDurationMins % 60 === 0) return `${windowDurationMins / 60} 時間の制限`
+  return `${windowDurationMins} 分の制限`
 }
 
 function toView(window: RateLimitWindow | null): RateLimitWindowView | null {

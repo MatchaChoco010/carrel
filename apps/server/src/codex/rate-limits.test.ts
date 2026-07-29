@@ -17,13 +17,13 @@ const ACTUAL_RESPONSE = {
   },
 }
 
-test('枠の呼び名を長さから導く', () => {
-  assert.equal(describeWindow(300), '5 時間枠')
-  assert.equal(describeWindow(10080), '週次枠')
-  assert.equal(describeWindow(20160), '2 週間枠')
-  assert.equal(describeWindow(1440), '日次枠')
-  assert.equal(describeWindow(45), '45 分枠')
-  assert.equal(describeWindow(null), '利用枠')
+test('制限の呼び名を長さから導く', () => {
+  assert.equal(describeWindow(300), '5 時間の制限')
+  assert.equal(describeWindow(10080), '週次制限')
+  assert.equal(describeWindow(20160), '2 週間の制限')
+  assert.equal(describeWindow(1440), '日次制限')
+  assert.equal(describeWindow(45), '45 分の制限')
+  assert.equal(describeWindow(null), '利用制限')
 })
 
 test('実機の応答を読み取れる', () => {
@@ -40,7 +40,7 @@ test('primary が週次でも位置ではなく長さで呼ぶ', () => {
   assert.ok(snapshot !== null)
   const view = toRateLimitView(snapshot)
   assert.equal(view.windows.length, 1)
-  assert.equal(view.windows[0]?.label, '週次枠')
+  assert.equal(view.windows[0]?.label, '週次制限')
   assert.equal(view.nextResetAt, 1785649143)
   assert.equal(view.reached, false)
 })
@@ -80,14 +80,14 @@ test('上限への到達は差分でも解除できる', () => {
   assert.equal(mergeSnapshot(reached, recovered).rateLimitReachedType, null)
 })
 
-test('複数の枠があれば最も早い回復時刻を返す', () => {
+test('複数の制限があれば最も早い回復時刻を返す', () => {
   const snapshot = parseRateLimitSnapshot({
     primary: { usedPercent: 10, windowDurationMins: 300, resetsAt: 500 },
     secondary: { usedPercent: 40, windowDurationMins: 10080, resetsAt: 100 },
   })
   assert.ok(snapshot !== null)
   const view = toRateLimitView(snapshot)
-  assert.deepEqual(view.windows.map((w) => w.label), ['5 時間枠', '週次枠'])
+  assert.deepEqual(view.windows.map((w) => w.label), ['5 時間の制限', '週次制限'])
   assert.equal(view.nextResetAt, 100)
 })
 

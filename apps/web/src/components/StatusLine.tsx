@@ -33,7 +33,7 @@ export function StatusLine({
       <span className="status-item">{CONNECTION_LABEL[connection]}</span>
 
       {limits === null ? (
-        <span className="status-item status-item--muted">残枠を取得していない</span>
+        <span className="status-item status-item--muted">利用制限を取得していない</span>
       ) : (
         limits.windows.map((window) => (
           <span
@@ -49,7 +49,7 @@ export function StatusLine({
         ))
       )}
 
-      {limits?.reached === true && <span className="status-item status-item--warn">枠の回復待ち</span>}
+      {limits?.reached === true && <span className="status-item status-item--warn">制限の解除待ち</span>}
       {limits?.planType !== null && limits !== null && (
         <span className="status-item status-item--muted">{limits.planType}</span>
       )}
