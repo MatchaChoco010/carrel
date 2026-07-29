@@ -51,6 +51,20 @@ export type Ingest = {
   stages: Array<{ stage: IngestStage; startedAt: number; finishedAt: number | null }>
 }
 
+export type FeedItem = {
+  arxivId: string
+  category: string
+  title: string
+  authors: string[]
+  abstract: string | null
+  abstractJa: string | null
+  publishedAt: number
+  addedAt: number
+  read: boolean
+  /** 取り込み済みならその slug。 */
+  slug: string | null
+}
+
 export type IndexStatus = {
   papers: number
   chats: number
@@ -136,6 +150,10 @@ export const api = {
   jobs: () => getJson<JobsResponse>('/api/jobs'),
   indexStatus: () => getJson<IndexStatus>('/api/index/status'),
   ingests: () => getJson<{ ingests: Ingest[] }>('/api/ingests'),
+  feed: () => getJson<{ items: FeedItem[]; unread: number }>('/api/feed'),
+  markFeedRead: (arxivIds: string[]) =>
+    sendJson<{ read: number; unread: number }>('POST', '/api/feed/read', { arxivIds }),
+  refreshFeed: () => sendJson<{ queued: boolean }>('POST', '/api/feed/refresh', {}),
   search: (query: string, filter: SearchFilter = {}) =>
     getJson<{ hits: SearchHit[] }>(`/api/search?${searchParams(query, filter)}`),
   paper: (slug: string) => getJson<PaperDetail>(`/api/papers/${encodeURIComponent(slug)}`),

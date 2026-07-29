@@ -64,6 +64,32 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 5,
+    up: `
+      -- フィードの項目。arXiv の識別子で一意とし、版が上がっても増やさない。
+      create table feed_items (
+        arxiv_id text primary key,
+        category text not null,
+        title text not null,
+        authors text not null,
+        abstract text,
+        abstract_ja text,
+        published_at integer not null,
+        added_at integer not null,
+        read_at integer,
+        slug text
+      );
+
+      create index feed_items_published on feed_items (published_at desc);
+
+      -- カテゴリごとに最後まで取れた投稿時刻。次の取得の起点になる。
+      create table feed_cursors (
+        category text primary key,
+        published_at integer not null
+      );
+    `,
+  },
 ]
 
 /**

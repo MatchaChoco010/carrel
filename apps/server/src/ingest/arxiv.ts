@@ -44,6 +44,31 @@ function entryOf(xml: string): string | null {
   return match === null ? null : (match[1] as string)
 }
 
+/** API の応答に並ぶ 1 件ぶんの生の値。フィードは書誌の解決とは別の形で使う。 */
+export type ArxivEntry = {
+  id: string | null
+  title: string | null
+  authors: string[]
+  abstract: string | null
+  published: string | null
+}
+
+/** 応答に並ぶすべての entry を取り出す。 */
+export function parseArxivEntries(xml: string): ArxivEntry[] {
+  return [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)].map((match) => {
+    const entry = match[1] as string
+    return {
+      id: text(entry, 'id'),
+      title: text(entry, 'title'),
+      authors: [...entry.matchAll(/<author>\s*<name>([\s\S]*?)<\/name>/g)]
+        .map((m) => decodeEntities((m[1] as string).trim()))
+        .filter((name) => name.length > 0),
+      abstract: text(entry, 'summary'),
+      published: text(entry, 'published'),
+    }
+  })
+}
+
 export function parseArxivEntry(xml: string, arxivId: string): ResolvedSource | null {
   const entry = entryOf(xml)
   if (entry === null) return null
