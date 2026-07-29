@@ -28,9 +28,18 @@ export function stateDbFile(): string {
   return join(stateDir(), 'state.sqlite')
 }
 
+function converterDir(): string {
+  return join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'converter')
+}
+
 /** 変換スクリプト。リポジトリの中の位置は動かないので、実行ファイルから辿る。 */
 export function converterScript(): string {
-  return join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'converter', 'pct_convert.py')
+  return join(converterDir(), 'pct_convert.py')
+}
+
+/** 文字層を取り出すスクリプト。 */
+export function textLayerScript(): string {
+  return join(converterDir(), 'pct_textlayer.py')
 }
 
 /**
