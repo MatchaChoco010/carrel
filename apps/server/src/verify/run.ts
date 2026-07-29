@@ -1,5 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { inBatches } from '../batches.ts'
 import type { CodexClient } from '../codex/client.ts'
 import { imageAndTextInput } from '../codex/protocol.ts'
 import { runTurn, startWorkThread } from '../codex/threads.ts'
@@ -96,15 +97,6 @@ export function restoreImages(before: string, after: string): string {
 
 /** 同時に照合するページ数。ページごとに使い捨てのスレッドを立てるので依存が無い。 */
 const PAGES_AT_ONCE = 8
-
-/** 決まった数ずつ並べて走らせ、入力の順で結果を返す。 */
-async function inBatches<T, R>(items: T[], size: number, run: (item: T) => Promise<R>): Promise<R[]> {
-  const results: R[] = []
-  for (let at = 0; at < items.length; at += size) {
-    results.push(...(await Promise.all(items.slice(at, at + size).map(run))))
-  }
-  return results
-}
 
 /**
  * 論文を 1 本照合し、`paper.md` と `verification.md` を書く。

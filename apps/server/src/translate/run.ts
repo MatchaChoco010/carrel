@@ -1,3 +1,4 @@
+import { inBatches } from '../batches.ts'
 import type { CodexClient } from '../codex/client.ts'
 import { textInput } from '../codex/protocol.ts'
 import { runTurn, startWorkThread } from '../codex/threads.ts'
@@ -32,10 +33,14 @@ export type SectionOutcome = {
  * 契約に反する箇所が分かる訳があるほうがよい。
  */
 async function translateSection(
-  threadId: string,
   request: Parameters<typeof buildTranslatePrompt>[0],
   deps: TranslateDeps,
 ): Promise<{ markdown: string; breach: string | null }> {
+  const threadId = await startWorkThread(deps.codex, {
+    instructions: TRANSLATE_INSTRUCTIONS,
+    model: deps.model,
+    serviceTier: deps.serviceTier,
+  })
   let breach: string | null = null
   let last = ''
   for (let attempt = 0; attempt <= RETRIES; attempt += 1) {
@@ -53,56 +58,51 @@ async function translateSection(
   return { markdown: last, breach }
 }
 
-/**
- * 論文 1 本の本文と abstract を訳す。
- *
- * 節ごとの要求を 1 つの作業スレッドの中で順に行う。同じスレッドに前の節の訳が
- * 残るため、専門用語の訳が論文の中で揃う(0004)。
- */
+const SECTIONS_AT_ONCE = 8
+
+/** 訳し終えた節。abstract も 1 つの節として同じ並びに入る。 */
+type Translated = SectionOutcome & { markdown: string; isAbstract: boolean }
+
 export async function translatePaper(slug: string, deps: TranslateDeps): Promise<SectionOutcome[]> {
   const paper = await readPaper(deps.dataDir, slug)
   if (paper === null) throw new Error(`論文が読めない: ${slug}`)
   const sections = splitSections(paper.body)
 
-  const threadId = await startWorkThread(deps.codex, {
-    instructions: TRANSLATE_INSTRUCTIONS,
-    model: deps.model,
-    serviceTier: deps.serviceTier,
-  })
-
   // abstract は副次ファイルにある。無ければ本文だけを訳す。
   const abstract = ((await readPaperSideFile(deps.dataDir, slug, 'abstract')) ?? '').trim()
-  const outcomes: SectionOutcome[] = []
-  const parts: string[] = []
-  for (const section of sections) {
-    const result = await translateSection(
-      threadId,
-      {
-        title: paper.meta.title,
-        abstract,
-        index: section.index,
-        total: sections.length,
-        markdown: section.markdown,
-      },
-      deps,
-    )
-    parts.push(result.markdown)
-    outcomes.push({ index: section.index, heading: section.heading, breach: result.breach })
-  }
+  const total = abstract.length > 0 ? sections.length + 1 : sections.length
 
-  await writePaperSideFile(deps.dataDir, slug, 'bodyJa', joinSections(parts), 'ja')
-
-  // abstract は 1 つの節として、同じスレッドの最後に訳す。本文で使った訳語が
-  // そのまま使われる。
+  const work = sections.map((section) => ({
+    heading: section.heading,
+    isAbstract: false,
+    request: {
+      title: paper.meta.title,
+      abstract,
+      index: section.index,
+      total,
+      markdown: section.markdown,
+    },
+  }))
   if (abstract.length > 0) {
-    const result = await translateSection(
-      threadId,
-      { title: paper.meta.title, abstract, index: sections.length, total: sections.length + 1, markdown: abstract },
-      deps,
-    )
-    await writePaperSideFile(deps.dataDir, slug, 'abstractJa', `${result.markdown.trim()}\n`, 'ja')
-    outcomes.push({ index: sections.length, heading: 'abstract', breach: result.breach })
+    work.push({
+      heading: 'abstract',
+      isAbstract: true,
+      request: { title: paper.meta.title, abstract, index: sections.length, total, markdown: abstract },
+    })
   }
 
-  return outcomes
+  const done: Translated[] = await inBatches(work, SECTIONS_AT_ONCE, async (item) => {
+    const result = await translateSection(item.request, deps)
+    return { index: item.request.index, heading: item.heading, isAbstract: item.isAbstract, ...result }
+  })
+
+  const body = done.filter((d) => !d.isAbstract)
+  await writePaperSideFile(deps.dataDir, slug, 'bodyJa', joinSections(body.map((d) => d.markdown)), 'ja')
+
+  const translatedAbstract = done.find((d) => d.isAbstract)
+  if (translatedAbstract !== undefined) {
+    await writePaperSideFile(deps.dataDir, slug, 'abstractJa', `${translatedAbstract.markdown.trim()}\n`, 'ja')
+  }
+
+  return done.map(({ index, heading, breach }) => ({ index, heading, breach }))
 }
