@@ -94,6 +94,7 @@ export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<Inge
     arxivId: source.arxivId,
     originalUrl: source.originalUrl,
   })
+  deps.ingests.startStage(slug, 'resolve')
 
   try {
     // abstract を paper.md へ書かないのは、本文を照合が確定させるためである。

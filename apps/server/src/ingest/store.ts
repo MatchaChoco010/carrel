@@ -70,10 +70,39 @@ export class IngestStore {
   }
 
   advance(slug: string, stage: IngestStage): void {
-    this.#db.prepare('update ingests set stage = ?, updated_at = ? where slug = ?').run(stage, this.#now(), slug)
+    const now = this.#now()
+    const current = this.get(slug)?.stage
+    if (current !== undefined) this.finishStage(slug, current, now)
+    this.startStage(slug, stage, now)
+    this.#db.prepare('update ingests set stage = ?, updated_at = ? where slug = ?').run(stage, now, slug)
+  }
+
+  startStage(slug: string, stage: IngestStage, at = this.#now()): void {
+    this.#db
+      .prepare(
+        `insert into ingest_stages (slug, stage, started_at, finished_at) values (?, ?, ?, null)
+         on conflict (slug, stage) do update set started_at = excluded.started_at, finished_at = null`,
+      )
+      .run(slug, stage, at)
+  }
+
+  finishStage(slug: string, stage: IngestStage, at = this.#now()): void {
+    this.#db
+      .prepare('update ingest_stages set finished_at = ? where slug = ? and stage = ? and finished_at is null')
+      .run(at, slug, stage)
+  }
+
+  /** 実行中の段階は finishedAt が null になる。 */
+  stages(slug: string): Array<{ stage: IngestStage; startedAt: number; finishedAt: number | null }> {
+    const rows = this.#db
+      .prepare('select stage, started_at, finished_at from ingest_stages where slug = ? order by started_at')
+      .all(slug) as Array<{ stage: string; started_at: number; finished_at: number | null }>
+    return rows.map((r) => ({ stage: r.stage as IngestStage, startedAt: r.started_at, finishedAt: r.finished_at }))
   }
 
   finish(slug: string): void {
+    const current = this.get(slug)?.stage
+    if (current !== undefined) this.finishStage(slug, current)
     this.#db
       .prepare(`update ingests set status = 'done', stage = 'register', updated_at = ? where slug = ?`)
       .run(this.#now(), slug)

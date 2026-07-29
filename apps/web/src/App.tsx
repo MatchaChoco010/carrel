@@ -1,6 +1,7 @@
 import { FileText, ListTodo, MessagesSquare, Rss, Settings, type LucideIcon } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api, type CodexStatus, type IndexStatus, type JobsResponse } from './api.ts'
+import { api, type CodexStatus, type IndexStatus, type Ingest, type JobsResponse } from './api.ts'
+import { IngestsPane } from './components/IngestsPane.tsx'
 import { JobsPane } from './components/JobsPane.tsx'
 import { PapersPane } from './components/PapersPane.tsx'
 import { StatusLine } from './components/StatusLine.tsx'
@@ -43,6 +44,7 @@ export function App() {
   const [codex, setCodex] = useState<CodexStatus | null>(null)
   const [jobs, setJobs] = useState<JobsResponse | null>(null)
   const [index, setIndex] = useState<IndexStatus | null>(null)
+  const [ingests, setIngests] = useState<Ingest[]>([])
   const [chatOpen, setChatOpen] = useState(false)
   // 取り込みや削除の後に一覧を読み直すための番号。
   const [revision, setRevision] = useState(0)
@@ -53,6 +55,10 @@ export function App() {
 
   const reloadJobs = useCallback(() => {
     void api.jobs().then(setJobs).catch(() => setJobs(null))
+    void api
+      .ingests()
+      .then((r) => setIngests(r.ingests))
+      .catch(() => setIngests([]))
   }, [])
 
   useEffect(() => {
@@ -135,7 +141,10 @@ export function App() {
           </header>
           <div className="pane__body">
             {tab === 'jobs' ? (
-              <JobsPane jobs={jobs} />
+              <div className="jobs-tab">
+                <IngestsPane ingests={ingests} />
+                <JobsPane jobs={jobs} />
+              </div>
             ) : tab === 'papers' ? (
               <PapersPane
                 lang={lang}

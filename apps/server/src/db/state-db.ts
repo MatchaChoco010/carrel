@@ -51,6 +51,19 @@ const MIGRATIONS: Migration[] = [
       create index ingests_status on ingests (status);
     `,
   },
+  {
+    version: 4,
+    up: `
+      -- 段階ごとの所要時間。どこで時間がかかっているかを画面で見せる。
+      create table ingest_stages (
+        slug text not null,
+        stage text not null,
+        started_at integer not null,
+        finished_at integer,
+        primary key (slug, stage)
+      );
+    `,
+  },
 ]
 
 /**

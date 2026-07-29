@@ -38,6 +38,19 @@ export type JobsResponse = {
   jobs: Job[]
 }
 
+export type IngestStage = 'resolve' | 'fetch' | 'convert' | 'verify' | 'translate' | 'register'
+
+export type Ingest = {
+  slug: string
+  sourceUrl: string
+  stage: IngestStage
+  status: 'inProgress' | 'failed' | 'done'
+  startedAt: number
+  updatedAt: number
+  lastError: string | null
+  stages: Array<{ stage: IngestStage; startedAt: number; finishedAt: number | null }>
+}
+
 export type IndexStatus = {
   papers: number
   chats: number
@@ -122,6 +135,7 @@ export const api = {
   codexStatus: () => getJson<CodexStatus>('/api/codex/status'),
   jobs: () => getJson<JobsResponse>('/api/jobs'),
   indexStatus: () => getJson<IndexStatus>('/api/index/status'),
+  ingests: () => getJson<{ ingests: Ingest[] }>('/api/ingests'),
   search: (query: string, filter: SearchFilter = {}) =>
     getJson<{ hits: SearchHit[] }>(`/api/search?${searchParams(query, filter)}`),
   paper: (slug: string) => getJson<PaperDetail>(`/api/papers/${encodeURIComponent(slug)}`),
