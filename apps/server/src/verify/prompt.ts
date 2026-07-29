@@ -58,9 +58,7 @@ export const VERIFY_INSTRUCTIONS = `あなたは論文の PDF を markdown へ�
 /**
  * 文字層も変換結果も空のページに与える指示。
  *
- * 走査した紙面のように、PDF に文字が埋まっていない論文がある。突き合わせる相手が
- * 無いので照合は成り立たず、紙面の画像だけが手がかりになる。本文が無いまま取り
- * 込むより、画像から書き起こしたものがあるほうがよい(0009)。
+ * 突き合わせる相手が無いので、向きの表を中心にした照合の指示は成り立たない。
  */
 export const TRANSCRIBE_INSTRUCTIONS = `あなたは論文の紙面の画像を読み、その 1 ページを markdown に書き起こす。
 
@@ -141,7 +139,7 @@ export type VerifyPageInput = {
   textLayer: string
   /** そのページを重点的に見るかどうか(0009)。 */
   focus: boolean
-  /** 文字層も変換結果も空で、画像から書き起こすほかないページ。 */
+  /** 突き合わせる相手が無く、画像から書き起こすページ。 */
   transcribe: boolean
   /** 欠けた文字の例。 */
   missingSamples: string[]
