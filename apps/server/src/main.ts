@@ -105,7 +105,7 @@ async function main(): Promise<void> {
     chunks,
     embed,
     model: embeddingModel,
-    reindex: (slug) => collection.reloadPaper(slug),
+    indexPaper: (paper) => index.upsertPaper(paper, true),
   })
 
   const app = createApp({

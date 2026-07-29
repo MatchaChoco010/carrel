@@ -87,13 +87,8 @@ export class Collection {
     return result
   }
 
-  async #indexPaper(
-    slug: string,
-    knownMtimeMs?: number,
-    knownBodyHash?: string,
-    ignoreIncomplete = false,
-  ): Promise<boolean> {
-    if (!ignoreIncomplete && this.#incomplete().has(slug)) {
+  async #indexPaper(slug: string, knownMtimeMs?: number, knownBodyHash?: string): Promise<boolean> {
+    if (this.#incomplete().has(slug)) {
       // 索引に載った後で未完了に戻ることがある(取り込み済みの論文を同じ slug で
       // 取り込み直した場合など)ので、載っていたものは外す。
       if (knownMtimeMs !== undefined) {
@@ -146,18 +141,6 @@ export class Collection {
   }
 
   /** 稼働中の編集を拾う。書き込みの途中で何度も発火するので、少し待ってから読む。 */
-  /**
-   * 論文 1 本を読み直して索引へ載せる。
-   *
-   * 登録の段階が使う。チャンクは論文の行を参照するので、チャンクを入れる前に
-   * 論文が索引に居る必要がある。取り込みはまだ完了していないが、本文は出揃って
-   * いるので、未完了を理由に外す判定はここでは行わない。取り込み全体の完了は
-   * 登録が済んでから記録する(0004)。
-   */
-  async reloadPaper(slug: string): Promise<void> {
-    await this.#indexPaper(slug, undefined, undefined, true)
-  }
-
   startWatching(debounceMs = 250): void {
     this.stopWatching()
     for (const [root, kind] of [
