@@ -124,8 +124,8 @@ export function buildVerifyPrompt(input: VerifyPageInput): string {
     '',
     input.textLayer.length > 0 ? input.textLayer : '(このページに埋め込まれた文字は無い)',
   ]
-  // 図の参照は紙面に文字として現れないので、指示だけでは落ちる。このページに何が
-  // あるかを名指しで挙げ、出力に同じ行が要ることを具体的に示す。
+  // 図の参照は紙面に文字として現れないので、指示だけでは落ちる。このページにある
+  // ものを名指しで挙げる。
   const images = input.converted.match(IMAGE_LINE) ?? []
   if (images.length > 0) {
     parts.push(

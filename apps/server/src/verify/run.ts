@@ -77,12 +77,8 @@ async function verifyPage(work: PageWork, imagePath: string, deps: VerifyDeps): 
 /**
  * 照合が落とした図の参照を戻す。
  *
- * 照合は紙面の画像と PDF の文字層から本文を組み直すが(0009)、図の画像は紙面に
- * 文字として現れないので、残すよう指示していても落ちることがある。画像は pct が
- * 切り出した成果物であって照合の対象ではないから、落ちた分は機械的に戻す。
- *
- * 位置は落ちた時点で失われているので、ページの末尾に置く。図はページ単位で切り
- * 出しているので、ページを跨いで迷子になることはない。
+ * 図の画像は紙面に文字として現れないので、残すよう指示していても落ちることが
+ * ある。落ちた時点で位置は失われているため、そのページの末尾に置く。
  */
 export function restoreImages(before: string, after: string): string {
   const wanted = before.match(IMAGE_LINE) ?? []
