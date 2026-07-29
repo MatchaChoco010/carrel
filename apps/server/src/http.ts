@@ -158,7 +158,6 @@ export function createApp(deps: AppDeps): Hono {
     return c.json({
       meta: paper.meta,
       body: paper.body,
-      // 保存済みの訳をそのまま返す。切り替えのたびに訳し直さない。
       bodyJa: await side('bodyJa'),
       abstract: await side('abstract'),
       abstractJa: await side('abstractJa'),
@@ -182,10 +181,8 @@ export function createApp(deps: AppDeps): Hono {
     const dataDir = deps.getConfig().dataDir
     const paper = await readPaper(dataDir, slug)
     if (paper === null) return c.json({ error: `論文が見つからない: ${slug}` }, 404)
-    // markdown を先に書く。frontmatter が正で、索引はそこから作られる(0002)。
+    // markdown を先に書く。索引はファイルの監視が拾って追随する。
     await writePaper(dataDir, { ...paper.meta, tags }, paper.body)
-    // 索引はファイルの監視が拾って追随する。書き込みの順序が markdown 先で
-    // あることがここでの要点である(0002)。
     return c.json({ slug, tags })
   })
 
