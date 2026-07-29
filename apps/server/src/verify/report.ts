@@ -30,9 +30,6 @@ const SOURCE_LABELS: Record<VerifyChange['source'], string> = {
  * かを理由つきで残し、人が原本と突き合わせられる状態を保つ。あわせて、照合を
  * 経ても残った文字の欠落を記録する。文字の欠落という 1 つの事象に限れば機械的
  * に確かめられる(0009)。
- *
- * 書き起こしたページも記録する。文字の正が無いので、固有名詞や数値の読み違いが
- * 残っても検出できない(0010)。
  */
 export function buildReport(reports: PageReport[]): string {
   const lines: string[] = []
