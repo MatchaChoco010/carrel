@@ -5,6 +5,8 @@ import type { Collection, ScanResult } from './data/collection.ts'
 import type { Config } from './config.ts'
 import { mergeConfig, saveConfig } from './config.ts'
 import type { IndexDb } from './db/index-db.ts'
+import { extractArxivId } from './ingest/arxiv.ts'
+import { FeedStore } from './feed/store.ts'
 import { discardIngest, ingestFromUrl } from './ingest/pipeline.ts'
 import type { IngestStore } from './ingest/store.ts'
 import type { JobQueue } from './jobs/queue.ts'
@@ -28,6 +30,9 @@ export type AppDeps = {
   codex: CodexService
   jobs: JobQueue
   ingests: IngestStore
+  feed: FeedStore
+  /** フィードの取得を今すぐ積む。 */
+  refreshFeed: () => void
   /** ビルド済みの Web クライアントの場所。無ければ配信しない。 */
   webRoot: string | null
 }
@@ -143,10 +148,27 @@ export function createApp(deps: AppDeps): Hono {
         model: deps.getConfig().ingest.model,
       })
       if (result.kind === 'imported') deps.onIngested(result.slug)
+      // フィードから取り込んだ論文を結びつける。同じ論文を二度取り込ませないため。
+      const arxivId = extractArxivId(url)
+      if (arxivId !== null) deps.feed.setSlug(arxivId, result.slug)
       return c.json(result)
     } catch (error) {
       return c.json({ error: error instanceof Error ? error.message : String(error) }, 502)
     }
+  })
+
+  app.get('/api/feed', (c) => c.json({ items: deps.feed.list(), unread: deps.feed.unreadCount() }))
+
+  // 画面に出た項目を既読にする。何を出したかを知っているのはクライアントだけ。
+  app.post('/api/feed/read', async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as { arxivIds?: unknown }
+    const ids = Array.isArray(body.arxivIds) ? body.arxivIds.filter((v): v is string => typeof v === 'string') : []
+    return c.json({ read: deps.feed.markRead(ids), unread: deps.feed.unreadCount() })
+  })
+
+  app.post('/api/feed/refresh', (c) => {
+    deps.refreshFeed()
+    return c.json({ queued: true })
   })
 
   app.get('/api/ingests', (c) =>

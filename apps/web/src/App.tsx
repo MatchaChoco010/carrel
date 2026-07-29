@@ -1,6 +1,7 @@
 import { FileText, ListTodo, MessagesSquare, Rss, Settings, type LucideIcon } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, type CodexStatus, type IndexStatus, type Ingest, type JobsResponse } from './api.ts'
+import { FeedPane } from './components/FeedPane.tsx'
 import { IngestsPane } from './components/IngestsPane.tsx'
 import { JobsPane } from './components/JobsPane.tsx'
 import { PapersPane } from './components/PapersPane.tsx'
@@ -45,6 +46,7 @@ export function App() {
   const [jobs, setJobs] = useState<JobsResponse | null>(null)
   const [index, setIndex] = useState<IndexStatus | null>(null)
   const [ingests, setIngests] = useState<Ingest[]>([])
+  const [unread, setUnread] = useState(0)
   const [chatOpen, setChatOpen] = useState(false)
   // 取り込みや削除の後に一覧を読み直すための番号。
   const [revision, setRevision] = useState(0)
@@ -59,6 +61,10 @@ export function App() {
       .ingests()
       .then((r) => setIngests(r.ingests))
       .catch(() => setIngests([]))
+    void api
+      .feed()
+      .then((r) => setUnread(r.unread))
+      .catch(() => setUnread(0))
   }, [])
 
   useEffect(() => {
@@ -75,6 +81,9 @@ export function App() {
           return
         case 'job.changed':
           reloadJobs()
+          return
+        case 'feed.changed':
+          setUnread((event.payload as { unread: number }).unread)
           return
         case 'paper.changed':
         case 'paper.removed':
@@ -109,6 +118,7 @@ export function App() {
             >
               <entry.Icon size={ICON_SIZE} aria-hidden />
               {entry.id === 'jobs' && running > 0 && <span className="rail__badge">{running}</span>}
+              {entry.id === 'feed' && unread > 0 && <span className="rail__badge">{unread}</span>}
             </button>
           ))}
         </div>
@@ -156,7 +166,13 @@ export function App() {
             ) : tab === 'chats' ? (
               <p className="pane__empty">記録されたチャット {index?.chats ?? 0} 件。一覧の表示は後続の作業で足す。</p>
             ) : tab === 'feed' ? (
-              <p className="pane__empty">フィードの取得は後続の作業で足す。</p>
+              <FeedPane
+                lang={lang}
+                onLangChange={setLang}
+                revision={revision}
+                onUnread={setUnread}
+                onChanged={() => setRevision((n) => n + 1)}
+              />
             ) : (
               <p className="pane__empty">設定の編集は後続の作業で足す。</p>
             )}

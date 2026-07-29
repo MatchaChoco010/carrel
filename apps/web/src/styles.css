@@ -916,3 +916,100 @@ body {
   font-variant-numeric: tabular-nums;
   opacity: 0.7;
 }
+
+/* --- arXiv フィード --- */
+
+.feed {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.feed__bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.feed__bar button {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 7px 10px;
+  font: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.feed__list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.feed-item {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* 未読は左端の線で示す。既読になっても項目は動かない。 */
+.feed-item--unread {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.feed-item header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.feed-item h3 {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.feed-item header button {
+  flex: 0 0 auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 5px 9px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.feed-item__done {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.feed-item__meta {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.feed-item__abstract {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.75;
+}

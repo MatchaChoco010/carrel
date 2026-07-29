@@ -28,7 +28,7 @@ test('arXiv の URL を見分ける', () => {
   assert.equal(isArxivUrl('壊れた URL'), false)
 })
 
-test('識別子を版を除いて取り出す', () => {
+test('識別子をバージョンを除いて取り出す', () => {
   assert.equal(extractArxivId('https://arxiv.org/abs/2003.08934'), '2003.08934')
   assert.equal(extractArxivId('https://arxiv.org/abs/2003.08934v2'), '2003.08934')
   assert.equal(extractArxivId('https://arxiv.org/pdf/2003.08934v12'), '2003.08934')

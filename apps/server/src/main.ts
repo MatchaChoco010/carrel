@@ -18,6 +18,8 @@ import { createApp } from './http.ts'
 import { JobQueue } from './jobs/queue.ts'
 import { JobStore } from './jobs/store.ts'
 import { IngestStore } from './ingest/store.ts'
+import { enqueueFeedFetch, registerFeed } from './feed/job.ts'
+import { FeedStore } from './feed/store.ts'
 import { Hub } from './hub.ts'
 import { converterScript, indexDbFile, stateDbFile, stateDir, textLayerScript, webRoot } from './paths.ts'
 
@@ -110,6 +112,23 @@ async function main(): Promise<void> {
     indexPaper: (paper) => index.upsertPaper(paper, true),
   })
 
+  const feed = new FeedStore(state.db)
+  registerFeed(jobs, {
+    poll: () => ({
+      feed,
+      categories: config.arxiv.categories,
+      initialLookbackDays: config.arxiv.initialLookbackDays,
+    }),
+    translate: {
+      feed,
+      codex: codex.client,
+      model: config.ingest.model,
+      effort: config.ingest.effort,
+      serviceTier: config.ingest.serviceTier,
+    },
+    onFetched: () => hub.broadcast({ type: 'feed.changed', payload: { unread: feed.unreadCount() } }),
+  })
+
   const app = createApp({
     search: (query) => search(query, { index, chunks, embed }),
     onIngested: (slug) => enqueueConvert(jobs, slug),
@@ -129,6 +148,8 @@ async function main(): Promise<void> {
     codex,
     jobs,
     ingests,
+    feed,
+    refreshFeed: () => enqueueFeedFetch(jobs),
     webRoot: await webRoot(),
   })
 
@@ -146,6 +167,14 @@ async function main(): Promise<void> {
 
   jobs.start()
 
+  // 起動のたびに取りにいく。止めていた期間の投稿はここでまとめて入る(0004)。
+  enqueueFeedFetch(jobs)
+  const feedTimer = setInterval(
+    () => enqueueFeedFetch(jobs),
+    Math.max(1, config.arxiv.fetchIntervalMinutes) * 60 * 1000,
+  )
+  feedTimer.unref()
+
   // 会話スレッドが pct の MCP の口を呼ぶため、HTTP を開いた後に起動する。
   try {
     await codex.start()
@@ -159,6 +188,7 @@ async function main(): Promise<void> {
   const shutdown = (signal: string): void => {
     console.log(`${signal} を受けたので終了する`)
     collection.stopWatching()
+    clearInterval(feedTimer)
     jobs.stop()
     void codex.stop()
     hub.closeAll()
