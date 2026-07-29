@@ -601,9 +601,17 @@ body {
   padding-top: 14px;
 }
 
+/* 画面が広いときは、題・書誌・本文をひとつの列として中央へ置く。行の中身は左揃え
+   のままで、列そのものだけを寄せる。狭いときは幅いっぱいに広がる。 */
+.paper-body > * {
+  max-width: 46rem;
+  margin-inline: auto;
+}
+
 .paper-body h1 {
   font-size: 18px;
-  margin: 0 0 4px;
+  /* 左右の auto は上の列の中央寄せを保つため。 */
+  margin: 0 auto 4px;
 }
 
 .paper-body pre {
@@ -657,7 +665,8 @@ body {
   display: grid;
   grid-template-columns: max-content 1fr;
   gap: 4px 14px;
-  margin: 12px 0 0;
+  /* 左右の auto は本文の列の中央寄せを保つため。 */
+  margin: 12px auto 0;
   font-size: 13px;
 }
 
