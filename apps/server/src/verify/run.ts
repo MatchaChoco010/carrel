@@ -102,11 +102,10 @@ export function restoreImages(before: string, after: string): string {
  * 同時に照合するページ数。
  *
  * ページごとに使い捨てのスレッドを立てるので、ページ同士に依存が無く、並べて
- * 走らせられる。上限は Codex を使うジョブの同時実行数に合わせてある(0003)。
- * 実測で 15 ページの論文の照合が 1 ページ約 57 秒 × 15 だったので、ここが
- * 取り込み全体で最も長い段階になっていた。
+ * 走らせられる。実測で 15 ページの論文の照合が 1 ページ約 50 秒 × 15 だったので、
+ * ここが取り込み全体で最も長い段階になっていた。
  */
-const PAGES_AT_ONCE = 4
+const PAGES_AT_ONCE = 8
 
 /** 決まった数ずつ並べて走らせ、入力の順で結果を返す。 */
 async function inBatches<T, R>(items: T[], size: number, run: (item: T) => Promise<R>): Promise<R[]> {
