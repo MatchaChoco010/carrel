@@ -15,6 +15,6 @@ pct(paper collection tool)の設計判断の記録。
 | [0008](0008_conversion_runtime.md) | 論文の変換に使う実装と実行環境 | approved | not-started |
 | [0009](0009_text_authority_in_verification.md) | 照合で文字の正をどこに置くか | approved | not-started |
 | [0010](0010_reading_text_in_verification.md) | 変換から文字の読み取りを外し、照合に任せる | approved | in-progress |
-| [0011](0011_parallel_translation.md) | 翻訳を節ごとに並べて走らせる | approved | not-started |
+| [0011](0011_parallel_translation.md) | 翻訳を節ごとに並べて走らせる | approved | in-progress |
 
 件数: 11
