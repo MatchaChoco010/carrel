@@ -9,6 +9,7 @@ import { copyText } from '../clipboard.ts'
 export type PaperViewProps = {
   detail: PaperDetail
   lang: 'en' | 'ja'
+  onLangChange: (lang: 'en' | 'ja') => void
   onBack: () => void
   onTagsChange: (tags: string[]) => void
 }
@@ -17,14 +18,12 @@ const ICON = 16
 
 type Pane = 'body' | 'verification' | 'raw'
 
-export function PaperView({ detail, lang, onBack, onTagsChange }: PaperViewProps) {
+export function PaperView({ detail, lang, onLangChange, onBack, onTagsChange }: PaperViewProps) {
   const { meta } = detail
   const [pane, setPane] = useState<Pane>('body')
   const [raw, setRaw] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
-  // abstract も本文と同じ言語の切り替えに従う。
-  const abstract = lang === 'ja' ? (detail.abstractJa ?? detail.abstract) : detail.abstract
 
   useEffect(() => {
     if (pane !== 'raw' || raw !== null) return
@@ -50,6 +49,16 @@ export function PaperView({ detail, lang, onBack, onTagsChange }: PaperViewProps
         <button type="button" onClick={onBack}>
           <ArrowLeft size={ICON} aria-hidden /> 一覧
         </button>
+
+        {/* 言語は一覧と共通だが、本文を読んでいる途中でも切り替えられるようにする。 */}
+        <div className="lang">
+          <button type="button" className={lang === 'en' ? 'on' : ''} onClick={() => onLangChange('en')}>
+            EN
+          </button>
+          <button type="button" className={lang === 'ja' ? 'on' : ''} onClick={() => onLangChange('ja')}>
+            JA
+          </button>
+        </div>
 
 
         <button
@@ -84,12 +93,6 @@ export function PaperView({ detail, lang, onBack, onTagsChange }: PaperViewProps
         <h1>{meta.title}</h1>
         {/* frontmatter が論文の正の情報なので、全項目を読めるようにする(0002)。 */}
         <PaperMetaTable meta={meta} onTagsChange={onTagsChange} />
-        {abstract === null || abstract.length === 0 ? null : (
-          <section className="paper-abstract">
-            <h2>abstract</h2>
-            <Markdown text={abstract} slug={meta.slug} />
-          </section>
-        )}
         {/* 照合の記録と照合前の本文も markdown なので、同じ描き方でよい。 */}
         {/* 題と著者欄は frontmatter が担当するので、本文の側では隠す。 */}
         <Markdown text={pane === 'body' ? stripFrontMatterBlock(text) : text} slug={meta.slug} linkReferences={pane === 'body'} />

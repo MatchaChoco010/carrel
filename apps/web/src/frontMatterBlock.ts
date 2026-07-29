@@ -15,8 +15,12 @@ const BODY_START = /^#{1,6}\s+(?:\d+[.\s]|[IVX]+[.\s]|1\s|abstract|introduction|
 
 /** 冒頭のうち、落としてよいと判じる行。 */
 const DROPPABLE = [
-  /^#\s/, // 題
-  /^[A-ZÀ-Ý][A-ZÀ-Ý\s.'-]+\s*[∗*†]?\s*,/, // 著者と所属(大文字で組まれる)
+  // 題。変換器が題を見出しにするので、見出しの印ごと落とす。
+  /^#\s/,
+  // 書誌の項目は見出しとして組まれることがある。印を除いてから判じる。
+  // 著者と所属。紙面では姓名が大文字で組まれる。和訳でも姓名はそのまま残り、
+  // 区切りだけが読点になる。
+  /^[A-ZÀ-Ý][A-ZÀ-Ý\s.'-]+\s*[∗*†]?\s*[,、]/,
   /^authors['’]?\s+addresses/i,
   /^permission to make digital/i,
   /^publication rights licensed/i,
@@ -24,6 +28,12 @@ const DROPPABLE = [
   /^\d{4}-\d{4}\/\d{4}/, // ACM の書誌の番号
   /^https:\/\/doi\.org\//,
   /^ccs concepts/i,
+  /^ccs\s*概念/i,
+  /^追加のキーワード/,
+  /^acm\s*参照形式/,
+  /^出版権/,
+  /^著者の住所/,
+  /^両著者は/,
   /^additional key words/i,
   /^acm reference format/i,
   /^\*?both authors contributed/i,
@@ -46,6 +56,11 @@ export function stripFrontMatterBlock(markdown: string): string {
     .filter((block) => {
       const text = block.trim()
       if (text.length === 0) return false
+      if (/^#{1,6}\s/.test(text) && !/^#\s/.test(text)) {
+        // 見出しとして組まれた書誌の項目。印を外した中身で判じる。
+        const inner = text.replace(/^#{1,6}\s+/, '')
+        return !DROPPABLE.some((pattern) => pattern.test(inner))
+      }
       return !DROPPABLE.some((pattern) => pattern.test(text))
     })
     .join('\n\n')

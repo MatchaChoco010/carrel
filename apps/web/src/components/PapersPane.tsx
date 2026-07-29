@@ -102,6 +102,7 @@ export function PapersPane({ lang, onLangChange, tags, revision, onChanged }: Pa
       <PaperView
         detail={opened}
         lang={lang}
+        onLangChange={onLangChange}
         onBack={() => setOpen(null)}
         onTagsChange={(next) => void setTags(opened.meta.slug, next)}
       />
