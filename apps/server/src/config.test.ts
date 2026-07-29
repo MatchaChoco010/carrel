@@ -46,3 +46,21 @@ test('既定値を書き換えない', () => {
   merged.arxiv.categories.push('cs.LG')
   assert.deepEqual(defaultConfig.arxiv.categories, ['cs.GR'])
 })
+
+test('取り込みの段階のモデルと effort を読む', () => {
+  const c = mergeConfig({ ingest: { model: 'gpt-5.6-terra', effort: 'high' } })
+  assert.equal(c.ingest.model, 'gpt-5.6-terra')
+  assert.equal(c.ingest.effort, 'high')
+})
+
+test('取り込みの設定が無ければ既定値を使う', () => {
+  const c = mergeConfig({})
+  assert.equal(c.ingest.model, 'gpt-5.6-sol')
+  assert.equal(c.ingest.effort, 'low')
+})
+
+test('取り込みの設定が空文字なら既定値を保つ', () => {
+  const c = mergeConfig({ ingest: { model: '', effort: '' } })
+  assert.equal(c.ingest.model, 'gpt-5.6-sol')
+  assert.equal(c.ingest.effort, 'low')
+})

@@ -110,3 +110,27 @@ test('本文のブロックが無いページの図も落とさない', () => {
   assert.ok(body.indexOf('1 ページ目') < body.indexOf('fullpage.jpeg'))
   assert.ok(body.indexOf('fullpage.jpeg') < body.indexOf('3 ページ目'))
 })
+
+test('数式のブロックは $$ で囲む', () => {
+  // 変換器は素の LaTeX を返す。区切りが無いと markdown として数式に見えず、
+  // 翻訳の契約の検証も数式を見つけられない。
+  const d = doc([block('/page/0/Equation/1', 'equation', 0, 'C = \\sum_{i=1}^N T_i')])
+  assert.match(buildBody(d, 'assets'), /\$\$\nC = \\sum_\{i=1\}\^N T_i\n\$\$/)
+})
+
+test('既に囲まれている数式を二重に囲まない', () => {
+  const d = doc([block('/page/0/Equation/1', 'equation', 0, '$$x = y$$')])
+  assert.doesNotMatch(buildBody(d, 'assets'), /\$\$\$/)
+})
+
+test('環境で始まる数式はそのまま残す', () => {
+  const d = doc([block('/page/0/Equation/1', 'equation', 0, '\\begin{aligned} a &= b \\end{aligned}')])
+  const body = buildBody(d, 'assets')
+  assert.doesNotMatch(body, /\$\$/)
+  assert.match(body, /\\begin\{aligned\}/)
+})
+
+test('数式以外のブロックは囲まない', () => {
+  const d = doc([block('/page/0/Text/1', 'text', 0, '本文')])
+  assert.doesNotMatch(buildBody(d, 'assets'), /\$\$/)
+})

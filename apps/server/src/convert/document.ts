@@ -52,11 +52,24 @@ export function buildBody(document: ConvertedDocument, assetsDirName: string): s
 
   const parts: string[] = []
   for (const page of pages) {
-    for (const block of blocksByPage.get(page) ?? []) parts.push(block.markdown)
+    for (const block of blocksByPage.get(page) ?? []) parts.push(renderBlock(block))
     for (const figure of figuresByPage.get(page) ?? []) parts.push(renderFigure(figure, assetsDirName))
   }
 
   return `${parts.join('\n\n')}\n`
+}
+
+/**
+ * 変換器は数式のブロックを素の LaTeX で返す。
+ *
+ * 区切りが無いと markdown として数式に見えず、後の段階も数式として扱えない。
+ * 0004 は数式を LaTeX として表現することを契約にしているので、ここで囲む。
+ */
+function renderBlock(block: ConvertedBlock): string {
+  if (block.kind !== 'equation') return block.markdown
+  const text = block.markdown.trim()
+  if (text.startsWith('$$') || text.startsWith('\\begin{')) return text
+  return `$$\n${text}\n$$`
 }
 
 function renderFigure(figure: ConvertedDocument['figures'][number], assetsDirName: string): string {

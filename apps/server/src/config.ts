@@ -19,6 +19,12 @@ export type Config = {
     defaultModel: string
     defaultEffort: string
   }
+  ingest: {
+    /** 取り込みの段階が使う Codex のモデル。 */
+    model: string
+    /** 取り込みの段階が使う reasoning effort。 */
+    effort: string
+  }
   converter: {
     /** 変換器の venv の python。 */
     python: string
@@ -42,6 +48,13 @@ export const defaultConfig: Config = {
   chat: {
     defaultModel: 'gpt-5.6-sol',
     defaultEffort: 'high',
+  },
+  ingest: {
+    model: 'gpt-5.6-sol',
+    // 照合と翻訳を model と effort を変えて実測した結果選んだ値(9 本の論文)。
+    // effort を上げても翻訳は速度も品質も変わらず、照合は見出しの階層の
+    // 再現がむしろ悪くなる組み合わせがあった。
+    effort: 'low',
   },
   converter: {
     python: join(homedir(), 'ghq/github.com/MatchaChoco010/paper-collection-tool/apps/converter/.venv/bin/python'),
@@ -100,6 +113,15 @@ export function mergeConfig(stored: unknown): Config {
     }
     if (typeof c['defaultEffort'] === 'string' && c['defaultEffort'].length > 0) {
       merged.chat.defaultEffort = c['defaultEffort']
+    }
+  }
+
+  const ingest = raw['ingest']
+  if (typeof ingest === 'object' && ingest !== null) {
+    const i = ingest as Record<string, unknown>
+    for (const key of ['model', 'effort'] as const) {
+      const value = i[key]
+      if (typeof value === 'string' && value.length > 0) merged.ingest[key] = value
     }
   }
 
