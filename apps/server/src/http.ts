@@ -8,8 +8,11 @@ import type { IndexDb } from './db/index-db.ts'
 import { discardIngest, ingestFromUrl } from './ingest/pipeline.ts'
 import type { IngestStore } from './ingest/store.ts'
 import type { JobQueue } from './jobs/queue.ts'
+import type { SearchHit, SearchQuery } from './search/search.ts'
 
 export type AppDeps = {
+  /** 論文を検索する。埋め込みを使うので非同期になる。 */
+  search: (query: SearchQuery) => Promise<SearchHit[]>
   getConfig: () => Config
   setConfig: (config: Config) => void
   clientCount: () => number
@@ -49,6 +52,39 @@ export function createApp(deps: AppDeps): Hono {
     await saveConfig(next)
     deps.setConfig(next)
     return c.json(next)
+  })
+
+  app.get('/api/search', async (c) => {
+    const q = c.req.query()
+    const tags = q['tags'] === undefined ? [] : q['tags'].split(',').filter((t) => t.length > 0)
+    const num = (name: string): number | undefined => {
+      const raw = q[name]
+      if (raw === undefined) return undefined
+      const value = Number(raw)
+      return Number.isFinite(value) ? value : undefined
+    }
+    const filter: SearchQuery['filter'] = {}
+    for (const key of ['title', 'author', 'venue'] as const) {
+      const value = q[key]
+      if (value !== undefined && value.length > 0) filter[key] = value
+    }
+    const yearFrom = num('yearFrom')
+    if (yearFrom !== undefined) filter.yearFrom = yearFrom
+    const yearTo = num('yearTo')
+    if (yearTo !== undefined) filter.yearTo = yearTo
+    if (tags.length > 0) filter.tags = tags
+
+    const query: SearchQuery = { filter }
+    const text = q['q']
+    if (text !== undefined && text.length > 0) query.text = text
+    const limit = num('limit')
+    if (limit !== undefined) query.limit = limit
+
+    try {
+      return c.json({ hits: await deps.search(query) })
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 502)
+    }
   })
 
   app.get('/api/index/status', (c) =>
