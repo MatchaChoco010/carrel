@@ -68,6 +68,30 @@ async function verifyPage(work: PageWork, imagePath: string, deps: VerifyDeps): 
   return result
 }
 
+/** 図の画像を指す行。変換の段階で本文へ差し込んである。 */
+const IMAGE_LINE = /^!\[[^\]]*\]\(assets\/[^)]+\)$/gm
+
+/**
+ * 照合が落とした図の参照を戻す。
+ *
+ * 照合は紙面の画像と PDF の文字層から本文を組み直すが(0009)、図の画像は紙面に
+ * 文字として現れないので、残すよう指示していても落ちることがある。画像は pct が
+ * 切り出した成果物であって照合の対象ではないから、落ちた分は機械的に戻す。
+ *
+ * 位置は落ちた時点で失われているので、ページの末尾に置く。図はページ単位で切り
+ * 出しているので、ページを跨いで迷子になることはない。
+ */
+export function restoreImages(before: string, after: string): string {
+  const wanted = before.match(IMAGE_LINE) ?? []
+  if (wanted.length === 0) return after
+
+  const kept = new Set(after.match(IMAGE_LINE) ?? [])
+  const lost = wanted.filter((line) => !kept.has(line))
+  if (lost.length === 0) return after
+
+  return `${after.trimEnd()}\n\n${lost.join('\n\n')}`
+}
+
 /**
  * 論文を 1 本照合し、`paper.md` と `verification.md` を書く。
  *
@@ -82,11 +106,12 @@ export async function verifyPaper(slug: string, deps: VerifyDeps): Promise<void>
   const reports: PageReport[] = []
   for (const page of work) {
     const result = await verifyPage(page, pageImageFile(deps.dataDir, slug, page.page), deps)
-    if (result.markdown.trim().length > 0) parts.push(result.markdown.trim())
+    const markdown = restoreImages(page.input.converted, result.markdown)
+    if (markdown.trim().length > 0) parts.push(markdown.trim())
 
     // 照合を経ても残った文字の欠落を記録する。直ったかどうかは、この 1 つの
     // 事象に限れば機械的に確かめられる(0009)。測り方は照合の前と揃える。
-    const after = textGap(layer.pages[page.page] ?? '', result.markdown)
+    const after = textGap(layer.pages[page.page] ?? '', markdown)
     const remaining = needsFocus(after) ? after : null
 
     reports.push({ page: page.page, changes: result.changes, remaining })

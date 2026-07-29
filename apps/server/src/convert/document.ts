@@ -52,11 +52,26 @@ export function buildBody(document: ConvertedDocument, assetsDirName: string): s
 
   const parts: string[] = []
   for (const page of pages) {
-    for (const block of blocksByPage.get(page) ?? []) parts.push(renderBlock(block))
-    for (const figure of figuresByPage.get(page) ?? []) parts.push(renderFigure(figure, assetsDirName))
+    // 図を本文の後ろへまとめず、紙面の読み順に差し込む。変換器が付ける識別子の
+    // 末尾の番号がその順序を表すので、本文のブロックと図を同じ列に並べる。
+    // まとめて置くと、紙面では題の直後にある図が abstract より後ろへ回る。
+    const items: Array<{ order: number; text: string }> = [
+      ...(blocksByPage.get(page) ?? []).map((b) => ({ order: blockOrder(b.id), text: renderBlock(b) })),
+      ...(figuresByPage.get(page) ?? []).map((f) => ({
+        order: blockOrder(f.blockId),
+        text: renderFigure(f, assetsDirName),
+      })),
+    ]
+    for (const item of items.sort((a, b) => a.order - b.order)) parts.push(item.text)
   }
 
   return `${parts.join('\n\n')}\n`
+}
+
+/** 識別子の末尾の番号。紙面の読み順を表す。 */
+function blockOrder(id: string): number {
+  const m = /\/(\d+)$/.exec(id)
+  return m === null ? Number.MAX_SAFE_INTEGER : Number(m[1])
 }
 
 /**
