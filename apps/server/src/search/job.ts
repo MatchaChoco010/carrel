@@ -22,12 +22,11 @@ export function registerRegister(
   queue.register(REGISTER_JOB, async (job) => {
     const slug = job.target
     try {
-      // 取り込みの完了を先に記録する。索引は「取り込みの途中の論文を載せない」
-      // 判定を取り込みの記録で行うので(0004)、完了させてからでないと論文が
-      // papers に載らず、チャンクの外部キーが破れる。
-      deps.ingests.finish(slug)
+      // チャンクは論文の行を参照するので、先に論文を索引へ載せる。
       await deps.reindex(slug)
       await registerPaper(slug, deps)
+      // 全段階が成功したので、ここで初めて検索の対象になる(0004)。
+      deps.ingests.finish(slug)
     } catch (error) {
       deps.ingests.fail(slug, error instanceof Error ? error.message : String(error))
       throw error
