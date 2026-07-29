@@ -15,13 +15,19 @@ export function enqueueRegister(queue: JobQueue, slug: string): Job {
   return queue.enqueue({ kind: REGISTER_JOB, target: slug, resource: 'gpu', priority: 'foreground' })
 }
 
-export function registerRegister(queue: JobQueue, deps: RegisterDeps & { ingests: IngestStore }): void {
+export function registerRegister(
+  queue: JobQueue,
+  deps: RegisterDeps & { ingests: IngestStore; reindex: (slug: string) => Promise<void> },
+): void {
   queue.register(REGISTER_JOB, async (job) => {
     const slug = job.target
     try {
-      await registerPaper(slug, deps)
-      // 全段階が成功したので、ここで初めて検索の対象になる(0004)。
+      // 取り込みの完了を先に記録する。索引は「取り込みの途中の論文を載せない」
+      // 判定を取り込みの記録で行うので(0004)、完了させてからでないと論文が
+      // papers に載らず、チャンクの外部キーが破れる。
       deps.ingests.finish(slug)
+      await deps.reindex(slug)
+      await registerPaper(slug, deps)
     } catch (error) {
       deps.ingests.fail(slug, error instanceof Error ? error.message : String(error))
       throw error

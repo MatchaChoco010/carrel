@@ -17,6 +17,8 @@ import { paperAssetsDir } from './data/layout.ts'
 export type AppDeps = {
   /** 論文を検索する。埋め込みを使うので非同期になる。 */
   search: (query: SearchQuery) => Promise<SearchHit[]>
+  /** 解決と取得が済んだ論文の、残りの段階を始める。 */
+  onIngested: (slug: string) => void
   getConfig: () => Config
   setConfig: (config: Config) => void
   clientCount: () => number
@@ -138,8 +140,10 @@ export function createApp(deps: AppDeps): Hono {
         index: deps.index,
         ingests: deps.ingests,
         codex: deps.codex.client,
-        model: deps.getConfig().chat.defaultModel,
+        model: deps.getConfig().ingest.model,
       })
+      // 解決と取得はここで終わる。変換から先はジョブとして流す(0004)。
+      if (result.kind === 'imported') deps.onIngested(result.slug)
       return c.json(result)
     } catch (error) {
       return c.json({ error: error instanceof Error ? error.message : String(error) }, 502)

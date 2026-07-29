@@ -3,13 +3,13 @@ import { mkdir } from 'node:fs/promises'
 import type { Server } from 'node:http'
 import { WebSocketServer } from 'ws'
 import { CodexService } from './codex/service.ts'
-import { registerConvert } from './convert/job.ts'
+import { enqueueConvert, registerConvert } from './convert/job.ts'
 import { createEmbedder } from './search/embed.ts'
 import { search } from './search/search.ts'
-import { registerRegister } from './search/job.ts'
+import { enqueueRegister, registerRegister } from './search/job.ts'
 import { ChunkStore } from './search/store.ts'
-import { registerTranslate } from './translate/job.ts'
-import { registerVerify } from './verify/job.ts'
+import { enqueueTranslate, registerTranslate } from './translate/job.ts'
+import { enqueueVerify, registerVerify } from './verify/job.ts'
 import { loadConfig, type Config } from './config.ts'
 import { Collection } from './data/collection.ts'
 import { IndexDb } from './db/index-db.ts'
@@ -71,6 +71,7 @@ async function main(): Promise<void> {
       llamaServer: config.converter.llamaServer,
       llamaLibDir: config.converter.llamaLibDir,
     },
+    onDone: (slug) => enqueueVerify(jobs, slug),
   })
 
   registerVerify(jobs, {
@@ -80,6 +81,7 @@ async function main(): Promise<void> {
     model: config.ingest.model,
     effort: config.ingest.effort,
     textLayer: { python: config.converter.python, script: textLayerScript() },
+    onDone: (slug) => enqueueTranslate(jobs, slug),
   })
 
   registerTranslate(jobs, {
@@ -88,6 +90,7 @@ async function main(): Promise<void> {
     codex: codex.client,
     model: config.ingest.model,
     effort: config.ingest.effort,
+    onDone: (slug) => enqueueRegister(jobs, slug),
   })
 
   const chunks = new ChunkStore(index.db)
@@ -96,10 +99,19 @@ async function main(): Promise<void> {
   if (chunks.needsRebuild(embeddingModel)) {
     console.log('埋め込みのモデルが変わったので、索引の作り直しが要る')
   }
-  registerRegister(jobs, { dataDir: config.dataDir, ingests, chunks, embed, model: embeddingModel })
+  registerRegister(jobs, {
+    dataDir: config.dataDir,
+    ingests,
+    chunks,
+    embed,
+    model: embeddingModel,
+    reindex: (slug) => collection.reloadPaper(slug),
+  })
 
   const app = createApp({
     search: (query) => search(query, { index, chunks, embed }),
+    // 解決と取得が済んだら、残りの段階をキューへ流す(0004)。
+    onIngested: (slug) => enqueueConvert(jobs, slug),
     getConfig: () => config,
     setConfig: (next) => {
       config = next

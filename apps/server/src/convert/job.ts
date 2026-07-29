@@ -14,6 +14,8 @@ export type ConvertDeps = {
   dataDir: string
   ingests: IngestStore
   paths: ConverterPaths
+  /** 次の段階を積む。取り込みは段階の連なりとして進む(0004)。 */
+  onDone: (slug: string) => void
 }
 
 /**
@@ -38,6 +40,7 @@ export function registerConvert(queue: JobQueue, deps: ConvertDeps): void {
       })
       await storeConversion(deps.dataDir, slug, work, document)
       deps.ingests.advance(slug, 'verify')
+      deps.onDone(slug)
     } catch (error) {
       deps.ingests.fail(slug, error instanceof Error ? error.message : String(error))
       throw error

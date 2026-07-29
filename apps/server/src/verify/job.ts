@@ -16,17 +16,22 @@ export function enqueueVerify(queue: JobQueue, slug: string): Job {
   return queue.enqueue({ kind: VERIFY_JOB, target: slug, resource: 'codex', priority: 'foreground' })
 }
 
-export function registerVerify(queue: JobQueue, deps: VerifyDeps & { ingests: IngestStore }): void {
+export function registerVerify(
+  queue: JobQueue,
+  deps: VerifyDeps & { ingests: IngestStore; onDone: (slug: string) => void },
+): void {
   queue.register(VERIFY_JOB, async (job) => {
     const slug = job.target
     try {
       // 原本が HTML の論文はページ画像を作れないため、この段階を飛ばす(0004)。
       if (!(await exists(paperFile(deps.dataDir, slug, 'raw')))) {
         deps.ingests.advance(slug, 'translate')
+        deps.onDone(slug)
         return
       }
       await verifyPaper(slug, deps)
       deps.ingests.advance(slug, 'translate')
+      deps.onDone(slug)
     } catch (error) {
       deps.ingests.fail(slug, error instanceof Error ? error.message : String(error))
       throw error

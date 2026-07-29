@@ -141,6 +141,11 @@ export class Collection {
   }
 
   /** 稼働中の編集を拾う。書き込みの途中で何度も発火するので、少し待ってから読む。 */
+  /** 論文 1 本を読み直して索引へ載せる。取り込みの完了直後に使う。 */
+  async reloadPaper(slug: string): Promise<void> {
+    await this.#indexPaper(slug)
+  }
+
   startWatching(debounceMs = 250): void {
     this.stopWatching()
     for (const [root, kind] of [
