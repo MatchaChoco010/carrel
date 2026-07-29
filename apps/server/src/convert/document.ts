@@ -33,6 +33,18 @@ function trailingNumber(id: string): number | null {
  * キャプションのブロックは本文に連ねないので、地の文には混ざらない。
  */
 export function buildBody(document: ConvertedDocument, assetsDirName: string): string {
+  const byPage = buildPages(document, assetsDirName)
+  const pages = [...byPage.keys()].sort((a, b) => a - b)
+  return `${pages.map((page) => byPage.get(page)).join('\n\n')}\n`
+}
+
+/**
+ * ページごとの markdown を、本文と図を読み順に混ぜて組み立てる。
+ *
+ * 照合もこれを使う。照合は結果でページの markdown を丸ごと置き換えるので、図を
+ * 渡さないと本文から図が消える。本文を組むのと同じ形を渡し、同じ形で返させる。
+ */
+export function buildPages(document: ConvertedDocument, assetsDirName: string): Map<number, string> {
   const blocksByPage = new Map<number, ConvertedBlock[]>()
   for (const block of bodyBlocks(document)) {
     const list = blocksByPage.get(block.page) ?? []
@@ -50,7 +62,7 @@ export function buildBody(document: ConvertedDocument, assetsDirName: string): s
   // することで、そうしたページの図も落とさない。
   const pages = [...new Set([...blocksByPage.keys(), ...figuresByPage.keys()])].sort((a, b) => a - b)
 
-  const parts: string[] = []
+  const byPage = new Map<number, string>()
   for (const page of pages) {
     // 図を本文の後ろへまとめず、紙面の読み順に差し込む。変換器が付ける識別子の
     // 末尾の番号がその順序を表すので、本文のブロックと図を同じ列に並べる。
@@ -62,10 +74,9 @@ export function buildBody(document: ConvertedDocument, assetsDirName: string): s
         text: renderFigure(f, assetsDirName),
       })),
     ]
-    for (const item of items.sort((a, b) => a.order - b.order)) parts.push(item.text)
+    byPage.set(page, items.sort((a, b) => a.order - b.order).map((item) => item.text).join('\n\n'))
   }
-
-  return `${parts.join('\n\n')}\n`
+  return byPage
 }
 
 /** 識別子の末尾の番号。紙面の読み順を表す。 */

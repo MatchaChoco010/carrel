@@ -1,4 +1,4 @@
-import { bodyBlocks } from '../convert/document.ts'
+import { bodyBlocks, buildPages } from '../convert/document.ts'
 import type { ConvertedDocument } from '../convert/types.ts'
 import { needsFocus, textGap, type TextGap } from './diff.ts'
 import type { VerifyPageInput } from './prompt.ts'
@@ -17,9 +17,16 @@ export type PageWork = {
  * 文字層はブロックの領域から引いたものを連ね、引けなかった箇所はページ全体の
  * 文字層で補う(0009)。
  */
-export function buildPageWork(document: ConvertedDocument, layer: TextLayer): PageWork[] {
+export function buildPageWork(
+  document: ConvertedDocument,
+  layer: TextLayer,
+  assetsDirName: string,
+): PageWork[] {
   const body = bodyBlocks(document)
   const bodyByPage = groupByPage(body)
+  // 照合に渡す markdown は本文を組むのと同じ形にする。図を含まない形で渡すと、
+  // 結果でページを置き換えたときに図が消える。
+  const markdownByPage = buildPages(document, assetsDirName)
   // 欠落を測るときは、本文に連ねない種別(ヘッダー・フッター・ページ番号・
   // キャプション)も含める。文字層はページに書かれた文字をすべて持つので、
   // 片側だけを絞ると、正常に分けられたものまで欠落として数えてしまう。
@@ -28,7 +35,7 @@ export function buildPageWork(document: ConvertedDocument, layer: TextLayer): Pa
   const work: PageWork[] = []
   for (let page = 0; page < document.pageCount; page += 1) {
     const pageBlocks = bodyByPage.get(page) ?? []
-    const converted = pageBlocks.map((b) => b.markdown).join('\n\n')
+    const converted = markdownByPage.get(page) ?? ''
 
     const pieces: string[] = []
     let missing = false

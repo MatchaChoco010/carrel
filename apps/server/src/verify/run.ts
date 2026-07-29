@@ -4,12 +4,18 @@ import type { CodexClient } from '../codex/client.ts'
 import { imageAndTextInput } from '../codex/protocol.ts'
 import { runTurn, startWorkThread } from '../codex/threads.ts'
 import { parseDocument } from '../convert/runner.ts'
-import { paperBlocksFile } from '../convert/store.ts'
+import { ASSETS_DIR_NAME, paperBlocksFile } from '../convert/store.ts'
 import { paperFile, paperOriginalPdf, paperPagesDir } from '../data/layout.ts'
 import { readPaper, writePaper } from '../data/paper.ts'
 import { needsFocus, textGap } from './diff.ts'
 import { buildPageWork, type PageWork } from './pages.ts'
-import { buildVerifyPrompt, VERIFY_INSTRUCTIONS, VERIFY_OUTPUT_SCHEMA, type VerifyPageResult } from './prompt.ts'
+import {
+  buildVerifyPrompt,
+  IMAGE_LINE,
+  VERIFY_INSTRUCTIONS,
+  VERIFY_OUTPUT_SCHEMA,
+  type VerifyPageResult,
+} from './prompt.ts'
 import { buildReport, type PageReport } from './report.ts'
 import { readTextLayer, type TextLayerPaths } from './textlayer.ts'
 
@@ -68,9 +74,6 @@ async function verifyPage(work: PageWork, imagePath: string, deps: VerifyDeps): 
   return result
 }
 
-/** 図の画像を指す行。変換の段階で本文へ差し込んである。 */
-const IMAGE_LINE = /^!\[[^\]]*\]\(assets\/[^)]+\)$/gm
-
 /**
  * 照合が落とした図の参照を戻す。
  *
@@ -100,7 +103,7 @@ export function restoreImages(before: string, after: string): string {
 export async function verifyPaper(slug: string, deps: VerifyDeps): Promise<void> {
   const document = parseDocument(await readFile(paperBlocksFile(deps.dataDir, slug), 'utf8'))
   const layer = await readTextLayer(paperOriginalPdf(deps.dataDir, slug), document.blocks, deps.textLayer)
-  const work = buildPageWork(document, layer)
+  const work = buildPageWork(document, layer, ASSETS_DIR_NAME)
 
   const parts: string[] = []
   const reports: PageReport[] = []

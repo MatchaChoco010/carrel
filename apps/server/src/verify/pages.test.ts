@@ -87,3 +87,16 @@ test('欠落が僅かで印も無ければ重点的に見る対象にしない',
   const work = buildPageWork(doc([block('/page/0/Text/1', 0, long)]), layer([`${long}x`], {}))
   assert.equal(work[0]?.input.focus, false)
 })
+
+test('照合に渡す markdown には図の参照が含まれる', () => {
+  const document: ConvertedDocument = {
+    pageCount: 1,
+    blocks: [{ id: '/page/0/Text/1', kind: 'text', page: 0, bbox, markdown: '本文', image: null, groupId: null }],
+    figures: [{ blockId: '/page/0/Figure/2', page: 0, image: 'page-0-Figure-2.jpeg', caption: 'Fig. 1' }],
+  }
+  const layer: TextLayer = { pages: ['本文'], regions: new Map([['/page/0/Text/1', '本文']]) }
+
+  const work = buildPageWork(document, layer, 'assets')
+
+  assert.match(work[0]?.input.converted ?? '', /!\[\]\(assets\/page-0-Figure-2\.jpeg\)/)
+})
