@@ -3,7 +3,7 @@ import type { Job, JobsResponse, JobState } from '../api.ts'
 const STATE_LABEL: Record<JobState, string> = {
   pending: '待機中',
   running: '実行中',
-  waitingForQuota: '枠の回復待ち',
+  waitingForQuota: '制限の解除待ち',
   failed: '失敗',
   done: '完了',
 }
@@ -36,7 +36,7 @@ export function JobsPane({ jobs }: { jobs: JobsResponse | null }) {
                 <span className="jobs__target">{job.target}</span>
                 <span className="jobs__meta">
                   {job.resource}
-                  {job.priority === 'foreground' ? ' / 前景' : ''}
+                  {job.priority === 'foreground' ? ' / foreground' : ''}
                   {job.attempts > 0 ? ` / 試行 ${job.attempts}` : ''}
                 </span>
                 {job.lastError !== null && <span className="jobs__error">{job.lastError}</span>}
