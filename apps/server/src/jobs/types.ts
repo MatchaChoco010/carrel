@@ -42,7 +42,9 @@ export type QuotaGate = {
 export const DEFAULT_CONCURRENCY: Record<ResourceClass, number> = {
   // GPU は 1 枚しかなく、変換器と埋め込みモデルがそれぞれ数 GB を要求する。
   gpu: 1,
-  codex: 2,
+  // 照合を 4 並列で 26 ページ流して、応答の取り違えも失敗も起きないことを
+  // 確かめた値。1 件あたりは 40 秒から 65 秒へ延びるが、全体では 2.3 倍速い。
+  codex: 4,
   network: 4,
 }
 
