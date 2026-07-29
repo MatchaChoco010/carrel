@@ -2,6 +2,7 @@ import { FileText, ListTodo, MessagesSquare, Rss, Settings, type LucideIcon } fr
 import { useCallback, useEffect, useState } from 'react'
 import { api, type CodexStatus, type IndexStatus, type JobsResponse } from './api.ts'
 import { JobsPane } from './components/JobsPane.tsx'
+import { PapersPane } from './components/PapersPane.tsx'
 import { StatusLine } from './components/StatusLine.tsx'
 import { useServerEvents, type ServerEvent } from './useServerEvents.ts'
 
@@ -41,6 +42,8 @@ export function App() {
   const [jobs, setJobs] = useState<JobsResponse | null>(null)
   const [index, setIndex] = useState<IndexStatus | null>(null)
   const [chatOpen, setChatOpen] = useState(false)
+  // 取り込みや削除の後に一覧を読み直すための番号。
+  const [revision, setRevision] = useState(0)
   const narrow = useIsNarrow()
 
   const reloadJobs = useCallback(() => {
@@ -125,9 +128,11 @@ export function App() {
             {tab === 'jobs' ? (
               <JobsPane jobs={jobs} />
             ) : tab === 'papers' ? (
-              <p className="pane__empty">
-                取り込んだ論文 {index?.papers ?? 0} 件。一覧の表示は後続の作業で足す。
-              </p>
+              <PapersPane
+                tags={index?.tags ?? []}
+                revision={revision}
+                onChanged={() => setRevision((n) => n + 1)}
+              />
             ) : tab === 'chats' ? (
               <p className="pane__empty">記録されたチャット {index?.chats ?? 0} 件。一覧の表示は後続の作業で足す。</p>
             ) : tab === 'feed' ? (

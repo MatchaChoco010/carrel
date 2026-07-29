@@ -9,6 +9,7 @@ import { discardIngest, ingestFromUrl } from './ingest/pipeline.ts'
 import type { IngestStore } from './ingest/store.ts'
 import type { JobQueue } from './jobs/queue.ts'
 import type { SearchHit, SearchQuery } from './search/search.ts'
+import { readPaper, readPaperSideFile, writePaper } from './data/paper.ts'
 
 export type AppDeps = {
   /** 論文を検索する。埋め込みを使うので非同期になる。 */
@@ -143,6 +144,53 @@ export function createApp(deps: AppDeps): Hono {
   })
 
   app.get('/api/ingests', (c) => c.json({ ingests: deps.ingests.list() }))
+
+  app.get('/api/papers/:slug', async (c) => {
+    const dataDir = deps.getConfig().dataDir
+    const slug = c.req.param('slug')
+    const paper = await readPaper(dataDir, slug)
+    if (paper === null) return c.json({ error: `論文が見つからない: ${slug}` }, 404)
+    const side = async (kind: 'bodyJa' | 'abstract' | 'abstractJa' | 'raw' | 'verification'): Promise<string | null> =>
+      readPaperSideFile(dataDir, slug, kind)
+    return c.json({
+      meta: paper.meta,
+      body: paper.body,
+      // 保存済みの訳をそのまま返す。切り替えのたびに訳し直さない。
+      bodyJa: await side('bodyJa'),
+      abstract: await side('abstract'),
+      abstractJa: await side('abstractJa'),
+      hasRaw: (await side('raw')) !== null,
+      verification: await side('verification'),
+    })
+  })
+
+  app.put('/api/papers/:slug/tags', async (c) => {
+    const slug = c.req.param('slug')
+    let body: unknown
+    try {
+      body = await c.req.json()
+    } catch {
+      return c.json({ error: 'JSON として読めない本文が送られた' }, 400)
+    }
+    const raw = (body ?? {}) as Record<string, unknown>
+    if (!Array.isArray(raw['tags'])) return c.json({ error: 'tags が配列ではない' }, 400)
+    const tags = [...new Set(raw['tags'].filter((t): t is string => typeof t === 'string' && t.trim().length > 0))]
+
+    const dataDir = deps.getConfig().dataDir
+    const paper = await readPaper(dataDir, slug)
+    if (paper === null) return c.json({ error: `論文が見つからない: ${slug}` }, 404)
+    // markdown を先に書く。frontmatter が正で、索引はそこから作られる(0002)。
+    await writePaper(dataDir, { ...paper.meta, tags }, paper.body)
+    // 索引はファイルの監視が拾って追随する。書き込みの順序が markdown 先で
+    // あることがここでの要点である(0002)。
+    return c.json({ slug, tags })
+  })
+
+  app.get('/api/papers/:slug/raw', async (c) => {
+    const raw = await readPaperSideFile(deps.getConfig().dataDir, c.req.param('slug'), 'raw')
+    if (raw === null) return c.json({ error: '照合前の本文が無い' }, 404)
+    return c.json({ raw })
+  })
 
   app.delete('/api/papers/:slug', async (c) => {
     const slug = c.req.param('slug')
