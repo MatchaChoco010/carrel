@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 const STORAGE_KEY = 'pct.split'
-/** 一覧とチャットのどちらも読める幅を残すための下限と上限。 */
+/** どちらの欄も読める幅を残すための下限と上限。 */
 const MIN = 20
 const MAX = 80
 
@@ -12,17 +12,11 @@ function stored(): number {
 }
 
 export type Split = {
-  /** 一覧の幅の割合。 */
   percent: number
   dragging: boolean
   onGrab: (event: { clientX: number; preventDefault: () => void }) => void
 }
 
-/**
- * 一覧とチャットの境目を掴んで動かせるようにする。
- *
- * 既定は半々で、動かした位置は次に開いたときも保つ。
- */
 export function useSplit(container: React.RefObject<HTMLElement | null>): Split {
   const [percent, setPercent] = useState(stored)
   const [dragging, setDragging] = useState(false)
