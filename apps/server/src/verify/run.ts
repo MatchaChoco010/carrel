@@ -4,12 +4,18 @@ import type { CodexClient } from '../codex/client.ts'
 import { imageAndTextInput } from '../codex/protocol.ts'
 import { runTurn, startWorkThread } from '../codex/threads.ts'
 import { parseDocument } from '../convert/runner.ts'
-import { paperBlocksFile } from '../convert/store.ts'
+import { ASSETS_DIR_NAME, paperBlocksFile } from '../convert/store.ts'
 import { paperFile, paperOriginalPdf, paperPagesDir } from '../data/layout.ts'
 import { readPaper, writePaper } from '../data/paper.ts'
 import { needsFocus, textGap } from './diff.ts'
 import { buildPageWork, type PageWork } from './pages.ts'
-import { buildVerifyPrompt, VERIFY_INSTRUCTIONS, VERIFY_OUTPUT_SCHEMA, type VerifyPageResult } from './prompt.ts'
+import {
+  buildVerifyPrompt,
+  IMAGE_LINE,
+  VERIFY_INSTRUCTIONS,
+  VERIFY_OUTPUT_SCHEMA,
+  type VerifyPageResult,
+} from './prompt.ts'
 import { buildReport, type PageReport } from './report.ts'
 import { readTextLayer, type TextLayerPaths } from './textlayer.ts'
 
@@ -69,6 +75,23 @@ async function verifyPage(work: PageWork, imagePath: string, deps: VerifyDeps): 
 }
 
 /**
+ * 照合が落とした図の参照を戻す。
+ *
+ * 図の画像は紙面に文字として現れないので、残すよう指示していても落ちることが
+ * ある。落ちた時点で位置は失われているため、そのページの末尾に置く。
+ */
+export function restoreImages(before: string, after: string): string {
+  const wanted = before.match(IMAGE_LINE) ?? []
+  if (wanted.length === 0) return after
+
+  const kept = new Set(after.match(IMAGE_LINE) ?? [])
+  const lost = wanted.filter((line) => !kept.has(line))
+  if (lost.length === 0) return after
+
+  return `${after.trimEnd()}\n\n${lost.join('\n\n')}`
+}
+
+/**
  * 論文を 1 本照合し、`paper.md` と `verification.md` を書く。
  *
  * `paper.raw.md` は残す。照合前との差分を見られるようにするためである(0004)。
@@ -76,17 +99,18 @@ async function verifyPage(work: PageWork, imagePath: string, deps: VerifyDeps): 
 export async function verifyPaper(slug: string, deps: VerifyDeps): Promise<void> {
   const document = parseDocument(await readFile(paperBlocksFile(deps.dataDir, slug), 'utf8'))
   const layer = await readTextLayer(paperOriginalPdf(deps.dataDir, slug), document.blocks, deps.textLayer)
-  const work = buildPageWork(document, layer)
+  const work = buildPageWork(document, layer, ASSETS_DIR_NAME)
 
   const parts: string[] = []
   const reports: PageReport[] = []
   for (const page of work) {
     const result = await verifyPage(page, pageImageFile(deps.dataDir, slug, page.page), deps)
-    if (result.markdown.trim().length > 0) parts.push(result.markdown.trim())
+    const markdown = restoreImages(page.input.converted, result.markdown)
+    if (markdown.trim().length > 0) parts.push(markdown.trim())
 
     // 照合を経ても残った文字の欠落を記録する。直ったかどうかは、この 1 つの
     // 事象に限れば機械的に確かめられる(0009)。測り方は照合の前と揃える。
-    const after = textGap(layer.pages[page.page] ?? '', result.markdown)
+    const after = textGap(layer.pages[page.page] ?? '', markdown)
     const remaining = needsFocus(after) ? after : null
 
     reports.push({ page: page.page, changes: result.changes, remaining })

@@ -33,6 +33,18 @@ function trailingNumber(id: string): number | null {
  * キャプションのブロックは本文に連ねないので、地の文には混ざらない。
  */
 export function buildBody(document: ConvertedDocument, assetsDirName: string): string {
+  const byPage = buildPages(document, assetsDirName)
+  const pages = [...byPage.keys()].sort((a, b) => a - b)
+  return `${pages.map((page) => byPage.get(page)).join('\n\n')}\n`
+}
+
+/**
+ * ページごとの markdown を、本文と図を読み順に混ぜて組み立てる。
+ *
+ * 照合もこれを使う。照合は結果でページの markdown を丸ごと置き換えるので、図を
+ * 渡さないと本文から図が消える。
+ */
+export function buildPages(document: ConvertedDocument, assetsDirName: string): Map<number, string> {
   const blocksByPage = new Map<number, ConvertedBlock[]>()
   for (const block of bodyBlocks(document)) {
     const list = blocksByPage.get(block.page) ?? []
@@ -50,13 +62,26 @@ export function buildBody(document: ConvertedDocument, assetsDirName: string): s
   // することで、そうしたページの図も落とさない。
   const pages = [...new Set([...blocksByPage.keys(), ...figuresByPage.keys()])].sort((a, b) => a - b)
 
-  const parts: string[] = []
+  const byPage = new Map<number, string>()
   for (const page of pages) {
-    for (const block of blocksByPage.get(page) ?? []) parts.push(renderBlock(block))
-    for (const figure of figuresByPage.get(page) ?? []) parts.push(renderFigure(figure, assetsDirName))
+    // 本文のブロックと図を同じ列に並べて読み順に戻す。図をページの後ろへまとめ
+    // ると、紙面では題の直後にあるティザー図が abstract より後ろへ回る。
+    const items: Array<{ order: number; text: string }> = [
+      ...(blocksByPage.get(page) ?? []).map((b) => ({ order: blockOrder(b.id), text: renderBlock(b) })),
+      ...(figuresByPage.get(page) ?? []).map((f) => ({
+        order: blockOrder(f.blockId),
+        text: renderFigure(f, assetsDirName),
+      })),
+    ]
+    byPage.set(page, items.sort((a, b) => a.order - b.order).map((item) => item.text).join('\n\n'))
   }
+  return byPage
+}
 
-  return `${parts.join('\n\n')}\n`
+/** 識別子の末尾の番号。紙面の読み順を表す。 */
+function blockOrder(id: string): number {
+  const m = /\/(\d+)$/.exec(id)
+  return m === null ? Number.MAX_SAFE_INTEGER : Number(m[1])
 }
 
 /**

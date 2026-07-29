@@ -38,7 +38,9 @@ export const VERIFY_INSTRUCTIONS = `あなたは論文の PDF を markdown へ�
 
 変換結果に含まれる置換文字(U+FFFD)や、意味の通らない記号の並びは、文字層に対応する文字があればそれで置き換える。
 
-図の画像への参照(![](assets/...))はそのまま残す。図の中身を文字に起こさない。
+図の画像への参照(\`![](assets/...)\`)は、変換結果にあるものを 1 つ残らず、同じ位置に残す。
+これは pct が紙面から切り出した画像を指す行であり、照合の対象ではない。紙面に文字として現れないので確かめようがないが、消してよいという意味ではない。
+落とすと図がどこにあったかが失われる。図の中身を文字に起こすこともしない。
 
 どちらとも決めがたい食い違いは、変更を加えずに変更点の一覧へ記録する。推測で直さない。
 
@@ -107,6 +109,9 @@ export type VerifyPageInput = {
   missingSamples: string[]
 }
 
+/** 図の画像を指す行。変換の段階で本文へ差し込んである。 */
+export const IMAGE_LINE = /^!\[[^\]]*\]\(assets\/[^)]+\)$/gm
+
 export function buildVerifyPrompt(input: VerifyPageInput): string {
   const parts = [
     `${input.pageCount} ページ中の ${input.page + 1} ページ目である。`,
@@ -119,6 +124,19 @@ export function buildVerifyPrompt(input: VerifyPageInput): string {
     '',
     input.textLayer.length > 0 ? input.textLayer : '(このページに埋め込まれた文字は無い)',
   ]
+  // 図の参照は紙面に文字として現れないので、指示だけでは落ちる。このページにある
+  // ものを名指しで挙げる。
+  const images = input.converted.match(IMAGE_LINE) ?? []
+  if (images.length > 0) {
+    parts.push(
+      '',
+      '## 残す図の参照',
+      '',
+      `このページの変換結果には次の ${images.length} 個の図の参照がある。出力にはこれらをすべて、紙面で図があった位置に含めること。`,
+      '',
+      ...images,
+    )
+  }
   if (input.focus) {
     parts.push(
       '',
