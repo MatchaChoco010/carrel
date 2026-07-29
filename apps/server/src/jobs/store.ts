@@ -128,6 +128,22 @@ export class JobStore {
   }
 
   /**
+   * まだ走り出していない仕事を取り消し、取り消した数と実行中の数を返す。
+   *
+   * 実行中のものは残す。変換器の子プロセスと Codex のターンへ中断を伝える経路が
+   * キューに無いためである。
+   */
+  cancelPending(target: string): { cancelled: number; running: number } {
+    const running = this.#db
+      .prepare(`select count(*) as n from jobs where target = ? and state = 'running'`)
+      .get(target) as { n: number }
+    const result = this.#db
+      .prepare(`delete from jobs where target = ? and state in ('pending', 'waitingForQuota')`)
+      .run(target)
+    return { cancelled: Number(result.changes), running: Number(running.n) }
+  }
+
+  /**
    * 起動時に、実行中のまま残っている仕事を待機へ戻す。
    *
    * 前回の終了で中断されたものなので、そのままでは誰も拾わない。

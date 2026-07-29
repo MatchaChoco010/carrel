@@ -143,5 +143,10 @@ export const api = {
   setTags: (slug: string, tags: string[]) =>
     sendJson<{ slug: string; tags: string[] }>('PUT', `/api/papers/${encodeURIComponent(slug)}/tags`, { tags }),
   importPaper: (url: string) => sendJson<{ slug?: string; error?: string }>('POST', '/api/papers/import', { url }),
-  deletePaper: (slug: string) => sendJson<{ deleted: string }>('DELETE', `/api/papers/${encodeURIComponent(slug)}`, {}),
+  deletePaper: (slug: string) =>
+    sendJson<{ deleted: string; cancelledJobs: number; runningJobs: number }>(
+      'DELETE',
+      `/api/papers/${encodeURIComponent(slug)}`,
+      {},
+    ),
 }

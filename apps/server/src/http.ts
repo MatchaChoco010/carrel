@@ -219,9 +219,12 @@ export function createApp(deps: AppDeps): Hono {
 
   app.delete('/api/papers/:slug', async (c) => {
     const slug = c.req.param('slug')
+    // 先に仕事を取り消す。ファイルを消してから取り消すと、その間に走り出した
+    // 仕事が消えた論文を読みにいく。
+    const jobs = deps.jobs.cancelPending(slug)
     await deps.collection.deletePaper(slug)
     await discardIngest(deps.getConfig().dataDir, slug, deps.ingests)
-    return c.json({ deleted: slug })
+    return c.json({ deleted: slug, cancelledJobs: jobs.cancelled, runningJobs: jobs.running })
   })
 
   // API 以外の要求は Web クライアントへ回す。パスを持たない要求も index.html を
