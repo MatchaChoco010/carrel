@@ -15,9 +15,6 @@ export type TranslateDeps = {
   serviceTier: string | null
 }
 
-/** abstract の節に付ける見出し。本文の見出しと重ならない値を使う。 */
-const ABSTRACT_HEADING = 'abstract'
-
 /** 契約に反したときにやり直す回数。 */
 const RETRIES = 1
 
@@ -61,13 +58,11 @@ async function translateSection(
   return { markdown: last, breach }
 }
 
-/** 同時に訳す節の数。 */
 const SECTIONS_AT_ONCE = 8
 
 /** 訳し終えた節。abstract も 1 つの節として同じ並びに入る。 */
-type Translated = SectionOutcome & { markdown: string }
+type Translated = SectionOutcome & { markdown: string; isAbstract: boolean }
 
-/** 論文 1 本の本文と abstract を訳す。 */
 export async function translatePaper(slug: string, deps: TranslateDeps): Promise<SectionOutcome[]> {
   const paper = await readPaper(deps.dataDir, slug)
   if (paper === null) throw new Error(`論文が読めない: ${slug}`)
@@ -79,6 +74,7 @@ export async function translatePaper(slug: string, deps: TranslateDeps): Promise
 
   const work = sections.map((section) => ({
     heading: section.heading,
+    isAbstract: false,
     request: {
       title: paper.meta.title,
       abstract,
@@ -89,20 +85,21 @@ export async function translatePaper(slug: string, deps: TranslateDeps): Promise
   }))
   if (abstract.length > 0) {
     work.push({
-      heading: ABSTRACT_HEADING,
+      heading: 'abstract',
+      isAbstract: true,
       request: { title: paper.meta.title, abstract, index: sections.length, total, markdown: abstract },
     })
   }
 
   const done: Translated[] = await inBatches(work, SECTIONS_AT_ONCE, async (item) => {
     const result = await translateSection(item.request, deps)
-    return { index: item.request.index, heading: item.heading, ...result }
+    return { index: item.request.index, heading: item.heading, isAbstract: item.isAbstract, ...result }
   })
 
-  const body = done.filter((d) => d.heading !== ABSTRACT_HEADING)
+  const body = done.filter((d) => !d.isAbstract)
   await writePaperSideFile(deps.dataDir, slug, 'bodyJa', joinSections(body.map((d) => d.markdown)), 'ja')
 
-  const translatedAbstract = done.find((d) => d.heading === ABSTRACT_HEADING)
+  const translatedAbstract = done.find((d) => d.isAbstract)
   if (translatedAbstract !== undefined) {
     await writePaperSideFile(deps.dataDir, slug, 'abstractJa', `${translatedAbstract.markdown.trim()}\n`, 'ja')
   }
