@@ -142,7 +142,6 @@ export function createApp(deps: AppDeps): Hono {
         codex: deps.codex.client,
         model: deps.getConfig().ingest.model,
       })
-      // 解決と取得はここで終わる。変換から先はジョブとして流す(0004)。
       if (result.kind === 'imported') deps.onIngested(result.slug)
       return c.json(result)
     } catch (error) {
