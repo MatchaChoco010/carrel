@@ -94,6 +94,7 @@ export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<Inge
     arxivId: source.arxivId,
     originalUrl: source.originalUrl,
   })
+  deps.ingests.startStage(slug, 'resolve')
 
   try {
     // abstract は独立したファイルへ書く(0002)。paper.md の本文は照合が確定

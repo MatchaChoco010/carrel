@@ -828,3 +828,82 @@ body {
 .markdown a:target + * {
   background: rgba(106, 169, 255, 0.12);
 }
+
+/* --- 取り込みの進み --- */
+
+.jobs-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.ingests {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ingest {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.ingest--failed {
+  border-color: var(--warn);
+}
+
+.ingest header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.ingest__total {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* 段階を横に並べる。1 段階ぶんの幅は等しくし、実時間には対応させない。 */
+.ingest__stages {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 2px;
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
+
+.ingest__stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 2px;
+  border-top: 2px solid var(--border);
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.ingest__stage.done {
+  border-top-color: #5ad19b;
+  color: var(--text);
+}
+
+.ingest__stage.running {
+  border-top-color: var(--accent);
+  color: var(--accent);
+}
+
+.ingest__stage.failed {
+  border-top-color: var(--warn);
+  color: var(--warn);
+}
+
+.ingest__time {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}

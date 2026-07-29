@@ -150,7 +150,11 @@ export function createApp(deps: AppDeps): Hono {
     }
   })
 
-  app.get('/api/ingests', (c) => c.json({ ingests: deps.ingests.list() }))
+  app.get('/api/ingests', (c) =>
+    c.json({
+      ingests: deps.ingests.list().map((record) => ({ ...record, stages: deps.ingests.stages(record.slug) })),
+    }),
+  )
 
   app.get('/api/papers/:slug', async (c) => {
     const dataDir = deps.getConfig().dataDir
