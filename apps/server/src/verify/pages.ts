@@ -1,7 +1,7 @@
 import { bodyBlocks, buildPages } from '../convert/document.ts'
 import type { ConvertedDocument } from '../convert/types.ts'
 import { needsFocus, textGap, type TextGap } from './diff.ts'
-import type { VerifyPageInput } from './prompt.ts'
+import { IMAGE_LINE, type VerifyPageInput } from './prompt.ts'
 import type { TextLayer } from './textlayer.ts'
 
 export type PageWork = {
@@ -58,6 +58,8 @@ export function buildPageWork(
         converted,
         textLayer,
         focus: needsFocus(gap),
+        // 図の参照しか無いページは、突き合わせる相手が無いとみなす。
+        transcribe: converted.replace(IMAGE_LINE, '').trim().length === 0 && textLayer.trim().length === 0,
         missingSamples: gap.samples,
       },
     })

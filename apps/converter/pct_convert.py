@@ -162,6 +162,8 @@ def main() -> int:
             "mode": "fast",
             "output_format": "json",
             "disable_tqdm": True,
+            # 文字と数式の読み取りは照合が行うので、変換器では走らせない(0010)。
+            "disable_ocr": True,
         }
     )
     converter_cls = config.get_converter_cls()
