@@ -42,7 +42,7 @@ export function buildBody(document: ConvertedDocument, assetsDirName: string): s
  * ページごとの markdown を、本文と図を読み順に混ぜて組み立てる。
  *
  * 照合もこれを使う。照合は結果でページの markdown を丸ごと置き換えるので、図を
- * 渡さないと本文から図が消える。本文を組むのと同じ形を渡し、同じ形で返させる。
+ * 渡さないと本文から図が消える。
  */
 export function buildPages(document: ConvertedDocument, assetsDirName: string): Map<number, string> {
   const blocksByPage = new Map<number, ConvertedBlock[]>()
@@ -64,9 +64,8 @@ export function buildPages(document: ConvertedDocument, assetsDirName: string): 
 
   const byPage = new Map<number, string>()
   for (const page of pages) {
-    // 図を本文の後ろへまとめず、紙面の読み順に差し込む。変換器が付ける識別子の
-    // 末尾の番号がその順序を表すので、本文のブロックと図を同じ列に並べる。
-    // まとめて置くと、紙面では題の直後にある図が abstract より後ろへ回る。
+    // 本文のブロックと図を同じ列に並べて読み順に戻す。図をページの後ろへまとめ
+    // ると、紙面では題の直後にあるティザー図が abstract より後ろへ回る。
     const items: Array<{ order: number; text: string }> = [
       ...(blocksByPage.get(page) ?? []).map((b) => ({ order: blockOrder(b.id), text: renderBlock(b) })),
       ...(figuresByPage.get(page) ?? []).map((f) => ({

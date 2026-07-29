@@ -46,9 +46,8 @@ export async function registerPaper(slug: string, deps: RegisterDeps): Promise<n
     if (vector !== undefined) (inputs[i] as ChunkInput).vector = vector
   }
 
-  // 論文を載せてからチャンクを入れるまでに await を挟まない。埋め込みを待つ間に
-  // ファイルの監視が走ると、取り込みの途中の論文として索引から外され、チャンクの
-  // 外部キーが破れる。ここを続けて行えば監視の処理が割り込めない。
+  // ここから下に await を挟まない。埋め込みを待つ間にファイルの監視が走ると、
+  // 取り込みの途中の論文として索引から外され、外部キーが破れる。
   deps.indexPaper(paper)
   deps.chunks.replace(slug, inputs)
   deps.chunks.setModel(deps.model)

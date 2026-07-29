@@ -24,8 +24,6 @@ export function buildPageWork(
 ): PageWork[] {
   const body = bodyBlocks(document)
   const bodyByPage = groupByPage(body)
-  // 照合に渡す markdown は本文を組むのと同じ形にする。図を含まない形で渡すと、
-  // 結果でページを置き換えたときに図が消える。
   const markdownByPage = buildPages(document, assetsDirName)
   // 欠落を測るときは、本文に連ねない種別(ヘッダー・フッター・ページ番号・
   // キャプション)も含める。文字層はページに書かれた文字をすべて持つので、

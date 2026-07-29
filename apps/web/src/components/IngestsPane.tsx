@@ -8,7 +8,7 @@ export type IngestsPaneProps = {
 
 const ICON = 14
 
-/** 取り込みの段階。0004 が定めた順に並べる。 */
+/** 取り込みが進む順。 */
 const STAGES: IngestStage[] = ['resolve', 'fetch', 'convert', 'verify', 'translate', 'register']
 
 const STAGE_LABEL: Record<IngestStage, string> = {
@@ -28,10 +28,10 @@ function duration(ms: number): string {
 }
 
 /**
- * 実行中の段階の経過時間を毎秒進めるための刻み。
+ * 経過時間を毎秒進めるための刻み。
  *
- * 取り込みの記録を読み直す間隔は数秒あるので、それに合わせると経過時間が飛び飛び
- * に増えて止まって見える。表示する時刻は手元で進め、記録の取得とは別にする。
+ * 取り込みの記録を読み直す間隔に合わせると、経過時間が飛び飛びに増えて止まって
+ * 見える。表示する時刻は記録の取得とは別に進める。
  */
 function useNow(active: boolean): number {
   const [now, setNow] = useState(() => Date.now())
