@@ -97,8 +97,8 @@ export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<Inge
   deps.ingests.startStage(slug, 'resolve')
 
   try {
-    // abstract は独立したファイルへ書く(0002)。paper.md の本文は照合が確定
-    // させるので、ここへ書くと後で失われる。
+    // abstract を paper.md へ書かないのは、本文を照合が確定させるためである。
+    // ここへ書くと後で失われる。
     await writePaper(deps.dataDir, toMeta(slug, source, sourceUrl), '')
     if (source.abstract !== null && source.abstract.length > 0) {
       await writePaperSideFile(deps.dataDir, slug, 'abstract', source.abstract, 'en')
