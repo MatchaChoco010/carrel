@@ -1,10 +1,11 @@
 import { FileText, ListTodo, MessagesSquare, Rss, Settings, type LucideIcon } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, type CodexStatus, type IndexStatus, type JobsResponse } from './api.ts'
 import { JobsPane } from './components/JobsPane.tsx'
 import { PapersPane } from './components/PapersPane.tsx'
 import { StatusLine } from './components/StatusLine.tsx'
 import { useServerEvents, type ServerEvent } from './useServerEvents.ts'
+import { useSplit } from './useSplit.ts'
 
 type Tab = 'feed' | 'papers' | 'chats' | 'jobs' | 'settings'
 
@@ -45,6 +46,8 @@ export function App() {
   // 取り込みや削除の後に一覧を読み直すための番号。
   const [revision, setRevision] = useState(0)
   const narrow = useIsNarrow()
+  const panes = useRef<HTMLElement | null>(null)
+  const split = useSplit(panes)
 
   const reloadJobs = useCallback(() => {
     void api.jobs().then(setJobs).catch(() => setJobs(null))
@@ -114,7 +117,11 @@ export function App() {
         </div>
       </nav>
 
-      <main className={`panes ${narrow && chatOpen ? 'panes--chat' : ''}`}>
+      <main
+        ref={panes}
+        className={`panes ${narrow && chatOpen ? 'panes--chat' : ''} ${split.dragging ? 'panes--dragging' : ''}`}
+        style={narrow ? undefined : { gridTemplateColumns: `${split.percent}% 5px 1fr` }}
+      >
         <section className="pane pane--list" aria-label="一覧">
           <header className="pane__header">
             <h2 className="pane__title">{[...TABS, SETTINGS_TAB].find((t) => t.id === tab)?.label}</h2>
@@ -142,6 +149,15 @@ export function App() {
             )}
           </div>
         </section>
+
+        {/* 一覧とチャットの境目。掴んで動かせる。 */}
+        <div
+          className="split"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="一覧とチャットの幅"
+          onMouseDown={split.onGrab}
+        />
 
         <section className="pane pane--chat" aria-label="チャット">
           <header className="pane__header">

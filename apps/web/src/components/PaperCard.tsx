@@ -13,6 +13,8 @@ export type PaperCardProps = {
 }
 
 const ICON = 15
+/** 一覧で畳まずに出す abstract の長さ。 */
+const ABSTRACT_PREVIEW = 320
 
 export function PaperCard({ detail, hit, onOpen, onTagsChange, onDelete }: PaperCardProps) {
   const { meta } = detail
@@ -24,7 +26,10 @@ export function PaperCard({ detail, hit, onOpen, onTagsChange, onDelete }: Paper
   const [draft, setDraft] = useState('')
   const [copied, setCopied] = useState(false)
 
-  const abstract = lang === 'ja' ? detail.abstractJa : detail.abstract
+  const [expanded, setExpanded] = useState(false)
+  const full = lang === 'ja' ? detail.abstractJa : detail.abstract
+  // 一覧では長い abstract を畳む。開けば全文を読める。
+  const abstract = full === null || expanded || full.length <= ABSTRACT_PREVIEW ? full : `${full.slice(0, ABSTRACT_PREVIEW)}…`
   const hasJa = detail.abstractJa !== null && detail.abstractJa.length > 0
 
   const addTag = (): void => {
@@ -90,7 +95,14 @@ export function PaperCard({ detail, hit, onOpen, onTagsChange, onDelete }: Paper
               JA
             </button>
           </div>
-          <p>{abstract}</p>
+          <div>
+            <p>{abstract}</p>
+            {full !== null && full.length > ABSTRACT_PREVIEW ? (
+              <button type="button" className="ghost" onClick={() => setExpanded(!expanded)}>
+                {expanded ? '畳む' : '続きを読む'}
+              </button>
+            ) : null}
+          </div>
         </div>
       )}
 

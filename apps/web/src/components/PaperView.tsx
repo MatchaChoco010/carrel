@@ -1,6 +1,8 @@
 import { ArrowLeft, Check, Copy, FileDiff } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api, type PaperDetail } from '../api.ts'
+import { Markdown } from './Markdown.tsx'
+import { PaperMetaTable } from './PaperMetaTable.tsx'
 import { copyText } from '../clipboard.ts'
 
 export type PaperViewProps = {
@@ -20,6 +22,8 @@ export function PaperView({ detail, onBack }: PaperViewProps) {
   const [copied, setCopied] = useState(false)
 
   const hasJa = detail.bodyJa !== null && detail.bodyJa.length > 0
+  // abstract も本文と同じ言語の切り替えに従う。
+  const abstract = lang === 'ja' ? (detail.abstractJa ?? detail.abstract) : detail.abstract
 
   useEffect(() => {
     if (pane !== 'raw' || raw !== null) return
@@ -85,13 +89,16 @@ export function PaperView({ detail, onBack }: PaperViewProps) {
 
       <article className="paper-body">
         <h1>{meta.title}</h1>
-        <p className="meta">
-          {meta.authors.join(', ')}
-          {meta.venue === null ? '' : ` · ${meta.venue}`}
-          {meta.year === null ? '' : ` · ${meta.year}`}
-        </p>
-        {/* markdown は素のまま出す。整形は後の段階で足す。 */}
-        <pre>{text}</pre>
+        {/* frontmatter が論文の正の情報なので、全項目を読めるようにする(0002)。 */}
+        <PaperMetaTable meta={meta} />
+        {abstract === null || abstract.length === 0 ? null : (
+          <section className="paper-abstract">
+            <h2>abstract</h2>
+            <Markdown text={abstract} slug={meta.slug} />
+          </section>
+        )}
+        {/* 照合の記録と照合前の本文も markdown なので、同じ描き方でよい。 */}
+        <Markdown text={text} slug={meta.slug} />
       </article>
     </div>
   )

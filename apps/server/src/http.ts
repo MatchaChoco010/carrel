@@ -10,6 +10,9 @@ import type { IngestStore } from './ingest/store.ts'
 import type { JobQueue } from './jobs/queue.ts'
 import type { SearchHit, SearchQuery } from './search/search.ts'
 import { readPaper, readPaperSideFile, writePaper } from './data/paper.ts'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { paperAssetsDir } from './data/layout.ts'
 
 export type AppDeps = {
   /** 論文を検索する。埋め込みを使うので非同期になる。 */
@@ -184,6 +187,24 @@ export function createApp(deps: AppDeps): Hono {
     // 索引はファイルの監視が拾って追随する。書き込みの順序が markdown 先で
     // あることがここでの要点である(0002)。
     return c.json({ slug, tags })
+  })
+
+  // 本文の中の図の参照(assets/...)をそのまま引けるようにする。
+  app.get('/api/papers/:slug/assets/:name', async (c) => {
+    const slug = c.req.param('slug')
+    const name = c.req.param('name')
+    // 論文のディレクトリの外へ出る名前は受け付けない。
+    if (name.includes('/') || name.includes('\\') || name.startsWith('.')) {
+      return c.json({ error: '図の名前が不正' }, 400)
+    }
+    try {
+      const file = join(paperAssetsDir(deps.getConfig().dataDir, slug), name)
+      const body = await readFile(file)
+      const type = name.endsWith('.png') ? 'image/png' : 'image/jpeg'
+      return c.body(body as unknown as ArrayBuffer, 200, { 'content-type': type, 'cache-control': 'max-age=3600' })
+    } catch {
+      return c.json({ error: '図が見つからない' }, 404)
+    }
   })
 
   app.get('/api/papers/:slug/raw', async (c) => {

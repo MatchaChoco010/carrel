@@ -102,7 +102,8 @@ body {
 
 .panes {
   display: grid;
-  grid-template-columns: minmax(280px, 420px) 1fr;
+  /* 既定は半々。境目を掴んで動かすと App が上書きする。 */
+  grid-template-columns: 50% 6px 1fr;
   min-height: 0;
 }
 
@@ -609,4 +610,194 @@ body {
   font-size: 13px;
   line-height: 1.7;
   margin-top: 14px;
+}
+
+/* --- 一覧とチャットの境目 --- */
+
+.split {
+  cursor: col-resize;
+  background: var(--border);
+  opacity: 0.4;
+  /* 見た目より掴める幅を広げる。細い線のままだと掴み損ねる。 */
+  position: relative;
+}
+
+.split::after {
+  content: '';
+  position: absolute;
+  inset: 0 -5px;
+}
+
+.split:hover,
+.panes--dragging .split {
+  background: var(--accent);
+  opacity: 1;
+}
+
+/* 掴んでいる間は本文を選ばせない。選択が走ると動きが引っかかる。
+   境目そのものは常に選択させない。掴み損ねたときに文字が選ばれるのを防ぐ。 */
+.panes--dragging,
+.panes--dragging * {
+  user-select: none;
+}
+
+.split {
+  user-select: none;
+}
+
+.app--narrow .split {
+  display: none;
+}
+
+/* --- frontmatter --- */
+
+.paper-meta {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 14px;
+  margin: 12px 0 0;
+  font-size: 13px;
+}
+
+.paper-meta > div {
+  display: contents;
+}
+
+.paper-meta dt {
+  color: var(--text-muted);
+}
+
+.paper-meta dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.paper-meta a {
+  color: var(--accent);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.paper-abstract {
+  margin-top: 18px;
+  border-left: 2px solid var(--border);
+  padding-left: 14px;
+}
+
+.paper-abstract h2 {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* --- markdown --- */
+
+.markdown {
+  /* 画面が広くても行が長くなりすぎないようにする。ただし狭いときは幅いっぱい
+     に使うので、中央へ寄せずに左端から伸ばす。 */
+  max-width: 46rem;
+  width: 100%;
+  line-height: 1.8;
+  font-size: 14px;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4 {
+  line-height: 1.4;
+  margin: 1.6em 0 0.6em;
+}
+
+.markdown h1 {
+  font-size: 1.4em;
+}
+
+.markdown h2 {
+  font-size: 1.2em;
+}
+
+.markdown h3 {
+  font-size: 1.05em;
+}
+
+.markdown p,
+.markdown li {
+  overflow-wrap: anywhere;
+}
+
+.markdown img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+
+.markdown figure {
+  margin: 1.4em 0;
+}
+
+.markdown figcaption {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-top: 6px;
+}
+
+.markdown pre {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.markdown code {
+  font-size: 0.92em;
+}
+
+.markdown :not(pre) > code {
+  background: var(--surface);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+
+/* 表は幅を超えたら表の中だけを横に送る。本文全体は横に伸ばさない。 */
+.markdown table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 13px;
+  max-width: 100%;
+}
+
+.markdown th,
+.markdown td {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.markdown blockquote {
+  border-left: 2px solid var(--border);
+  margin: 1em 0;
+  padding-left: 12px;
+  color: var(--text-muted);
+}
+
+/* 数式が幅を超えたら、その数式だけを横に送る。 */
+.markdown .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0;
+}
+
+.paper-body {
+  /* 広い画面では本文を左に寄せず、読みやすい幅に収める。 */
+  padding-right: 14px;
 }
