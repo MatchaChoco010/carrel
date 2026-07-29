@@ -102,7 +102,8 @@ body {
 
 .panes {
   display: grid;
-  grid-template-columns: minmax(280px, 420px) 1fr;
+  /* 既定は半々。境目を掴んで動かすと App が上書きする。 */
+  grid-template-columns: 50% 6px 1fr;
   min-height: 0;
 }
 
@@ -283,4 +284,556 @@ body {
 
 .app--narrow .panes--chat .pane--chat {
   display: flex;
+}
+
+/* --- 論文リスト --- */
+
+.papers {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.import {
+  display: flex;
+  gap: 8px;
+}
+
+.import input {
+  flex: 1;
+}
+
+.papers input,
+.filters input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 7px 10px;
+  font: inherit;
+  min-width: 0;
+}
+
+.papers button,
+.filters button,
+.paper button,
+.paper-nav button {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 7px 10px;
+  font: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.papers button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.papers button.ghost,
+.paper button.ghost,
+.filters button.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+  padding: 4px 6px;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.filters {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filters-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+}
+
+.filters-main input {
+  flex: 1;
+}
+
+.filters-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filters-row input {
+  flex: 1 1 120px;
+}
+
+.filters-row .year {
+  flex: 0 0 88px;
+}
+
+.filters-tags,
+.tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.tag {
+  background: transparent !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 999px !important;
+  color: var(--text-muted) !important;
+  padding: 3px 10px !important;
+  font-size: 12px;
+}
+
+.tag.on {
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+}
+
+.tag .count {
+  opacity: 0.6;
+  margin-left: 4px;
+}
+
+.paper-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.paper {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.paper header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: start;
+}
+
+.paper .title {
+  background: none !important;
+  border: none !important;
+  color: var(--text) !important;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+  padding: 0 !important;
+}
+
+.paper .title:hover {
+  color: var(--accent) !important;
+}
+
+.paper .meta,
+.paper-body .meta {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: 0;
+}
+
+.paper .slug {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.paper .hit {
+  margin: 0;
+  font-size: 13px;
+  border-left: 2px solid var(--accent);
+  padding-left: 10px;
+  color: var(--text-muted);
+}
+
+.paper .hit .path {
+  display: block;
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.abstract {
+  /* 本文と「続きを読む」を縦に積む。横に並べると畳んだ表示が潰れる。 */
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  gap: 4px;
+}
+
+.abstract p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.lang {
+  display: flex;
+  flex: 0 0 auto;
+}
+
+.lang button {
+  border-radius: 0 !important;
+  padding: 3px 8px !important;
+  font-size: 12px;
+}
+
+.lang button:first-child {
+  border-radius: 5px 0 0 5px !important;
+}
+
+.lang button:last-child {
+  border-radius: 0 5px 5px 0 !important;
+  border-left: none !important;
+}
+
+.lang button.on {
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+}
+
+.menu {
+  position: relative;
+}
+
+.menu-items {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px;
+  z-index: 2;
+}
+
+.confirm {
+  border: 1px solid var(--warn);
+  border-radius: 6px;
+  padding: 10px;
+}
+
+.confirm p {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.confirm div {
+  display: flex;
+  gap: 8px;
+}
+
+.confirm .danger {
+  border-color: var(--warn) !important;
+  color: var(--warn) !important;
+}
+
+.error {
+  color: var(--warn);
+  font-size: 13px;
+}
+
+.empty {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* --- 論文の本文 --- */
+
+.paper-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.paper-nav {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.paper-nav .panes {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.paper-nav button.on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.paper-body {
+  overflow: auto;
+  padding-top: 14px;
+}
+
+/* 画面が広いときは、題・書誌・本文をひとつの列として中央へ置く。行の中身は左揃え
+   のままで、列そのものだけを寄せる。狭いときは幅いっぱいに広がる。 */
+.paper-body > * {
+  max-width: 46rem;
+  margin-inline: auto;
+}
+
+.paper-body h1 {
+  font-size: 18px;
+  /* 左右の auto は上の列の中央寄せを保つため。 */
+  margin: 0 auto 4px;
+}
+
+.paper-body pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 13px;
+  line-height: 1.7;
+  margin-top: 14px;
+}
+
+/* --- 一覧とチャットの境目 --- */
+
+.split {
+  cursor: col-resize;
+  background: var(--border);
+  opacity: 0.4;
+  /* 見た目より掴める幅を広げる。細い線のままだと掴み損ねる。 */
+  position: relative;
+}
+
+.split::after {
+  content: '';
+  position: absolute;
+  inset: 0 -5px;
+}
+
+.split:hover,
+.panes--dragging .split {
+  background: var(--accent);
+  opacity: 1;
+}
+
+/* 掴んでいる間は本文を選ばせない。選択が走ると動きが引っかかる。
+   境目そのものは常に選択させない。掴み損ねたときに文字が選ばれるのを防ぐ。 */
+.panes--dragging,
+.panes--dragging * {
+  user-select: none;
+}
+
+.split {
+  user-select: none;
+}
+
+.app--narrow .split {
+  display: none;
+}
+
+/* --- frontmatter --- */
+
+.paper-meta {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 14px;
+  /* 左右の auto は本文の列の中央寄せを保つため。 */
+  margin: 12px auto 0;
+  font-size: 13px;
+}
+
+.paper-meta > div {
+  display: contents;
+}
+
+.paper-meta dt {
+  color: var(--text-muted);
+}
+
+.paper-meta dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.paper-meta a {
+  color: var(--accent);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.paper-abstract {
+  margin-top: 18px;
+  border-left: 2px solid var(--border);
+  padding-left: 14px;
+}
+
+.paper-abstract h2 {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* --- markdown --- */
+
+.markdown {
+  /* 画面が広くても行が長くなりすぎないようにする。ただし狭いときは幅いっぱい
+     に使うので、中央へ寄せずに左端から伸ばす。 */
+  max-width: 46rem;
+  width: 100%;
+  line-height: 1.8;
+  font-size: 14px;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4 {
+  line-height: 1.4;
+  margin: 1.6em 0 0.6em;
+}
+
+.markdown h1 {
+  font-size: 1.4em;
+}
+
+.markdown h2 {
+  font-size: 1.2em;
+}
+
+.markdown h3 {
+  font-size: 1.05em;
+}
+
+.markdown p,
+.markdown li {
+  overflow-wrap: anywhere;
+}
+
+.markdown img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+
+.markdown figure {
+  margin: 1.4em 0;
+}
+
+.markdown figcaption {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-top: 6px;
+}
+
+.markdown pre {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.markdown code {
+  font-size: 0.92em;
+}
+
+.markdown :not(pre) > code {
+  background: var(--surface);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+
+/* 表は幅を超えたら表の中だけを横に送る。本文全体は横に伸ばさない。 */
+.markdown table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 13px;
+  max-width: 100%;
+}
+
+.markdown th,
+.markdown td {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.markdown blockquote {
+  border-left: 2px solid var(--border);
+  margin: 1em 0;
+  padding-left: 12px;
+  color: var(--text-muted);
+}
+
+/* 数式が幅を超えたら、その数式だけを横に送る。 */
+.markdown .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0;
+}
+
+.paper-body {
+  /* 広い画面では本文を左に寄せず、読みやすい幅に収める。 */
+  padding-right: 14px;
+}
+
+/* 本文のリンク。引用は控えめに、外部リンクははっきり出す。 */
+.markdown a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+
+.markdown a.citation {
+  color: var(--text);
+  text-decoration-color: var(--text-muted);
+  text-decoration-style: dotted;
+}
+
+.markdown a.citation:hover {
+  color: var(--accent);
+  text-decoration-color: var(--accent);
+}
+
+/* 引用から飛んだ先を目立たせる。 */
+.markdown p:target,
+.markdown a:target + * {
+  background: rgba(106, 169, 255, 0.12);
 }

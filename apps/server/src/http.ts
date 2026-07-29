@@ -9,6 +9,10 @@ import { discardIngest, ingestFromUrl } from './ingest/pipeline.ts'
 import type { IngestStore } from './ingest/store.ts'
 import type { JobQueue } from './jobs/queue.ts'
 import type { SearchHit, SearchQuery } from './search/search.ts'
+import { readPaper, readPaperSideFile, writePaper } from './data/paper.ts'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { paperAssetsDir } from './data/layout.ts'
 
 export type AppDeps = {
   /** 論文を検索する。埋め込みを使うので非同期になる。 */
@@ -143,6 +147,68 @@ export function createApp(deps: AppDeps): Hono {
   })
 
   app.get('/api/ingests', (c) => c.json({ ingests: deps.ingests.list() }))
+
+  app.get('/api/papers/:slug', async (c) => {
+    const dataDir = deps.getConfig().dataDir
+    const slug = c.req.param('slug')
+    const paper = await readPaper(dataDir, slug)
+    if (paper === null) return c.json({ error: `論文が見つからない: ${slug}` }, 404)
+    const side = async (kind: 'bodyJa' | 'abstract' | 'abstractJa' | 'raw' | 'verification'): Promise<string | null> =>
+      readPaperSideFile(dataDir, slug, kind)
+    return c.json({
+      meta: paper.meta,
+      body: paper.body,
+      bodyJa: await side('bodyJa'),
+      abstract: await side('abstract'),
+      abstractJa: await side('abstractJa'),
+      hasRaw: (await side('raw')) !== null,
+      verification: await side('verification'),
+    })
+  })
+
+  app.put('/api/papers/:slug/tags', async (c) => {
+    const slug = c.req.param('slug')
+    let body: unknown
+    try {
+      body = await c.req.json()
+    } catch {
+      return c.json({ error: 'JSON として読めない本文が送られた' }, 400)
+    }
+    const raw = (body ?? {}) as Record<string, unknown>
+    if (!Array.isArray(raw['tags'])) return c.json({ error: 'tags が配列ではない' }, 400)
+    const tags = [...new Set(raw['tags'].filter((t): t is string => typeof t === 'string' && t.trim().length > 0))]
+
+    const dataDir = deps.getConfig().dataDir
+    const paper = await readPaper(dataDir, slug)
+    if (paper === null) return c.json({ error: `論文が見つからない: ${slug}` }, 404)
+    // markdown を先に書く。索引はファイルの監視が拾って追随する。
+    await writePaper(dataDir, { ...paper.meta, tags }, paper.body)
+    return c.json({ slug, tags })
+  })
+
+  // 本文の中の図の参照(assets/...)をそのまま引けるようにする。
+  app.get('/api/papers/:slug/assets/:name', async (c) => {
+    const slug = c.req.param('slug')
+    const name = c.req.param('name')
+    // 論文のディレクトリの外へ出る名前は受け付けない。
+    if (name.includes('/') || name.includes('\\') || name.startsWith('.')) {
+      return c.json({ error: '図の名前が不正' }, 400)
+    }
+    try {
+      const file = join(paperAssetsDir(deps.getConfig().dataDir, slug), name)
+      const body = await readFile(file)
+      const type = name.endsWith('.png') ? 'image/png' : 'image/jpeg'
+      return c.body(body as unknown as ArrayBuffer, 200, { 'content-type': type, 'cache-control': 'max-age=3600' })
+    } catch {
+      return c.json({ error: '図が見つからない' }, 404)
+    }
+  })
+
+  app.get('/api/papers/:slug/raw', async (c) => {
+    const raw = await readPaperSideFile(deps.getConfig().dataDir, c.req.param('slug'), 'raw')
+    if (raw === null) return c.json({ error: '照合前の本文が無い' }, 404)
+    return c.json({ raw })
+  })
 
   app.delete('/api/papers/:slug', async (c) => {
     const slug = c.req.param('slug')

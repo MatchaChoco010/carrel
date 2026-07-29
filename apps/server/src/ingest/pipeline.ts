@@ -2,7 +2,7 @@ import { access, readFile } from 'node:fs/promises'
 import type { CodexClient } from '../codex/client.ts'
 import { nowIsoDateTime } from '../data/datetime.ts'
 import { paperFile, paperOriginalPdf } from '../data/layout.ts'
-import { deletePaperDir, writePaper, type PaperMeta } from '../data/paper.ts'
+import { deletePaperDir, writePaper, writePaperSideFile, type PaperMeta } from '../data/paper.ts'
 import { buildSlug } from '../data/slug.ts'
 import type { IndexDb } from '../db/index-db.ts'
 import { fetchOriginal, looksLikePdf } from './fetch.ts'
@@ -96,7 +96,12 @@ export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<Inge
   })
 
   try {
-    await writePaper(deps.dataDir, toMeta(slug, source, sourceUrl), source.abstract ?? '')
+    // abstract を paper.md へ書かないのは、本文を照合が確定させるためである。
+    // ここへ書くと後で失われる。
+    await writePaper(deps.dataDir, toMeta(slug, source, sourceUrl), '')
+    if (source.abstract !== null && source.abstract.length > 0) {
+      await writePaperSideFile(deps.dataDir, slug, 'abstract', source.abstract, 'en')
+    }
     deps.ingests.advance(slug, 'fetch')
 
     const fetched = await fetchOriginal(deps.dataDir, slug, source.originalUrl, source.kind)
