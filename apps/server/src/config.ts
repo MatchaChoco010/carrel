@@ -25,6 +25,14 @@ export type Config = {
     /** 取り込みの段階が使う reasoning effort。 */
     effort: string
   }
+  embedding: {
+    /** Ollama の口。 */
+    baseUrl: string
+    /** 埋め込みのモデル。日本語と英語を同じ空間に置けるものを使う(0005)。 */
+    model: string
+    /** モデルが返すベクトルの次元。記録と違えば索引の作り直しが要る。 */
+    dimensions: number
+  }
   converter: {
     /** 変換器の venv の python。 */
     python: string
@@ -55,6 +63,11 @@ export const defaultConfig: Config = {
     // effort を上げても翻訳は速度も品質も変わらず、照合は見出しの階層の
     // 再現がむしろ悪くなる組み合わせがあった。
     effort: 'low',
+  },
+  embedding: {
+    baseUrl: 'http://127.0.0.1:11434',
+    model: 'bge-m3',
+    dimensions: 1024,
   },
   converter: {
     python: join(homedir(), 'ghq/github.com/MatchaChoco010/paper-collection-tool/apps/converter/.venv/bin/python'),
@@ -122,6 +135,18 @@ export function mergeConfig(stored: unknown): Config {
     for (const key of ['model', 'effort'] as const) {
       const value = i[key]
       if (typeof value === 'string' && value.length > 0) merged.ingest[key] = value
+    }
+  }
+
+  const embedding = raw['embedding']
+  if (typeof embedding === 'object' && embedding !== null) {
+    const e = embedding as Record<string, unknown>
+    for (const key of ['baseUrl', 'model'] as const) {
+      const value = e[key]
+      if (typeof value === 'string' && value.length > 0) merged.embedding[key] = value
+    }
+    if (typeof e['dimensions'] === 'number' && Number.isInteger(e['dimensions']) && e['dimensions'] > 0) {
+      merged.embedding.dimensions = e['dimensions']
     }
   }
 

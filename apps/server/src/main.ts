@@ -4,6 +4,10 @@ import type { Server } from 'node:http'
 import { WebSocketServer } from 'ws'
 import { CodexService } from './codex/service.ts'
 import { registerConvert } from './convert/job.ts'
+import { createEmbedder } from './search/embed.ts'
+import { search } from './search/search.ts'
+import { registerRegister } from './search/job.ts'
+import { ChunkStore } from './search/store.ts'
 import { registerTranslate } from './translate/job.ts'
 import { registerVerify } from './verify/job.ts'
 import { loadConfig, type Config } from './config.ts'
@@ -86,7 +90,16 @@ async function main(): Promise<void> {
     effort: config.ingest.effort,
   })
 
+  const chunks = new ChunkStore(index.db)
+  const embed = createEmbedder({ baseUrl: config.embedding.baseUrl, model: config.embedding.model })
+  const embeddingModel = { model: config.embedding.model, dimensions: config.embedding.dimensions }
+  if (chunks.needsRebuild(embeddingModel)) {
+    console.log('埋め込みのモデルが変わったので、索引の作り直しが要る')
+  }
+  registerRegister(jobs, { dataDir: config.dataDir, ingests, chunks, embed, model: embeddingModel })
+
   const app = createApp({
+    search: (query) => search(query, { index, chunks, embed }),
     getConfig: () => config,
     setConfig: (next) => {
       config = next

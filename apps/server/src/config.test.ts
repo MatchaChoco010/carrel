@@ -64,3 +64,15 @@ test('取り込みの設定が空文字なら既定値を保つ', () => {
   assert.equal(c.ingest.model, 'gpt-5.6-sol')
   assert.equal(c.ingest.effort, 'low')
 })
+
+test('埋め込みの設定を読む', () => {
+  const c = mergeConfig({ embedding: { baseUrl: 'http://x:1', model: 'other', dimensions: 768 } })
+  assert.equal(c.embedding.baseUrl, 'http://x:1')
+  assert.equal(c.embedding.model, 'other')
+  assert.equal(c.embedding.dimensions, 768)
+})
+
+test('埋め込みの次元が整数でなければ既定値を保つ', () => {
+  const c = mergeConfig({ embedding: { dimensions: 0 } })
+  assert.equal(c.embedding.dimensions, 1024)
+})

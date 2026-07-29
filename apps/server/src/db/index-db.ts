@@ -60,6 +60,49 @@ const MIGRATIONS: Migration[] = [
       create index chat_papers_slug on chat_papers (slug);
     `,
   },
+  {
+    version: 2,
+    up: `
+      create table chunks (
+        id integer primary key autoincrement,
+        slug text not null references papers (slug) on delete cascade,
+        lang text not null,
+        position integer not null,
+        path text not null,
+        text text not null,
+        vector blob
+      );
+      create index chunks_slug on chunks (slug);
+      create unique index chunks_place on chunks (slug, lang, position);
+
+      -- 日本語は空白で語が区切られないので、語の切り出しに依存しない 3 文字
+      -- 単位の索引を使う(0005)。部分一致の要求にもそのまま応えられる。
+      create virtual table chunks_fts using fts5 (
+        text,
+        content = 'chunks',
+        content_rowid = 'id',
+        tokenize = "trigram"
+      );
+      create trigger chunks_ai after insert on chunks begin
+        insert into chunks_fts (rowid, text) values (new.id, new.text);
+      end;
+      create trigger chunks_ad after delete on chunks begin
+        insert into chunks_fts (chunks_fts, rowid, text) values ('delete', old.id, old.text);
+      end;
+      create trigger chunks_au after update on chunks begin
+        insert into chunks_fts (chunks_fts, rowid, text) values ('delete', old.id, old.text);
+        insert into chunks_fts (rowid, text) values (new.id, new.text);
+      end;
+
+      -- 埋め込みを作ったモデルと次元。一致しないときは索引の作り直しが要ると
+      -- 判定する(0005)。
+      create table embedding_model (
+        id integer primary key check (id = 1),
+        model text not null,
+        dimensions integer not null
+      );
+    `,
+  },
 ]
 
 export type IndexedPaper = {
@@ -70,6 +113,11 @@ export type IndexedPaper = {
 
 export class IndexDb {
   readonly #db: DatabaseSync
+
+  /** チャンクの表を扱う ChunkStore へ渡すための口(0005)。 */
+  get db(): DatabaseSync {
+    return this.#db
+  }
 
   constructor(file: string) {
     this.#db = openDatabase(file, MIGRATIONS)
@@ -240,6 +288,62 @@ export class IndexDb {
   allSlugs(): Set<string> {
     const rows = this.#db.prepare('select slug from papers').all() as Array<{ slug: string }>
     return new Set(rows.map((r) => r.slug))
+  }
+
+  getPaper(slug: string): { slug: string; title: string; venue: string | null; year: number | null } | null {
+    const row = this.#db.prepare('select slug, title, venue, year from papers where slug = ?').get(slug) as
+      | { slug: string; title: string; venue: string | null; year: number | null }
+      | undefined
+    return row === undefined ? null : { slug: row.slug, title: row.title, venue: row.venue, year: row.year }
+  }
+
+  /**
+   * 構造化条件で候補を絞る。
+   *
+   * 条件が 1 つも指定されなければ null を返す。候補はコレクション全体という
+   * 意味で、空の配列(該当なし)とは違う(0005)。
+   */
+  filterSlugs(filter: {
+    title?: string
+    author?: string
+    venue?: string
+    yearFrom?: number
+    yearTo?: number
+    tags?: string[]
+  }): string[] | null {
+    const where: string[] = []
+    const params: (string | number)[] = []
+
+    if (filter.title !== undefined && filter.title.length > 0) {
+      where.push('p.title like ?')
+      params.push(`%${filter.title}%`)
+    }
+    if (filter.author !== undefined && filter.author.length > 0) {
+      where.push('exists (select 1 from paper_authors a where a.slug = p.slug and a.name like ?)')
+      params.push(`%${filter.author}%`)
+    }
+    if (filter.venue !== undefined && filter.venue.length > 0) {
+      where.push('p.venue like ?')
+      params.push(`%${filter.venue}%`)
+    }
+    if (filter.yearFrom !== undefined) {
+      where.push('p.year >= ?')
+      params.push(filter.yearFrom)
+    }
+    if (filter.yearTo !== undefined) {
+      where.push('p.year <= ?')
+      params.push(filter.yearTo)
+    }
+    for (const tag of filter.tags ?? []) {
+      where.push('exists (select 1 from paper_tags t where t.slug = p.slug and t.tag = ?)')
+      params.push(tag)
+    }
+
+    if (where.length === 0) return null
+    const rows = this.#db
+      .prepare(`select p.slug as slug from papers p where ${where.join(' and ')} order by p.slug`)
+      .all(...params) as Array<{ slug: string }>
+    return rows.map((r) => r.slug)
   }
 
   countPapers(): number {
