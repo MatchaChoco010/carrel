@@ -1,4 +1,5 @@
 import { Check, CircleDashed, Loader2, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import type { Ingest, IngestStage } from '../api.ts'
 
 export type IngestsPaneProps = {
@@ -21,12 +22,29 @@ const STAGE_LABEL: Record<IngestStage, string> = {
 
 function duration(ms: number): string {
   if (ms < 1000) return `${ms}ms`
-  const seconds = Math.round(ms / 1000)
+  const seconds = Math.floor(ms / 1000)
   if (seconds < 60) return `${seconds}秒`
   return `${Math.floor(seconds / 60)}分${String(seconds % 60).padStart(2, '0')}秒`
 }
 
+/**
+ * 実行中の段階の経過時間を毎秒進めるための刻み。
+ *
+ * 取り込みの記録を読み直す間隔は数秒あるので、それに合わせると経過時間が飛び飛び
+ * に増えて止まって見える。表示する時刻は手元で進め、記録の取得とは別にする。
+ */
+function useNow(active: boolean): number {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!active) return
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [active])
+  return active ? now : Date.now()
+}
+
 export function IngestsPane({ ingests }: IngestsPaneProps) {
+  const now = useNow(ingests.some((i) => i.status === 'inProgress'))
   if (ingests.length === 0) return <p className="empty">取り込み中の論文はありません</p>
 
   return (
@@ -34,10 +52,7 @@ export function IngestsPane({ ingests }: IngestsPaneProps) {
       {ingests.map((ingest) => {
         const byStage = new Map(ingest.stages.map((s) => [s.stage, s]))
         const at = STAGES.indexOf(ingest.stage)
-        const total = ingest.stages.reduce(
-          (sum, s) => sum + ((s.finishedAt ?? Date.now()) - s.startedAt),
-          0,
-        )
+        const total = ingest.stages.reduce((sum, s) => sum + ((s.finishedAt ?? now) - s.startedAt), 0)
 
         return (
           <article key={ingest.slug} className={`ingest ingest--${ingest.status}`}>
@@ -53,7 +68,7 @@ export function IngestsPane({ ingests }: IngestsPaneProps) {
                 const running = ingest.status === 'inProgress' && index === at
                 const failed = ingest.status === 'failed' && index === at
                 const elapsed =
-                  record === undefined ? null : (record.finishedAt ?? Date.now()) - record.startedAt
+                  record === undefined ? null : (record.finishedAt ?? now) - record.startedAt
 
                 return (
                   <li
