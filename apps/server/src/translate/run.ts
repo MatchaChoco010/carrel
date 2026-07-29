@@ -11,7 +11,6 @@ export type TranslateDeps = {
   codex: CodexClient
   model: string
   effort: string
-  /** Codex の service tier。priority で速くなる代わりに利用量が増える。 */
   serviceTier: string | null
 }
 

@@ -24,10 +24,7 @@ export type Config = {
     model: string
     /** 取り込みの段階が使う reasoning effort。 */
     effort: string
-    /**
-     * Codex の service tier。`priority` にすると 1.5 倍の速度で走る代わりに
-     * 利用量を多く消費する。既定は素の扱いにする。
-     */
+    /** Codex の service tier。`priority` は速くなる代わりに利用量が増える。 */
     serviceTier: string | null
   }
   embedding: {

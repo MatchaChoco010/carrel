@@ -24,7 +24,6 @@ export type VerifyDeps = {
   codex: CodexClient
   model: string
   effort: string
-  /** Codex の service tier。priority で速くなる代わりに利用量が増える。 */
   serviceTier: string | null
   textLayer: TextLayerPaths
 }
@@ -94,13 +93,7 @@ export function restoreImages(before: string, after: string): string {
   return `${after.trimEnd()}\n\n${lost.join('\n\n')}`
 }
 
-/**
- * 同時に照合するページ数。
- *
- * ページごとに使い捨てのスレッドを立てるので、ページ同士に依存が無く、並べて
- * 走らせられる。実測で 15 ページの論文の照合が 1 ページ約 50 秒 × 15 だったので、
- * ここが取り込み全体で最も長い段階になっていた。
- */
+/** 同時に照合するページ数。ページごとに使い捨てのスレッドを立てるので依存が無い。 */
 const PAGES_AT_ONCE = 8
 
 /** 決まった数ずつ並べて走らせ、入力の順で結果を返す。 */
