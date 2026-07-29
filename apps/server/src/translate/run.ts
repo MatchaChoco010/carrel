@@ -11,6 +11,8 @@ export type TranslateDeps = {
   codex: CodexClient
   model: string
   effort: string
+  /** Codex の service tier。priority で速くなる代わりに利用量が増える。 */
+  serviceTier: string | null
 }
 
 /** 契約に反したときにやり直す回数。 */
@@ -66,6 +68,7 @@ export async function translatePaper(slug: string, deps: TranslateDeps): Promise
   const threadId = await startWorkThread(deps.codex, {
     instructions: TRANSLATE_INSTRUCTIONS,
     model: deps.model,
+    serviceTier: deps.serviceTier,
   })
 
   // abstract は副次ファイルにある。無ければ本文だけを訳す。

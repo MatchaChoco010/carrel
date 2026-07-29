@@ -80,6 +80,7 @@ async function main(): Promise<void> {
     codex: codex.client,
     model: config.ingest.model,
     effort: config.ingest.effort,
+    serviceTier: config.ingest.serviceTier,
     textLayer: { python: config.converter.python, script: textLayerScript() },
     onDone: (slug) => enqueueTranslate(jobs, slug),
   })
@@ -90,6 +91,7 @@ async function main(): Promise<void> {
     codex: codex.client,
     model: config.ingest.model,
     effort: config.ingest.effort,
+    serviceTier: config.ingest.serviceTier,
     onDone: (slug) => enqueueRegister(jobs, slug),
   })
 

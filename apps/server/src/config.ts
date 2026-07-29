@@ -24,6 +24,11 @@ export type Config = {
     model: string
     /** 取り込みの段階が使う reasoning effort。 */
     effort: string
+    /**
+     * Codex の service tier。`priority` にすると 1.5 倍の速度で走る代わりに
+     * 利用量を多く消費する。既定は素の扱いにする。
+     */
+    serviceTier: string | null
   }
   embedding: {
     /** Ollama の口。 */
@@ -63,6 +68,7 @@ export const defaultConfig: Config = {
     // effort を上げても翻訳は速度も品質も変わらず、照合は見出しの階層の
     // 再現がむしろ悪くなる組み合わせがあった。
     effort: 'low',
+    serviceTier: null,
   },
   embedding: {
     baseUrl: 'http://127.0.0.1:11434',
@@ -132,6 +138,9 @@ export function mergeConfig(stored: unknown): Config {
   const ingest = raw['ingest']
   if (typeof ingest === 'object' && ingest !== null) {
     const i = ingest as Record<string, unknown>
+    if (i['serviceTier'] === null || typeof i['serviceTier'] === 'string') {
+      merged.ingest.serviceTier = i['serviceTier'] as string | null
+    }
     for (const key of ['model', 'effort'] as const) {
       const value = i[key]
       if (typeof value === 'string' && value.length > 0) merged.ingest[key] = value

@@ -24,6 +24,8 @@ export type VerifyDeps = {
   codex: CodexClient
   model: string
   effort: string
+  /** Codex の service tier。priority で速くなる代わりに利用量が増える。 */
+  serviceTier: string | null
   textLayer: TextLayerPaths
 }
 
@@ -62,6 +64,7 @@ async function verifyPage(work: PageWork, imagePath: string, deps: VerifyDeps): 
   const threadId = await startWorkThread(deps.codex, {
     instructions: VERIFY_INSTRUCTIONS,
     model: deps.model,
+    serviceTier: deps.serviceTier,
   })
   const outcome = await runTurn(deps.codex, {
     threadId,
@@ -96,6 +99,25 @@ export function restoreImages(before: string, after: string): string {
 }
 
 /**
+ * 同時に照合するページ数。
+ *
+ * ページごとに使い捨てのスレッドを立てるので、ページ同士に依存が無く、並べて
+ * 走らせられる。上限は Codex を使うジョブの同時実行数に合わせてある(0003)。
+ * 実測で 15 ページの論文の照合が 1 ページ約 57 秒 × 15 だったので、ここが
+ * 取り込み全体で最も長い段階になっていた。
+ */
+const PAGES_AT_ONCE = 4
+
+/** 決まった数ずつ並べて走らせ、入力の順で結果を返す。 */
+async function inBatches<T, R>(items: T[], size: number, run: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = []
+  for (let at = 0; at < items.length; at += size) {
+    results.push(...(await Promise.all(items.slice(at, at + size).map(run))))
+  }
+  return results
+}
+
+/**
  * 論文を 1 本照合し、`paper.md` と `verification.md` を書く。
  *
  * `paper.raw.md` は残す。照合前との差分を見られるようにするためである(0004)。
@@ -105,20 +127,20 @@ export async function verifyPaper(slug: string, deps: VerifyDeps): Promise<void>
   const layer = await readTextLayer(paperOriginalPdf(deps.dataDir, slug), document.blocks, deps.textLayer)
   const work = buildPageWork(document, layer, ASSETS_DIR_NAME)
 
-  const parts: string[] = []
-  const reports: PageReport[] = []
-  for (const page of work) {
+  const done = await inBatches(work, PAGES_AT_ONCE, async (page) => {
     const result = await verifyPage(page, pageImageFile(deps.dataDir, slug, page.page), deps)
     const markdown = restoreImages(page.input.converted, result.markdown)
-    if (markdown.trim().length > 0) parts.push(markdown.trim())
 
     // 照合を経ても残った文字の欠落を記録する。直ったかどうかは、この 1 つの
     // 事象に限れば機械的に確かめられる(0009)。測り方は照合の前と揃える。
     const after = textGap(layer.pages[page.page] ?? '', markdown)
     const remaining = needsFocus(after) ? after : null
 
-    reports.push({ page: page.page, changes: result.changes, remaining })
-  }
+    return { markdown, report: { page: page.page, changes: result.changes, remaining } }
+  })
+
+  const parts = done.map((d) => d.markdown.trim()).filter((text) => text.length > 0)
+  const reports: PageReport[] = done.map((d) => d.report)
 
   // frontmatter が正なので(0002)、本文だけを差し替えて書き戻す。
   const paper = await readPaper(deps.dataDir, slug)
