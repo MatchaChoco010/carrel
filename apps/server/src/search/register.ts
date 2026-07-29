@@ -1,3 +1,4 @@
+import type { Paper } from '../data/paper.ts'
 import { readPaper, readPaperSideFile } from '../data/paper.ts'
 import { buildChunks } from './chunks.ts'
 import type { Embedder } from './embed.ts'
@@ -8,6 +9,8 @@ export type RegisterDeps = {
   chunks: ChunkStore
   embed: Embedder
   model: EmbeddingModel
+  /** 論文を索引に載せる。チャンクが参照するので、入れる直前に呼ぶ。 */
+  indexPaper: (paper: Paper) => void
 }
 
 /**
@@ -32,6 +35,7 @@ export async function registerPaper(slug: string, deps: RegisterDeps): Promise<n
     }
   }
   if (inputs.length === 0) {
+    deps.indexPaper(paper)
     deps.chunks.replace(slug, [])
     return 0
   }
@@ -42,6 +46,10 @@ export async function registerPaper(slug: string, deps: RegisterDeps): Promise<n
     if (vector !== undefined) (inputs[i] as ChunkInput).vector = vector
   }
 
+  // 論文を載せてからチャンクを入れるまでに await を挟まない。埋め込みを待つ間に
+  // ファイルの監視が走ると、取り込みの途中の論文として索引から外され、チャンクの
+  // 外部キーが破れる。ここを続けて行えば監視の処理が割り込めない。
+  deps.indexPaper(paper)
   deps.chunks.replace(slug, inputs)
   deps.chunks.setModel(deps.model)
   return inputs.length
