@@ -45,7 +45,7 @@ function MarkdownView({ text, slug, chatId, linkReferences = false }: MarkdownPr
         components={{
           img: ({ src, alt }) => {
             const image = imageSource(typeof src === 'string' ? src : undefined, { slug, chatId })
-            // 外の画像は取りに行かない。開いただけで外へ要求が出るのを避ける(0013)。
+            // 外の画像は取りに行かない(0013)。
             if (image.kind === 'external') {
               return (
                 <a href={image.url} target="_blank" rel="noreferrer" className="markdown__external-image">

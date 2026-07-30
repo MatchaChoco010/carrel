@@ -65,7 +65,7 @@ export type AppDeps = {
   webRoot: string | null
 }
 
-/** 受け取る画像の形式(0013)。読み出すときの content-type もここから決まる。 */
+/** 受け取る画像の形式(0013)。 */
 const IMAGE_TYPES: Record<string, string> = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
@@ -74,7 +74,6 @@ const IMAGE_TYPES: Record<string, string> = {
   '.gif': 'image/gif',
 }
 
-/** 置き場所のディレクトリの外へ出る名前を受け付けない。 */
 function isSafeAssetName(name: string): boolean {
   return !name.includes('/') && !name.includes('\\') && !name.startsWith('.')
 }

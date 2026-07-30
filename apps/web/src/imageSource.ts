@@ -1,28 +1,21 @@
-/**
- * markdown に書かれた画像の参照を、実体を返す口へ読み替える(0013)。
- *
- * 記録に残るのは人が読める参照だけで、口の形は記録に入らない。読み替えはここに閉じる。
- */
+/** markdown に書かれた画像の参照から、その実体を返す口を決める(0013)。 */
 
 export type ImageContext = {
-  /** 論文の本文を描いているときの slug。図は `assets/...` の相対で書かれている(0004)。 */
+  /** 論文の本文を描いているときの slug。 */
   slug?: string | undefined
-  /** 会話を描いているときの識別子。添付は `assets/...` の相対で書かれている(0013)。 */
+  /** 会話を描いているときの識別子。 */
   chatId?: string | undefined
 }
 
 export type ImageSource =
-  /** 読み込んで良い場所。 */
   | { kind: 'load'; url: string }
-  /** コレクションの外なので読み込まない。リンクとして出す。 */
+  /** コレクションの外を指している。 */
   | { kind: 'external'; url: string }
   /** どこを指すか決まらない。 */
   | { kind: 'unresolved'; raw: string }
 
-/** `@<slug>/assets/<名前>` の形。論文の図を指す。 */
 const PAPER_FIGURE = /^@([^/]+)\/assets\/([^/]+)$/
 
-/** `assets/<名前>` の形。いま描いているもの(論文の本文か会話)に属する。 */
 const OWN_ASSET = /^(?:\.\/)?assets\/([^/]+)$/
 
 export function imageSource(raw: string | undefined, context: ImageContext): ImageSource {
