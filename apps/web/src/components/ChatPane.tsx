@@ -272,7 +272,7 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
         }}
       >
         {id === null && messages.length === 0 && (
-          <p className="pane__empty">論文について議論します。@ で論文を指して尋ねると、その論文を読んで答えます。</p>
+          <p className="chat__intro">論文について議論します。@ で論文を指して尋ねると、その論文を読んで答えます。</p>
         )}
         {hidden > 0 && (
           <div
