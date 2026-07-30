@@ -159,6 +159,12 @@ export class ChatSessions {
         { onDelta: (delta) => this.#deps.onEvent({ type: 'chat.turn.delta', path: chat.path, delta }) },
       )
 
+      // 応答が無いまま終わったターンは失敗として扱う。空の発言を残すと、記録の上で
+      // 「何も返らなかった」と「ターンが途中で終わった」を区別できなくなる。
+      if (outcome.status !== 'completed' || outcome.text.trim().length === 0) {
+        throw new Error(`応答が返らなかった (status=${outcome.status})`)
+      }
+
       const answered: ChatMessage = { role: 'assistant', at: nowIsoDateTime(), text: outcome.text }
       const saved = await this.#append(absolutePath, withAsked, [answered], threadId, model, effort)
       this.#deps.onEvent({ type: 'chat.turn.completed', path: saved.path, message: answered })
