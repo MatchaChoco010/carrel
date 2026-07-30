@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, test } from 'node:test'
@@ -141,4 +141,125 @@ test('発言の区切りを役割と時刻の両方で判定する', () => {
     },
   ]
   assert.deepEqual(parseMessages(serializeMessages(messages)), messages)
+})
+
+/**
+ * 監視の試験は別の一時ディレクトリで行う。
+ *
+ * 通知が届くまでの待ちがあるので、他の試験の索引を触らないように分ける。
+ */
+async function watched(): Promise<{
+  dataDir: string
+  index: IndexDb
+  collection: Collection
+  changed: string[]
+  close: () => Promise<void>
+}> {
+  const dir = await mkdtemp(join(tmpdir(), 'pct-watch-'))
+  const db = new IndexDb(join(dir, 'index.sqlite'))
+  const data = join(dir, 'data')
+  const changed: string[] = []
+  const target = new Collection(data, db, { onChatChanged: (path) => changed.push(path) })
+  await target.ensureDirs()
+  return {
+    dataDir: data,
+    index: db,
+    collection: target,
+    changed,
+    close: async () => {
+      target.stopWatching()
+      db.close()
+      await rm(dir, { recursive: true, force: true })
+    },
+  }
+}
+
+const chatFile = (title: string, body: string): string =>
+  [
+    '---',
+    'id: chats/2026/07/30/09-00-00-watch.md',
+    'created: 2026-07-30T09:00:00+09:00',
+    'updated: 2026-07-30T09:00:00+09:00',
+    `title: ${title}`,
+    'title_source: user',
+    'summary: ""',
+    'archived: false',
+    'codex_thread_id: null',
+    'model: null',
+    'effort: null',
+    'papers: []',
+    'forked_from: null',
+    '---',
+    '',
+    '## user · 2026-07-30T09:00:00+09:00',
+    '',
+    body,
+    '',
+  ].join('\n')
+
+/** 通知と索引の更新を待つ。 */
+const settle = (ms = 400): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
+
+async function replace(path: string, text: string): Promise<void> {
+  // エディタの保存と同じ形。一時ファイルへ書いてから置き換える。
+  await writeFile(`${path}.tmp`, text, 'utf8')
+  await rename(`${path}.tmp`, path)
+}
+
+test('置き換えを繰り返しても、そのたびに索引へ反映される', async () => {
+  const h = await watched()
+  try {
+    const day = join(h.dataDir, 'chats', '2026', '07', '30')
+    await mkdir(day, { recursive: true })
+    const file = join(day, '09-00-00-watch.md')
+    await writeFile(file, chatFile('はじめ', '本文'), 'utf8')
+    await h.collection.scan()
+
+    h.collection.startWatching(30)
+    await settle()
+
+    for (const title of ['1 回目', '2 回目', '3 回目']) {
+      await replace(file, chatFile(title, '本文'))
+      await settle()
+      const row = h.index.listChats().find((c) => c.path.endsWith('09-00-00-watch.md'))
+      assert.equal(row?.title, title)
+    }
+  } finally {
+    await h.close()
+  }
+})
+
+test('監視を始めた後に作られた日付のディレクトリのファイルも拾う', async () => {
+  const h = await watched()
+  try {
+    h.collection.startWatching(30)
+    await settle()
+
+    const day = join(h.dataDir, 'chats', '2026', '08', '01')
+    await mkdir(day, { recursive: true })
+    const file = join(day, '10-00-00-later.md')
+    await writeFile(file, chatFile('後から', '本文'), 'utf8')
+    await settle(800)
+
+    assert.equal(h.index.listChats().length, 1)
+    assert.ok(h.changed.length > 0)
+  } finally {
+    await h.close()
+  }
+})
+
+test('ディレクトリごとに監視を張る', async () => {
+  const h = await watched()
+  try {
+    await mkdir(join(h.dataDir, 'chats', '2026', '07', '30'), { recursive: true })
+    await mkdir(join(h.dataDir, 'papers', 'kerbl2023-3dgs'), { recursive: true })
+
+    h.collection.startWatching(30)
+    await settle()
+
+    // papers、papers/<slug>、chats、chats/2026、chats/2026/07、chats/2026/07/30
+    assert.equal(h.collection.watchedDirs, 6)
+  } finally {
+    await h.close()
+  }
 })
