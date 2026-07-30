@@ -1,0 +1,16 @@
+// pct の窓は透明な surface として作られる。背後をぼかすのはコンポジターの仕事なので、
+// app-id に対応する規則をここに置く。app-id は `niri msg windows` で実測した値である。
+window-rule {
+    match app-id=r#"^(pct|dev\.matchachoco010\.pct|@pct/desktop)$"#
+
+    draw-border-with-background false
+    geometry-corner-radius 16
+    clip-to-geometry true
+
+    background-effect {
+        blur true
+        xray true
+        noise 0.02
+        saturation 1.12
+    }
+}

@@ -10,3 +10,4 @@ node_modules/
 dist/
 *.tsbuildinfo
 apps/converter/.venv/
+release/
