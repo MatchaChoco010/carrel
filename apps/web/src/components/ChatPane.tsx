@@ -32,6 +32,8 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
   const [error, setError] = useState<string | null>(null)
   const input = useRef<HTMLTextAreaElement>(null)
   const log = useRef<HTMLDivElement>(null)
+  // 末尾へ送り終えた会話。開き直したときにもう一度送るための目印。
+  const scrolledFor = useRef<string | null>(null)
 
   const blocked = limits?.reached === true
 
@@ -54,14 +56,26 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
     if (path !== null) input.current?.focus()
   }, [path])
 
-  // 発言や応答が増えたら末尾へ送る。読んでいる途中で戻されないよう、末尾の近くに
-  // いるときだけ動かす。
+  /**
+   * 末尾へ送る。
+   *
+   * 会話を開いた直後は必ず送る。続きを話す相手は直近のやりとりである。発言が
+   * 増えたときは末尾の近くにいるときだけ送り、過去を読んでいる途中で引き戻さない。
+   *
+   * 開いた直後かどうかは、発言が届いた時点の場所で判じる。場所が変わった時点では
+   * まだ前の会話の発言が出ているので、そこで送っても意味がない。
+   */
   useEffect(() => {
     const node = log.current
     if (node === null) return
+    if (scrolledFor.current !== path) {
+      scrolledFor.current = path
+      node.scrollTop = node.scrollHeight
+      return
+    }
     const nearBottom = node.scrollHeight - node.scrollTop - node.clientHeight < 160
     if (nearBottom) node.scrollTop = node.scrollHeight
-  }, [messages, turn])
+  }, [messages, turn, path])
 
   const efforts = useMemo(() => models.find((m) => m.id === model)?.efforts ?? [], [models, model])
 
