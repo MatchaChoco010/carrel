@@ -76,7 +76,7 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
 
     if (shown !== null && scrolledFor.current !== shown) {
       scrolledFor.current = shown
-      // 数式の組版と字体の読み込みで高さが後から変わるので、次の描画でもう一度送る。
+      // 数式のレイアウトとフォントの読み込みで高さが後から変わるので、次の描画でもう一度送る。
       node.scrollTop = node.scrollHeight
       requestAnimationFrame(() => {
         node.scrollTop = node.scrollHeight

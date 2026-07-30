@@ -1142,10 +1142,15 @@ body {
   position: relative;
 }
 
-/* 読んでいる間は出さない。目に入るのは、その発言に触れたときでよい。 */
+/*
+ * 読んでいる間は出さない。目に入るのは、その発言に触れたときでよい。
+ *
+ * 右端は本文に合わせる。発言の要素は役割で幅が違うので、その端に合わせると縦に
+ * 並べたときにボタンが左右にずれる。表示の幅が本文より狭いときは要素の端に寄せる。
+ */
 .turn__branch {
   position: absolute;
-  right: 8px;
+  right: max(8px, calc((100% - var(--chat-text)) / 2 + 8px));
   bottom: 4px;
   opacity: 0;
   background: var(--surface-raised);
