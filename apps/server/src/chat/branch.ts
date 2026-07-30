@@ -2,7 +2,15 @@ import { join } from 'node:path'
 import type { CodexClient } from '../codex/client.ts'
 import { METHODS, textInput } from '../codex/protocol.ts'
 import { runTurn, startConversationThread } from '../codex/threads.ts'
-import { freeChatPath, readChat, withoutTurnIds, writeChat, type Chat, type ChatMessage } from '../data/chat.ts'
+import {
+  freeChatPath,
+  newChatId,
+  readChat,
+  withoutTurnIds,
+  writeChat,
+  type Chat,
+  type ChatMessage,
+} from '../data/chat.ts'
 import { nowIsoDateTime, toIsoDateTime } from '../data/datetime.ts'
 import { buildReloadInput } from './reload.ts'
 
@@ -81,7 +89,7 @@ export async function branchChat(absolutePath: string, selected: number, deps: B
     messages: canFork ? messages : withoutTurnIds(messages),
     meta: {
       ...source.meta,
-      id: path,
+      id: newChatId(now),
       created: toIsoDateTime(now),
       updated: nowIsoDateTime(),
       archived: false,

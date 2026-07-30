@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { chatPathFor, writeChat, type Chat } from '../data/chat.ts'
+import { chatPathFor, newChatId, writeChat, type Chat } from '../data/chat.ts'
 import { nowIsoDateTime, toIsoDateTime } from '../data/datetime.ts'
 
 /** タイトルが決まるまでの仮の題。落ち着いたところで AI が付け直す(0006)。 */
@@ -30,7 +30,7 @@ export async function createChat(
     path,
     messages: [],
     meta: {
-      id: path,
+      id: newChatId(now),
       created: at,
       updated: nowIsoDateTime(),
       title: UNTITLED,

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
 import { EPOCH_ISO_DATE_TIME, parseIsoDateTime, type IsoDateTime } from './datetime.ts'
@@ -181,6 +182,21 @@ export async function writeChat(dataDir: string, chat: Omit<Chat, 'mtimeMs'>): P
   })
   await writeAtomic(absolutePath, text)
   return absolutePath
+}
+
+/**
+ * 会話の識別子を作る。
+ *
+ * 置き場所とタイトルから作らない。どちらも後から変わるので、参照に使う値が
+ * それらを写していると、変わった後の値と食い違って読み手を惑わせる(0002)。
+ * 作成の時刻を含めるのは、記録を追うときに `created` と突き合わせられるようにするため。
+ */
+export function newChatId(createdAt: Date): string {
+  const pad = (value: number, width = 2): string => String(value).padStart(width, '0')
+  const stamp =
+    `${pad(createdAt.getFullYear(), 4)}${pad(createdAt.getMonth() + 1)}${pad(createdAt.getDate())}` +
+    `T${pad(createdAt.getHours())}${pad(createdAt.getMinutes())}${pad(createdAt.getSeconds())}`
+  return `${stamp}-${randomUUID().slice(0, 6)}`
 }
 
 /** 作成時刻とタイトルから、そのチャットを置くべき相対パスを決める。 */

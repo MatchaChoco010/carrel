@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   freeChatPath,
+  newChatId,
   parseMessages,
   readChat,
   renameChatToTitle,
@@ -175,4 +176,16 @@ test('自分の置き場所は衝突として数えない', async () => {
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
+})
+
+test('識別子は置き場所とタイトルを写さない', () => {
+  const id = newChatId(new Date('2026-07-30T19:08:51+09:00'))
+
+  assert.match(id, /^20260730T190851-[0-9a-f]{6}$/)
+})
+
+test('同じ時刻でも識別子は重ならない', () => {
+  const at = new Date('2026-07-30T19:08:51+09:00')
+
+  assert.notEqual(newChatId(at), newChatId(at))
 })
