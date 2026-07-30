@@ -15,8 +15,7 @@ export type ReloadDeps = {
 /**
  * 読み込み直しの最初の入力を組み立てる。
  *
- * 渡すのは会話の全文と、参照論文の場所である。論文の本文そのものは渡さない。
- * 全文を入れると文脈が埋まるので、場所だけを示してエージェントに判断させる(0006)。
+ * 論文の本文そのものは渡さない。全文を入れると文脈が埋まるので、場所だけを示す。
  */
 export function buildReloadInput(chat: Chat, dataDir: string, knownSlug: (slug: string) => boolean): string {
   const papers = chat.meta.papers.filter(knownSlug)
@@ -44,8 +43,8 @@ export function buildReloadInput(chat: Chat, dataDir: string, knownSlug: (slug: 
 /**
  * 会話を新しいスレッドへ載せ直す。
  *
- * 会話ファイルは同じものを使い続け、本文には痕跡を残さない。markdown から見れば
- * 議論は連続しているためである(0006)。
+ * 会話ファイルは同じものを使い続け、本文には痕跡を残さない。読み込み直しで失う
+ * のは中間状態だけで、記録から見れば議論は連続している。
  */
 export async function reloadChat(absolutePath: string, deps: ReloadDeps): Promise<string> {
   const chat = await readChat(deps.dataDir, absolutePath)

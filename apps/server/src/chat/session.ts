@@ -63,13 +63,11 @@ export class ChatSessions {
     return (await this.#isAlive(threadId)) ? 'resumable' : 'needsReload'
   }
 
-  /** 一覧の行のために、スレッドの識別子から状態を引く。 */
   async stateOfThread(threadId: string | null): Promise<ChatState> {
     if (threadId === null) return 'new'
     return (await this.#isAlive(threadId)) ? 'resumable' : 'needsReload'
   }
 
-  /** 読み込み直しの後に、そのスレッドを使えると記録する。 */
   markResumed(threadId: string): void {
     this.#alive.set(threadId, true)
   }
