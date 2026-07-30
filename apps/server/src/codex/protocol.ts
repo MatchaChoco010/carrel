@@ -64,6 +64,12 @@ export function isAgentMessageItem(value: unknown): value is AgentMessageItem {
 }
 
 /** 承認を求めるサーバ要求かどうか。 */
+/** pct が立てる MCP のサーバーの名前。会話スレッドの設定に載る。 */
+export const MCP_SERVER_NAME = 'pct'
+
+/** MCP の道具を使ってよいかを訊いてくる要求。 */
+export const METHODS_ELICITATION = 'mcpServer/elicitation/request'
+
 export function isApprovalRequest(method: string): boolean {
   return method.includes('requestApproval') || method.endsWith('Approval')
 }

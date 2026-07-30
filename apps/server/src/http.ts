@@ -19,6 +19,7 @@ import { readPaper, readPaperSideFile, writePaper } from './data/paper.ts'
 import { readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 import { paperAssetsDir } from './data/layout.ts'
+import { createMcpApp } from './mcp/server.ts'
 
 export type AppDeps = {
   /** 論文を検索する。埋め込みを使うので非同期になる。 */
@@ -412,6 +413,16 @@ export function createApp(deps: AppDeps): Hono {
     await discardIngest(deps.getConfig().dataDir, slug, deps.ingests)
     return c.json({ deleted: slug, cancelledJobs: jobs.cancelled, runningJobs: jobs.running })
   })
+
+  // 議論中のエージェントが接続する口(0005)。Web クライアントへ回す前に置く。
+  app.route(
+    '/mcp',
+    createMcpApp({
+      dataDir: () => deps.getConfig().dataDir,
+      search: deps.search,
+      tags: () => deps.index.tagCounts(),
+    }),
+  )
 
   // API 以外の要求は Web クライアントへ回す。パスを持たない要求も index.html を
   // 返し、クライアント側の経路で解決させる。

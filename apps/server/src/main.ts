@@ -14,6 +14,7 @@ import { ChunkStore } from './search/store.ts'
 import { enqueueTranslate, registerTranslate } from './translate/job.ts'
 import { enqueueVerify, registerVerify } from './verify/job.ts'
 import { loadConfig, type Config } from './config.ts'
+import { writeAgentsMd } from './data/agents-md.ts'
 import { Collection } from './data/collection.ts'
 import { IndexDb } from './db/index-db.ts'
 import { StateDb } from './db/state-db.ts'
@@ -63,6 +64,7 @@ async function main(): Promise<void> {
   () => ingests.incompleteSlugs())
 
   await collection.ensureDirs()
+  await writeAgentsMd(config.dataDir)
   const scanned = await collection.scan()
   console.log(
     `索引を同期した: 論文 ${scanned.papersIndexed} 件を読み込み ${scanned.papersRemoved} 件を除去、` +
@@ -157,6 +159,9 @@ async function main(): Promise<void> {
     onFetched: () => hub.broadcast({ type: 'feed.changed', payload: { unread: feed.unreadCount() } }),
   })
 
+  // Codex は同じマシンから繋ぐので、待ち受けの設定に関係なくループバックで渡す(0007)。
+  const mcpUrl = `http://127.0.0.1:${config.server.port}/mcp`
+
   const digests = new ChatDigestScheduler({ run: (path) => enqueueChatDigest(jobs, path) })
   registerChatDigest(jobs, {
     dataDir: config.dataDir,
@@ -180,6 +185,7 @@ async function main(): Promise<void> {
       return { absolutePath: created.absolutePath, id: created.chat.meta.id }
     },
     knownSlug: (slug) => index.getPaper(slug) !== null,
+    mcpUrl,
     defaults: () => ({ model: config.chat.defaultModel, effort: config.chat.defaultEffort }),
     onEvent: (event) => {
       hub.broadcast({ type: event.type, payload: event })
@@ -236,6 +242,7 @@ async function main(): Promise<void> {
         isResumable: async (threadId) => (await chats.stateOfThread(threadId)) === 'resumable',
         markResumed: (threadId) => chats.markResumed(threadId),
         defaults: () => ({ model: config.chat.defaultModel, effort: config.chat.defaultEffort }),
+        mcpUrl,
         reindex: (target) => collection.reloadChat(target),
       }),
     reloadChat: async (absolutePath) => {
@@ -243,6 +250,7 @@ async function main(): Promise<void> {
         dataDir: config.dataDir,
         codex: codex.client,
         knownSlug: (slug) => index.getPaper(slug) !== null,
+        mcpUrl,
       })
       chats.markResumed(threadId)
       return threadId
