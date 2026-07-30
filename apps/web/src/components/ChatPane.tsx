@@ -22,6 +22,9 @@ type Turn = { path: string; delta: string }
 
 export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPaneProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  // いま出ている発言がどの会話のものか。場所が変わっても、届くまでは前の会話の
+  // 発言が出ているので、末尾へ送る判断はこちらで行う。
+  const [shown, setShown] = useState<string | null>(null)
   const [state, setState] = useState<ChatState>('new')
   const [reloading, setReloading] = useState(false)
   const [draft, setDraft] = useState('')
@@ -62,20 +65,27 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
    * 会話を開いた直後は必ず送る。続きを話す相手は直近のやりとりである。発言が
    * 増えたときは末尾の近くにいるときだけ送り、過去を読んでいる途中で引き戻さない。
    *
-   * 開いた直後かどうかは、発言が届いた時点の場所で判じる。場所が変わった時点では
-   * まだ前の会話の発言が出ているので、そこで送っても意味がない。
+   * 開いた直後かどうかは、いま出ている発言がどの会話のものかで判じる。場所が
+   * 変わった時点ではまだ前の会話の発言が出ているので、そこを起点にすると、
+   * 発言が届いたときには「もう送った」と見なされて末尾へ行かない。
    */
   useEffect(() => {
     const node = log.current
     if (node === null) return
-    if (scrolledFor.current !== path) {
-      scrolledFor.current = path
+
+    if (shown !== null && scrolledFor.current !== shown) {
+      scrolledFor.current = shown
+      // 数式の組版と字体の読み込みで高さが後から変わるので、次の描画でもう一度送る。
       node.scrollTop = node.scrollHeight
+      requestAnimationFrame(() => {
+        node.scrollTop = node.scrollHeight
+      })
       return
     }
+
     const nearBottom = node.scrollHeight - node.scrollTop - node.clientHeight < 160
     if (nearBottom) node.scrollTop = node.scrollHeight
-  }, [messages, turn, path])
+  }, [messages, turn, shown])
 
   const efforts = useMemo(() => models.find((m) => m.id === model)?.efforts ?? [], [models, model])
 
@@ -84,6 +94,7 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
       .chat(target)
       .then((r) => {
         setMessages(r.messages)
+        setShown(r.path)
         setState(r.state)
         setError(null)
       })
@@ -94,6 +105,7 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
     // 新しい会話に切り替えたら、開いていた会話の表示を片付ける。
     if (path === null) {
       setMessages([])
+      setShown(null)
       setState('new')
       setTurn(null)
       setError(null)
