@@ -8,6 +8,8 @@ import { expandMentions, findMentions } from './mentions.ts'
 export type SessionDeps = {
   dataDir: string
   codex: CodexClient
+  /** 会話のファイルを作る。最初の発言のときに呼ぶ。 */
+  createChat: (options: { model: string | null; effort: string | null }) => Promise<{ absolutePath: string }>
   /** その slug の論文をコレクションが持っているか。 */
   knownSlug: (slug: string) => boolean
   /** ターンの進みを画面へ流す。 */
@@ -80,19 +82,43 @@ export class ChatSessions {
     return alive
   }
 
-  async send(absolutePath: string, text: string, options: { model?: string; effort?: string } = {}): Promise<void> {
+  /**
+   * 発言を送り、その会話の場所を返す。
+   *
+   * 場所を渡さなければ、この発言で会話を作る。ファイルを先に作らないのは、始めた
+   * だけで話さなかった会話を記録に残さないためである。
+   *
+   * 返るのは場所が決まった時点で、応答は待たない。ターンの進みは通知で流す。
+   */
+  async send(
+    path: string | null,
+    text: string,
+    options: { model?: string; effort?: string } = {},
+  ): Promise<{ path: string }> {
+    const absolutePath =
+      path ??
+      (
+        await this.#deps.createChat({
+          model: options.model ?? null,
+          effort: options.effort ?? null,
+        })
+      ).absolutePath
+
     const running = this.#running.get(absolutePath)
     if (running !== undefined) {
       running.queued.push(text)
-      return
+      return { path: absolutePath }
     }
 
     this.#running.set(absolutePath, { queued: [] })
-    try {
-      await this.#runTurns(absolutePath, text, options)
-    } finally {
-      this.#running.delete(absolutePath)
-    }
+    void this.#runTurns(absolutePath, text, options)
+      .catch(() => {
+        // 失敗は #runTurn が通知で流している。ここで握るのは、待たない呼びから
+        // 例外が漏れないようにするためである。
+      })
+      .finally(() => this.#running.delete(absolutePath))
+
+    return { path: absolutePath }
   }
 
   /** 溜まった入力が無くなるまでターンを続ける。 */

@@ -16,7 +16,7 @@ import type { JobQueue } from './jobs/queue.ts'
 import type { SearchHit, SearchQuery } from './search/search.ts'
 import { readPaper, readPaperSideFile, writePaper } from './data/paper.ts'
 import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, relative } from 'node:path'
 import { paperAssetsDir } from './data/layout.ts'
 
 export type AppDeps = {
@@ -35,8 +35,6 @@ export type AppDeps = {
   ingests: IngestStore
   feed: FeedStore
   chats: ChatSessions
-  /** 会話を作る。 */
-  createChat: (options: { model: string | null; effort: string | null; papers?: string[] }) => Promise<{ path: string }>
   /** 選べるモデルの一覧。 */
   models: () => Promise<CodexModel[]>
   /** 会話を新しいスレッドへ載せ直す。 */
@@ -172,20 +170,6 @@ export function createApp(deps: AppDeps): Hono {
 
   app.get('/api/codex/models', async (c) => c.json({ models: await deps.models() }))
 
-  app.post('/api/chats', async (c) => {
-    const body = (await c.req.json().catch(() => ({}))) as {
-      model?: unknown
-      effort?: unknown
-      papers?: unknown
-    }
-    const created = await deps.createChat({
-      model: typeof body.model === 'string' ? body.model : null,
-      effort: typeof body.effort === 'string' ? body.effort : null,
-      papers: Array.isArray(body.papers) ? body.papers.filter((p): p is string => typeof p === 'string') : [],
-    })
-    return c.json(created)
-  })
-
   app.get('/api/chats', async (c) => {
     const rows = deps.index.listChats()
     // 続きを話せるかは Codex 側の状態なので、一覧の行にも出す(0006)。
@@ -247,18 +231,18 @@ export function createApp(deps: AppDeps): Hono {
       model?: unknown
       effort?: unknown
     }
-    if (typeof body.path !== 'string' || typeof body.text !== 'string' || body.text.trim().length === 0) {
-      return c.json({ error: 'path と text を指定すること' }, 400)
+    if (typeof body.text !== 'string' || body.text.trim().length === 0) {
+      return c.json({ error: 'text を指定すること' }, 400)
     }
     const dataDir = deps.getConfig().dataDir
-    // 応答を待たずに返す。進みは WebSocket で流す。
-    void deps.chats
-      .send(join(dataDir, body.path), body.text.trim(), {
-        ...(typeof body.model === 'string' ? { model: body.model } : {}),
-        ...(typeof body.effort === 'string' ? { effort: body.effort } : {}),
-      })
-      .catch(() => {})
-    return c.json({ accepted: true })
+    // 場所を省くと、この発言で会話が作られる。始めただけの空の会話を残さない。
+    const target = typeof body.path === 'string' ? join(dataDir, body.path) : null
+    const options = {
+      ...(typeof body.model === 'string' ? { model: body.model } : {}),
+      ...(typeof body.effort === 'string' ? { effort: body.effort } : {}),
+    }
+    const { path } = await deps.chats.send(target, body.text.trim(), options)
+    return c.json({ path: relative(dataDir, path) })
   })
 
   app.get('/api/feed', (c) => c.json({ items: deps.feed.list(), unread: deps.feed.unreadCount() }))

@@ -136,6 +136,10 @@ async function main(): Promise<void> {
   const chats = new ChatSessions({
     dataDir: config.dataDir,
     codex: codex.client,
+    createChat: async (options) => {
+      const created = await createChat(config.dataDir, options)
+      return { absolutePath: created.absolutePath }
+    },
     knownSlug: (slug) => index.getPaper(slug) !== null,
     onEvent: (event) => hub.broadcast({ type: event.type, payload: event }),
   })
@@ -161,10 +165,6 @@ async function main(): Promise<void> {
     ingests,
     feed,
     chats,
-    createChat: async (options) => {
-      const created = await createChat(config.dataDir, options)
-      return { path: created.chat.path }
-    },
     models: () => listModels(codex.client),
     reloadChat: async (absolutePath) => {
       const threadId = await reloadChat(absolutePath, {

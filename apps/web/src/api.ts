@@ -194,8 +194,6 @@ export const api = {
   ingests: () => getJson<{ ingests: Ingest[] }>('/api/ingests'),
   slugs: () => getJson<{ slugs: string[] }>('/api/papers/slugs'),
   models: () => getJson<{ models: CodexModel[] }>('/api/codex/models'),
-  createChat: (options: { model: string; effort: string }) =>
-    sendJson<{ path: string }>('POST', '/api/chats', options),
   chats: () => getJson<{ chats: ChatSummary[] }>('/api/chats'),
   chat: (path: string) =>
     getJson<{ meta: ChatMeta; messages: ChatMessage[]; path: string; running: boolean; state: ChatState }>(
@@ -203,8 +201,9 @@ export const api = {
     ),
   reloadChat: (path: string) => sendJson<{ codexThreadId: string }>('POST', '/api/chats/reload', { path }),
   renameChat: (path: string, title: string) => sendJson<{ title: string }>('PUT', '/api/chats/title', { path, title }),
-  sendChatMessage: (path: string, text: string, model: string, effort: string) =>
-    sendJson<{ accepted: boolean }>('POST', '/api/chats/messages', { path, text, model, effort }),
+  /** path を省くと、この発言で会話が作られる。 */
+  sendChatMessage: (path: string | null, text: string, model: string, effort: string) =>
+    sendJson<{ path: string }>('POST', '/api/chats/messages', { path, text, model, effort }),
   feed: () => getJson<{ items: FeedItem[]; unread: number }>('/api/feed'),
   markFeedRead: (arxivIds: string[]) =>
     sendJson<{ read: number; unread: number }>('POST', '/api/feed/read', { arxivIds }),

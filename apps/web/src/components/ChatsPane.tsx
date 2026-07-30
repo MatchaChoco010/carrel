@@ -1,11 +1,12 @@
-import { Archive, Check, Pencil, RotateCcw } from 'lucide-react'
+import { Archive, Check, Pencil, Plus, RotateCcw } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { api, type ChatSummary } from '../api.ts'
 
 export type ChatsPaneProps = {
   /** いま開いている会話。 */
   active: string | null
-  onOpen: (path: string) => void
+  /** null を渡すと、まだ作られていない新しい会話に切り替える。 */
+  onOpen: (path: string | null) => void
   revision: number
   onChanged: () => void
 }
@@ -47,11 +48,15 @@ export function ChatsPane({ active, onOpen, revision, onChanged }: ChatsPaneProp
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
   }
 
-  if (error !== null) return <p className="error">{error}</p>
-  if (chats.length === 0) return <p className="empty">会話はまだありません</p>
-
   return (
     <div className="chats">
+      <button type="button" className="chats__new" onClick={() => onOpen(null)}>
+        <Plus size={ICON} aria-hidden /> 新しい会話
+      </button>
+
+      {error !== null && <p className="error">{error}</p>}
+      {chats.length === 0 && error === null && <p className="empty">会話はまだありません</p>}
+
       {chats.map((chat) => (
         <article
           key={chat.path}

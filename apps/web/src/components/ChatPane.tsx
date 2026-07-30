@@ -1,4 +1,4 @@
-import { Loader2, Plus, RotateCcw, Send } from 'lucide-react'
+import { Loader2, RotateCcw, Send } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, type ChatMessage, type ChatState, type CodexModel, type RateLimitView } from '../api.ts'
 import { Markdown } from './Markdown.tsx'
@@ -98,18 +98,6 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
     [subscribe, path, load],
   )
 
-  const start = (): void => {
-    void api
-      .createChat({ model, effort })
-      .then((r) => {
-        onOpen(r.path)
-        setMessages([])
-        setState('new')
-        setError(null)
-      })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
-  }
-
   const reload = (): void => {
     if (path === null) return
     setReloading(true)
@@ -125,29 +113,25 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
 
   const send = (): void => {
     const text = draft.trim()
-    if (text.length === 0 || path === null || blocked || state === 'needsReload') return
+    if (text.length === 0 || blocked || state === 'needsReload') return
     setDraft('')
     // 送った発言はターンの完了で読み直すまで手元で見せる。
     setMessages((previous) => [...previous, { role: 'user', at: new Date().toISOString(), text }])
     void api
       .sendChatMessage(path, text, model, effort)
+      .then((r) => {
+        // 初めての発言では、ここで会話の場所が決まる。
+        if (path === null) onOpen(r.path)
+      })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
-  }
-
-  if (path === null) {
-    return (
-      <div className="chat chat--empty">
-        <p className="pane__empty">論文について議論する会話を始めます。</p>
-        <button type="button" onClick={start}>
-          <Plus size={ICON} aria-hidden /> 会話を始める
-        </button>
-      </div>
-    )
   }
 
   return (
     <div className="chat">
       <div className="chat__log">
+        {path === null && messages.length === 0 && (
+          <p className="pane__empty">論文について議論します。@ で論文を指して尋ねると、その論文を読んで答えます。</p>
+        )}
         {messages.map((message, index) => (
           <article key={`${message.at}-${index}`} className={`turn turn--${message.role}`}>
             <Markdown text={message.text} />
