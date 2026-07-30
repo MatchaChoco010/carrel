@@ -16,6 +16,6 @@ pct(paper collection tool)の設計判断の記録。
 | [0009](0009_text_authority_in_verification.md) | 照合で文字の正をどこに置くか | approved | not-started |
 | [0010](0010_reading_text_in_verification.md) | 変換から文字の読み取りを外し、照合に任せる | approved | done (2026-07-29) |
 | [0011](0011_parallel_translation.md) | 翻訳を節ごとに並べて走らせる | approved | done (2026-07-29) |
-| [0012](0012_chat_branching.md) | 会話の分岐に turn の識別子を持たせる | approved | not-started |
+| [0012](0012_chat_branching.md) | 会話の分岐に turn の識別子を持たせる | approved | done (2026-07-30) |
 
 件数: 12
