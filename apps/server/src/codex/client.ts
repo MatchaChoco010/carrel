@@ -19,6 +19,9 @@ export type CodexClientOptions = {
 
 export type CodexNotificationHandler = (notification: Notification) => void
 
+/** サーバーからの要求に答える期限。過ぎたら断る。 */
+const UNANSWERED_MS = 20_000
+
 class CodexRequestError extends Error {
   readonly code: number
   readonly data: unknown
@@ -43,6 +46,8 @@ export class CodexClient extends EventEmitter {
   #reader: Interface | null = null
   #nextId = 0
   #pending = new Map<RequestId, { resolve: (value: unknown) => void; reject: (error: Error) => void; timer: NodeJS.Timeout }>()
+  /** まだ答えていないサーバーからの要求。 */
+  #unanswered = new Set<RequestId>()
   #stopping = false
 
   constructor(options: CodexClientOptions = {}) {
@@ -115,7 +120,9 @@ export class CodexClient extends EventEmitter {
     })
   }
 
-  #respond(id: RequestId, result: unknown): void {
+  /** サーバーからの要求へ答える。`serverRequest` を受けた側が呼ぶ。 */
+  respond(id: RequestId, result: unknown): void {
+    this.#unanswered.delete(id)
     this.#child?.stdin.write(`${JSON.stringify({ id, result })}\n`)
   }
 
@@ -165,13 +172,24 @@ export class CodexClient extends EventEmitter {
    *
    * 断ったことは `approvalDeclined` として上へ伝え、エージェントが何かを試みて
    * 阻まれた事実を利用者が把握できるようにする。
+   *
+   * それ以外の要求は上へ渡すが、誰も答えないとターンが完了しないので、期限を切って
+   * 断りを返す。
    */
   #handleServerRequest(request: ServerRequest): void {
     if (isApprovalRequest(request.method)) {
-      this.#respond(request.id, { decision: 'decline' })
+      this.respond(request.id, { decision: 'decline' })
       this.emit('approvalDeclined', request)
       return
     }
+
+    this.#unanswered.add(request.id)
+    const timer = setTimeout(() => {
+      if (!this.#unanswered.has(request.id)) return
+      console.error(`${request.method} に誰も答えなかったので断る`)
+      this.respond(request.id, { error: { code: -32601, message: `pct は ${request.method} を扱わない` } })
+    }, UNANSWERED_MS)
+    timer.unref()
     this.emit('serverRequest', request)
   }
 

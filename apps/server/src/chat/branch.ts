@@ -24,6 +24,8 @@ export type BranchDeps = {
   markResumed: (threadId: string) => void
   /** 呼び出しにも会話にもモデルの指定が無いときに使う値。 */
   defaults: () => { model: string; effort: string }
+  /** 議論中のエージェントが接続する MCP の口(0005)。 */
+  mcpUrl: string
   reindex: (absolutePath: string) => Promise<void>
 }
 
@@ -122,7 +124,11 @@ async function primeThread(
   model: string,
   deps: BranchDeps,
 ): Promise<string> {
-  const threadId = await startConversationThread(deps.codex, { dataDir: deps.dataDir, model })
+  const threadId = await startConversationThread(deps.codex, {
+    dataDir: deps.dataDir,
+    model,
+    mcpUrl: deps.mcpUrl,
+  })
   await runTurn(deps.codex, {
     threadId,
     input: textInput(buildReloadInput({ ...source, messages }, deps.dataDir, deps.knownSlug)),

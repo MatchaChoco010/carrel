@@ -12,6 +12,8 @@ export type SessionDeps = {
   createChat: (options: { model: string | null; effort: string | null }) => Promise<{ absolutePath: string; id: string }>
   /** その slug の論文をコレクションが持っているか。 */
   knownSlug: (slug: string) => boolean
+  /** 議論中のエージェントが接続する MCP の口(0005)。 */
+  mcpUrl: string
   /**
    * 呼び出しにも会話にもモデルの指定が無いときに使う値。
    *
@@ -192,6 +194,7 @@ export class ChatSessions {
     const created = await startConversationThread(this.#deps.codex, {
       dataDir: this.#deps.dataDir,
       model,
+      mcpUrl: this.#deps.mcpUrl,
     })
     this.#alive.set(created, true)
     return created

@@ -1,6 +1,7 @@
 import type { CodexClient } from './client.ts'
 import {
   isAgentMessageItem,
+  MCP_SERVER_NAME,
   METHODS,
   NOTIFICATIONS,
   type AskForApproval,
@@ -41,7 +42,7 @@ export async function startConversationThread(
     model: options.model,
   }
   if (options.mcpUrl !== undefined) {
-    params.config = { mcp_servers: { pct: { url: options.mcpUrl } } }
+    params.config = { mcp_servers: { [MCP_SERVER_NAME]: { url: options.mcpUrl } } }
   }
   return readThreadId(await client.request(METHODS.threadStart, params))
 }

@@ -10,6 +10,8 @@ export type ReloadDeps = {
   dataDir: string
   codex: CodexClient
   knownSlug: (slug: string) => boolean
+  /** 議論中のエージェントが接続する MCP の口(0005)。 */
+  mcpUrl: string
 }
 
 /**
@@ -54,6 +56,7 @@ export async function reloadChat(absolutePath: string, deps: ReloadDeps): Promis
   const threadId = await startConversationThread(deps.codex, {
     dataDir: deps.dataDir,
     model: chat.meta.model ?? '',
+    mcpUrl: deps.mcpUrl,
   })
   await runTurn(deps.codex, {
     threadId,

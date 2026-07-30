@@ -1,5 +1,5 @@
 import { CodexClient } from './client.ts'
-import { METHODS, NOTIFICATIONS, type Notification } from './protocol.ts'
+import { MCP_SERVER_NAME, METHODS, METHODS_ELICITATION, NOTIFICATIONS, type Notification, type ServerRequest } from './protocol.ts'
 import {
   mergeSnapshot,
   parseRateLimitSnapshot,
@@ -40,9 +40,27 @@ export class CodexService {
       this.#events.onApprovalDeclined?.(request.method)
     })
 
+    this.#client.on('serverRequest', (request: ServerRequest) => this.#answer(request))
+
     this.#client.on('exit', (info: { code: number | null }) => {
       console.error(`app-server が予期せず終了した (code=${info.code})`)
     })
+  }
+
+  /**
+   * サーバーからの問いに答える。
+   *
+   * MCP の道具を使う前に、app-server は使ってよいかを訊いてくる。pct 自身の口は
+   * 読み取りだけを公開しており(0005)、ユーザーが会話のために用意したものなので承ける。
+   * ほかのサーバーは断る。誰も答えないとターンが完了しない。
+   */
+  #answer(request: ServerRequest): void {
+    if (request.method !== METHODS_ELICITATION) return
+
+    const params = (request.params ?? {}) as { serverName?: unknown }
+    const mine = params.serverName === MCP_SERVER_NAME
+    this.#client.respond(request.id, { action: mine ? 'accept' : 'decline', content: null, _meta: null })
+    if (!mine) this.#events.onApprovalDeclined?.(request.method)
   }
 
   get client(): CodexClient {
