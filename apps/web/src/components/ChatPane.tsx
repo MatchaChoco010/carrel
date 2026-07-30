@@ -48,6 +48,13 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
   const [models, setModels] = useState<CodexModel[]>([])
   const [model, setModel] = useState<string>('')
   const [effort, setEffort] = useState<string>('')
+  /** 設定の既定。会話が自分の値を持たないときに使う。 */
+  const [defaults, setDefaults] = useState<{ model: string; effort: string } | null>(null)
+  /** 開いている会話が記録している値。まだ話していない会話は持たない。 */
+  const [recorded, setRecorded] = useState<{ model: string | null; effort: string | null }>({
+    model: null,
+    effort: null,
+  })
   const [turn, setTurn] = useState<Turn | null>(null)
   // 末尾から数えて描く発言の外にある、古い発言の数。
   const [hidden, setHidden] = useState(0)
@@ -65,16 +72,35 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
   useEffect(() => {
     void api
       .models()
-      .then((r) => {
-        setModels(r.models)
-        const preferred = r.models.find((m) => m.isDefault) ?? r.models[0]
-        if (preferred !== undefined) {
-          setModel(preferred.id)
-          setEffort(preferred.defaultEffort ?? (preferred.efforts[0] ?? ''))
-        }
-      })
+      .then((r) => setModels(r.models))
       .catch(() => setModels([]))
   }, [])
+
+  // 設定の既定を読み、設定が変わったら読み直す。
+  useEffect(() => {
+    const read = (): void => {
+      void api
+        .config()
+        .then((c) => setDefaults({ model: c.chat.defaultModel, effort: c.chat.defaultEffort }))
+        .catch(() => setDefaults(null))
+    }
+    read()
+    return subscribe((event) => {
+      if (event.type === 'config.changed') read()
+    })
+  }, [subscribe])
+
+  /**
+   * 選ぶ値を決める。
+   *
+   * 会話が記録している値が先で、無ければ設定の既定に従う。まだ話していない会話の
+   * 選択は、設定を変えたときに追いかける。
+   */
+  useEffect(() => {
+    if (defaults === null) return
+    setModel(recorded.model ?? defaults.model)
+    setEffort(recorded.effort ?? defaults.effort)
+  }, [defaults, recorded])
 
   // 入力欄は会話を作った後に描かれるので、焦点は描かれてから移す。
   useEffect(() => {
@@ -139,6 +165,7 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
         setShown(r.id)
         setState(r.state)
         setArchived(r.meta.archived)
+        setRecorded({ model: r.meta.model, effort: r.meta.effort })
         setError(null)
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
@@ -153,6 +180,7 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
       setState('new')
       setTurn(null)
       setArchived(false)
+      setRecorded({ model: null, effort: null })
       setError(null)
       return
     }
@@ -340,6 +368,8 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
             <Send size={ICON} aria-hidden /> 送る
           </button>
           <select value={model} onChange={(e) => setModel(e.target.value)} aria-label="モデル">
+            {/* 設定や会話が持つモデルが Codex の一覧に無いこともある。選択が消えないように出す。 */}
+            {model.length > 0 && !models.some((m) => m.id === model) && <option value={model}>{model}</option>}
             {models.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.displayName}
@@ -347,6 +377,7 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
             ))}
           </select>
           <select value={effort} onChange={(e) => setEffort(e.target.value)} aria-label="reasoning effort">
+            {effort.length > 0 && !efforts.includes(effort) && <option value={effort}>{effort}</option>}
             {efforts.map((e) => (
               <option key={e} value={e}>
                 {e}
