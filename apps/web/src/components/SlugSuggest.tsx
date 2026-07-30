@@ -7,7 +7,6 @@ export type SlugSuggestProps = {
   inputRef: RefObject<HTMLTextAreaElement | null>
 }
 
-/** 候補に出す数の上限。 */
 const LIMIT = 8
 
 /** 入力欄の高さの下限と上限(px)。上限を超えたら中でスクロールさせる。 */
@@ -51,7 +50,6 @@ export function SlugSuggest({ slugs, value, onChange, inputRef }: SlugSuggestPro
     inputRef.current?.focus()
   }
 
-  /** 打った位置にタブ文字を入れる。 */
   const insertTab = (node: HTMLTextAreaElement): void => {
     const start = node.selectionStart
     const end = node.selectionEnd

@@ -1111,7 +1111,7 @@ body {
   order: 1;
 }
 
-/* 並びは選択欄の後ろだが、たどり着く順は入力欄の次にする(ChatPane)。 */
+/* 見た目は選択欄の後ろへ戻す。たどり着く順は ChatPane が決めている。 */
 .chat__controls button {
   order: 2;
   margin-left: auto;
