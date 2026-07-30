@@ -155,6 +155,7 @@ async function main(): Promise<void> {
       return { absolutePath: created.absolutePath }
     },
     knownSlug: (slug) => index.getPaper(slug) !== null,
+    defaults: () => ({ model: config.chat.defaultModel, effort: config.chat.defaultEffort }),
     onEvent: (event) => {
       hub.broadcast({ type: event.type, payload: event })
       if (event.type === 'chat.turn.completed') digests.touch(event.path)
