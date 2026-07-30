@@ -777,13 +777,19 @@ body {
   padding: 1px 4px;
 }
 
-/* 表は幅を超えたら表の中だけを横に送る。本文全体は横に伸ばさない。 */
+/*
+ * 表は幅を超えたら表の中だけを横に送る。本文全体は横に伸ばさない。
+ *
+ * 幅を中身に合わせるのは、短い表を中央へ寄せるためである。display: block のまま
+ * 幅を指定しないと枠が親の幅いっぱいに広がり、左右の auto が効かない。
+ */
 .markdown table {
   display: block;
+  width: max-content;
+  max-width: 100%;
   overflow-x: auto;
   border-collapse: collapse;
   font-size: 13px;
-  max-width: 100%;
 }
 
 .markdown th,
@@ -1029,9 +1035,11 @@ body {
 /*
  * 会話の幅は 2 段で決める。
  *
- * 外側(--chat-wide)は数式と表が使える幅で、スクロールバーを欄の端に置くため
- * 記録の欄そのものには上限をかけない。内側(--chat-text)は地の文の幅で、行が
- * 長くなりすぎないところに抑える。短い数式や表は内側より広い枠の中で中央に来る。
+ * 内側(--chat-text)は地の文の幅で、入力欄と自分の発言の枠もこれに合わせる。
+ * 外側(--chat-wide)は数式と表だけが使える幅で、枠を持たないエージェントの発言に
+ * だけかける。短い数式や表はその中で中央に来る。
+ *
+ * 記録の欄そのものには上限をかけない。スクロールバーを欄の端に置くためである。
  */
 .chat {
   --chat-wide: 52rem;
@@ -1040,13 +1048,15 @@ body {
 
 .chat__compose,
 .chat__reload,
-.chat > .error {
+.chat > .error,
+.turn--user {
   width: 100%;
-  max-width: var(--chat-wide);
+  max-width: var(--chat-text);
   margin-inline: auto;
 }
 
-.turn {
+/* 枠を持たないので、広く取っても余白が広がるだけに見える。 */
+.turn--assistant {
   width: 100%;
   max-width: var(--chat-wide);
   margin-inline: auto;
