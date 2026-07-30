@@ -99,15 +99,15 @@ export function runTurn(
   return new Promise<TurnOutcome>((resolve, reject) => {
     let text = ''
     let turnId: string | null = null
+    let off = (): void => {}
 
     const finish = (outcome: TurnOutcome): void => {
-      client.off('notification', onNotification)
+      off()
       resolve(outcome)
     }
 
     const onNotification = (notification: Notification): void => {
       const payload = (notification.params ?? {}) as Record<string, unknown>
-      if (payload['threadId'] !== params.threadId) return
 
       switch (notification.method) {
         case NOTIFICATIONS.turnStarted: {
@@ -143,9 +143,9 @@ export function runTurn(
       }
     }
 
-    client.on('notification', onNotification)
+    off = client.onThread(params.threadId, { notify: onNotification, fail: reject })
     client.request(METHODS.turnStart, params).catch((error: unknown) => {
-      client.off('notification', onNotification)
+      off()
       reject(error instanceof Error ? error : new Error(String(error)))
     })
   })
