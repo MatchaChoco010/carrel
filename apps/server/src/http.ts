@@ -8,7 +8,7 @@ import type { IndexDb } from './db/index-db.ts'
 import { extractArxivId } from './ingest/arxiv.ts'
 import { ChatSessions } from './chat/session.ts'
 import type { CodexModel } from './codex/models.ts'
-import { readChat, renameChatToTitle, writeChat, type Chat } from './data/chat.ts'
+import { readChat, writeChat, type Chat } from './data/chat.ts'
 import { FeedStore } from './feed/store.ts'
 import { discardIngest, ingestFromUrl } from './ingest/pipeline.ts'
 import type { IngestStore } from './ingest/store.ts'
@@ -293,8 +293,7 @@ export function createApp(deps: AppDeps): Hono {
       meta: { ...chat.meta, title: body.title.trim(), titleSource: 'user' },
     }
     await writeChat(dataDir, renamed)
-    const path = await renameChatToTitle(dataDir, renamed)
-    await deps.reindexChat(join(dataDir, path))
+    await deps.reindexChat(join(dataDir, renamed.path))
     return c.json({ title: body.title.trim() })
   })
 

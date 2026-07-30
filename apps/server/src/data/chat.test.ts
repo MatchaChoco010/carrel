@@ -1,14 +1,13 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
-  freeChatPath,
+  chatPathFor,
   newChatId,
   parseMessages,
   readChat,
-  renameChatToTitle,
   serializeMessages,
   withoutTurnIds,
   writeChat,
@@ -80,59 +79,34 @@ test('識別子だけを落とし、本文と時刻は変えない', () => {
   ])
 })
 
-test('ファイル名をタイトルに合わせて付け直す', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'pct-rename-'))
+test('会話は識別子のディレクトリの中の chat.md に置く', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'pct-chat-'))
   try {
-    const created = '2026-07-30T09:00:00+09:00' as ChatMessage['at']
-    const chat: Chat = {
-      path: 'chats/2026/07/30/09-00-00-無題の会話.md',
-      mtimeMs: 1,
-      messages: [{ role: 'user', at: created, text: 'あ' }],
-      meta: {
-        id: 'chats/2026/07/30/09-00-00-無題の会話.md',
-        created,
-        updated: created,
-        title: '位置エンコーディングの役割',
-        titleSource: 'user',
-        summary: '',
-        archived: false,
-        codexThreadId: null,
-        model: null,
-        effort: null,
-        papers: [],
-        forkedFrom: null,
-      },
-    }
-    await mkdir(join(dir, 'chats/2026/07/30'), { recursive: true })
-    await writeChat(dir, chat)
+    const at = new Date('2026-07-30T09:00:00+09:00')
+    const id = '20260730T090000-abc123'
 
-    const path = await renameChatToTitle(dir, chat)
-
-    assert.equal(path, 'chats/2026/07/30/09-00-00-位置エンコーディングの役割.md')
-    const moved = await readChat(dir, join(dir, path))
-    assert.equal(moved?.meta.title, '位置エンコーディングの役割')
-    assert.equal(moved?.meta.id, chat.meta.id, '識別子は動かさない')
-    await assert.rejects(() => readFile(join(dir, chat.path), 'utf8'))
+    assert.equal(chatPathFor(dir, at, id), 'chats/2026/07/30/20260730T090000-abc123/chat.md')
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
 })
 
-test('題が同じなら動かさない', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'pct-rename-'))
+test('タイトルを変えても置き場所は変わらない', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'pct-chat-'))
   try {
+    const at = new Date('2026-07-30T09:00:00+09:00')
+    const id = '20260730T090000-abc123'
     const created = '2026-07-30T09:00:00+09:00' as ChatMessage['at']
-    const path = 'chats/2026/07/30/09-00-00-そのままの題.md'
     const chat: Chat = {
-      path,
+      path: chatPathFor(dir, at, id),
       mtimeMs: 1,
       messages: [],
       meta: {
-        id: path,
+        id,
         created,
         updated: created,
-        title: 'そのままの題',
-        titleSource: 'user',
+        title: '無題の会話',
+        titleSource: 'auto',
         summary: '',
         archived: false,
         codexThreadId: null,
@@ -142,37 +116,14 @@ test('題が同じなら動かさない', async () => {
         forkedFrom: null,
       },
     }
-    await mkdir(join(dir, 'chats/2026/07/30'), { recursive: true })
     await writeChat(dir, chat)
 
-    assert.equal(await renameChatToTitle(dir, chat), path)
-  } finally {
-    await rm(dir, { recursive: true, force: true })
-  }
-})
+    const renamed: Chat = { ...chat, meta: { ...chat.meta, title: '位置エンコーディングの役割' } }
+    await writeChat(dir, renamed)
 
-test('同じ秒に同じ題の会話があれば連番を付ける', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'pct-rename-'))
-  try {
-    const at = new Date('2026-07-30T09:00:00+09:00')
-    await mkdir(join(dir, 'chats/2026/07/30'), { recursive: true })
-    await writeFile(join(dir, 'chats/2026/07/30/09-00-00-同じ題.md'), 'x', 'utf8')
-
-    assert.equal(await freeChatPath(dir, at, '同じ題'), 'chats/2026/07/30/09-00-00-同じ題-2.md')
-  } finally {
-    await rm(dir, { recursive: true, force: true })
-  }
-})
-
-test('自分の置き場所は衝突として数えない', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'pct-rename-'))
-  try {
-    const at = new Date('2026-07-30T09:00:00+09:00')
-    const path = 'chats/2026/07/30/09-00-00-同じ題.md'
-    await mkdir(join(dir, 'chats/2026/07/30'), { recursive: true })
-    await writeFile(join(dir, path), 'x', 'utf8')
-
-    assert.equal(await freeChatPath(dir, at, '同じ題', path), path)
+    const read = await readChat(dir, join(dir, chat.path))
+    assert.equal(read?.meta.title, '位置エンコーディングの役割')
+    assert.equal(read?.path, chat.path, '置き場所は識別子だけで決まる')
   } finally {
     await rm(dir, { recursive: true, force: true })
   }

@@ -24,13 +24,14 @@ export async function createChat(
   now: Date = new Date(),
 ): Promise<{ chat: Omit<Chat, 'mtimeMs'>; absolutePath: string }> {
   const at = toIsoDateTime(now)
-  const path = chatPathFor(dataDir, now, UNTITLED)
+  const id = newChatId(now)
+  const path = chatPathFor(dataDir, now, id)
 
   const chat: Omit<Chat, 'mtimeMs'> = {
     path,
     messages: [],
     meta: {
-      id: newChatId(now),
+      id,
       created: at,
       updated: nowIsoDateTime(),
       title: UNTITLED,

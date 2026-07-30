@@ -50,30 +50,19 @@ export function chatDayDir(dataDir: string, createdAt: Date): string {
   return join(chatsDir(dataDir), year, month, day)
 }
 
-function isPrintable(ch: string): boolean {
-  const code = ch.codePointAt(0) ?? 0
-  return code >= 0x20 && code !== 0x7f
-}
+/** 会話の本文のファイル名。ディレクトリが何の会話かを持つので、名前は固定にする。 */
+export const CHAT_FILE = 'chat.md'
 
 /**
- * ファイル名に使えない文字を落とす。
+ * 1 つの会話は 1 つのディレクトリに対応し、本文はその中の `chat.md` である(0013)。
  *
- * タイトルはユーザーと AI の双方が決めるため、任意の文字列が来る。
+ * ディレクトリの名前は会話の識別子で、タイトルが変わっても動かない。論文が
+ * `papers/<slug>/paper.md` を持つのと同じ形である。
  */
-export function sanitizeTitleForFileName(title: string): string {
-  const cleaned = [...title]
-    .filter(isPrintable)
-    .join('')
-    .replace(/[/\\:*?"<>|]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-  const limited = [...cleaned].slice(0, 60).join('')
-  return limited.length > 0 ? limited : 'untitled'
+export function chatDir(dataDir: string, createdAt: Date, id: string): string {
+  return join(chatDayDir(dataDir, createdAt), id)
 }
 
-export function chatFileName(createdAt: Date, title: string): string {
-  const hh = String(createdAt.getHours()).padStart(2, '0')
-  const mm = String(createdAt.getMinutes()).padStart(2, '0')
-  const ss = String(createdAt.getSeconds()).padStart(2, '0')
-  return `${hh}-${mm}-${ss}-${sanitizeTitleForFileName(title)}.md`
+export function chatFile(dataDir: string, createdAt: Date, id: string): string {
+  return join(chatDir(dataDir, createdAt, id), CHAT_FILE)
 }
