@@ -20,6 +20,9 @@ import { JobStore } from './jobs/store.ts'
 import { IngestStore } from './ingest/store.ts'
 import { enqueueFeedFetch, registerFeed } from './feed/job.ts'
 import { FeedStore } from './feed/store.ts'
+import { createChat } from './chat/create.ts'
+import { ChatSessions } from './chat/session.ts'
+import { listModels } from './codex/models.ts'
 import { Hub } from './hub.ts'
 import { converterScript, indexDbFile, stateDbFile, stateDir, textLayerScript, webRoot } from './paths.ts'
 
@@ -129,6 +132,13 @@ async function main(): Promise<void> {
     onFetched: () => hub.broadcast({ type: 'feed.changed', payload: { unread: feed.unreadCount() } }),
   })
 
+  const chats = new ChatSessions({
+    dataDir: config.dataDir,
+    codex: codex.client,
+    knownSlug: (slug) => index.getPaper(slug) !== null,
+    onEvent: (event) => hub.broadcast({ type: event.type, payload: event }),
+  })
+
   const app = createApp({
     search: (query) => search(query, { index, chunks, embed }),
     onIngested: (slug) => enqueueConvert(jobs, slug),
@@ -149,6 +159,12 @@ async function main(): Promise<void> {
     jobs,
     ingests,
     feed,
+    chats,
+    createChat: async (options) => {
+      const created = await createChat(config.dataDir, options)
+      return { path: created.chat.path }
+    },
+    models: () => listModels(codex.client),
     refreshFeed: () => enqueueFeedFetch(jobs),
     webRoot: await webRoot(),
   })

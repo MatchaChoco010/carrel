@@ -51,6 +51,34 @@ export type Ingest = {
   stages: Array<{ stage: IngestStage; startedAt: number; finishedAt: number | null }>
 }
 
+export type ChatRole = 'user' | 'assistant'
+
+export type ChatMessage = {
+  role: ChatRole
+  at: string
+  text: string
+}
+
+export type ChatMeta = {
+  id: string
+  title: string
+  papers: string[]
+  archived: boolean
+  codexThreadId: string | null
+  model: string | null
+  effort: string | null
+}
+
+export type CodexModel = {
+  id: string
+  displayName: string
+  description: string
+  efforts: string[]
+  defaultEffort: string | null
+  acceptsImages: boolean
+  isDefault: boolean
+}
+
 export type FeedItem = {
   arxivId: string
   category: string
@@ -150,6 +178,16 @@ export const api = {
   jobs: () => getJson<JobsResponse>('/api/jobs'),
   indexStatus: () => getJson<IndexStatus>('/api/index/status'),
   ingests: () => getJson<{ ingests: Ingest[] }>('/api/ingests'),
+  slugs: () => getJson<{ slugs: string[] }>('/api/papers/slugs'),
+  models: () => getJson<{ models: CodexModel[] }>('/api/codex/models'),
+  createChat: (options: { model: string; effort: string }) =>
+    sendJson<{ path: string }>('POST', '/api/chats', options),
+  chat: (path: string) =>
+    getJson<{ meta: ChatMeta; messages: ChatMessage[]; path: string; running: boolean }>(
+      `/api/chats/one?path=${encodeURIComponent(path)}`,
+    ),
+  sendChatMessage: (path: string, text: string, model: string, effort: string) =>
+    sendJson<{ accepted: boolean }>('POST', '/api/chats/messages', { path, text, model, effort }),
   feed: () => getJson<{ items: FeedItem[]; unread: number }>('/api/feed'),
   markFeedRead: (arxivIds: string[]) =>
     sendJson<{ read: number; unread: number }>('POST', '/api/feed/read', { arxivIds }),

@@ -1,6 +1,7 @@
 import { FileText, ListTodo, MessagesSquare, Rss, Settings, type LucideIcon } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, type CodexStatus, type IndexStatus, type Ingest, type JobsResponse } from './api.ts'
+import { ChatPane } from './components/ChatPane.tsx'
 import { FeedPane } from './components/FeedPane.tsx'
 import { IngestsPane } from './components/IngestsPane.tsx'
 import { JobsPane } from './components/JobsPane.tsx'
@@ -47,6 +48,9 @@ export function App() {
   const [index, setIndex] = useState<IndexStatus | null>(null)
   const [ingests, setIngests] = useState<Ingest[]>([])
   const [unread, setUnread] = useState(0)
+  const [slugs, setSlugs] = useState<string[]>([])
+  // チャット欄がターンの進みを受け取るための購読先。
+  const listeners = useRef(new Set<(event: ServerEvent) => void>())
   const [chatOpen, setChatOpen] = useState(false)
   // 取り込みや削除の後に一覧を読み直すための番号。
   const [revision, setRevision] = useState(0)
@@ -65,6 +69,10 @@ export function App() {
       .feed()
       .then((r) => setUnread(r.unread))
       .catch(() => setUnread(0))
+    void api
+      .slugs()
+      .then((r) => setSlugs(r.slugs))
+      .catch(() => setSlugs([]))
   }, [])
 
   useEffect(() => {
@@ -73,8 +81,16 @@ export function App() {
     reloadJobs()
   }, [reloadJobs])
 
+  const subscribe = useCallback((handler: (event: ServerEvent) => void) => {
+    listeners.current.add(handler)
+    return () => {
+      listeners.current.delete(handler)
+    }
+  }, [])
+
   const onEvent = useCallback(
     (event: ServerEvent) => {
+      for (const listener of listeners.current) listener(event)
       switch (event.type) {
         case 'codex.rateLimits':
           setCodex((previous) => ({ running: previous?.running ?? true, rateLimits: event.payload as never }))
@@ -198,7 +214,7 @@ export function App() {
             )}
           </header>
           <div className="pane__body">
-            <p className="pane__empty">チャットは後続の作業で足す。</p>
+            <ChatPane limits={codex?.rateLimits ?? null} slugs={slugs} subscribe={subscribe} />
           </div>
         </section>
       </main>
