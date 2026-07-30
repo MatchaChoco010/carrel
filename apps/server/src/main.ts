@@ -9,13 +9,14 @@ import { createEmbedder } from './search/embed.ts'
 import { search } from './search/search.ts'
 import { searchChats } from './search/chat-search.ts'
 import { ChatChunkStore } from './search/chat-store.ts'
-import { enqueueRegister, registerRegister } from './search/job.ts'
+import { enqueueEmbed, enqueueRegister, registerEmbed, registerRegister } from './search/job.ts'
 import { ChunkStore } from './search/store.ts'
 import { enqueueTranslate, registerTranslate } from './translate/job.ts'
 import { enqueueVerify, registerVerify } from './verify/job.ts'
 import { loadConfig, type Config } from './config.ts'
 import { writeAgentsMd } from './data/agents-md.ts'
 import { Collection } from './data/collection.ts'
+import type { Paper } from './data/paper.ts'
 import { IndexDb } from './db/index-db.ts'
 import { StateDb } from './db/state-db.ts'
 import { createApp } from './http.ts'
@@ -127,14 +128,23 @@ async function main(): Promise<void> {
   if (chunks.needsRebuild(embeddingModel)) {
     console.log('埋め込みのモデルが変わったので、索引の作り直しが要る')
   }
-  registerRegister(jobs, {
+  const registerDeps = {
     dataDir: config.dataDir,
-    ingests,
     chunks,
     embed,
     model: embeddingModel,
-    indexPaper: (paper) => index.upsertPaper(paper, true),
-  })
+    indexPaper: (paper: Paper) => index.upsertPaper(paper, true),
+    markEmbedded: (slug: string) => index.markEmbeddingFresh(slug),
+  }
+  registerRegister(jobs, { ...registerDeps, ingests })
+  registerEmbed(jobs, registerDeps)
+
+  /** 埋め込みを持たない論文を積み直す。索引を作り直した後と、起動のときに呼ぶ。 */
+  const backfillEmbeddings = (): number => {
+    const slugs = index.staleEmbeddingSlugs()
+    for (const slug of slugs) enqueueEmbed(jobs, slug)
+    return slugs.length
+  }
 
   const chatChunks = new ChatChunkStore(index.db)
   registerChatIndex(jobs, { dataDir: config.dataDir, chunks: chatChunks, embed })
@@ -208,6 +218,8 @@ async function main(): Promise<void> {
     rebuildIndex: async () => {
       index.reset()
       const result = await collection.scan()
+      // 走査は markdown を読み直すだけなので、埋め込みはここで積み直す。
+      backfillEmbeddings()
       hub.broadcast({ type: 'index.rebuilt', payload: result })
       return result
     },
@@ -272,6 +284,9 @@ async function main(): Promise<void> {
   console.log(`data dir: ${config.dataDir}`)
 
   jobs.start()
+
+  const stale = backfillEmbeddings()
+  if (stale > 0) console.log(`埋め込みを持たない論文 ${stale} 件を積んだ`)
 
   // まだ発言が検索の索引に載っていない会話を積む。初回と、pct を止めている間に
   // 増えたぶんがここで入る。

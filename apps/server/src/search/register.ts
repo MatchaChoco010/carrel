@@ -11,6 +11,8 @@ export type RegisterDeps = {
   model: EmbeddingModel
   /** 論文を索引に載せる。チャンクが参照するので、入れる直前に呼ぶ。 */
   indexPaper: (paper: Paper) => void
+  /** 埋め込みが今の本文のものになったことを索引へ伝える。 */
+  markEmbedded: (slug: string) => void
 }
 
 /**
@@ -37,6 +39,7 @@ export async function registerPaper(slug: string, deps: RegisterDeps): Promise<n
   if (inputs.length === 0) {
     deps.indexPaper(paper)
     deps.chunks.replace(slug, [])
+    deps.markEmbedded(slug)
     return 0
   }
 
@@ -51,5 +54,6 @@ export async function registerPaper(slug: string, deps: RegisterDeps): Promise<n
   deps.indexPaper(paper)
   deps.chunks.replace(slug, inputs)
   deps.chunks.setModel(deps.model)
+  deps.markEmbedded(slug)
   return inputs.length
 }
