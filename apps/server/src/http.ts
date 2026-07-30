@@ -43,7 +43,7 @@ export type AppDeps = {
   /** 会話を新しいスレッドへ載せ直す。 */
   reloadChat: (absolutePath: string) => Promise<string>
   /** 会話を分岐する。選んだ発言が属する turn の 1 つ前までを引き継ぐ(0012)。 */
-  branchChat: (absolutePath: string, selected: number) => Promise<{ path: string; forked: boolean }>
+  branchChat: (absolutePath: string, selected: number) => Promise<{ id: string; forked: boolean }>
   /** 会話を索引へ載せ直す。 */
   reindexChat: (absolutePath: string) => Promise<void>
   /** アーカイブの状態を切り替える。 */
@@ -57,6 +57,13 @@ export type AppDeps = {
 }
 
 export function createApp(deps: AppDeps): Hono {
+  /** 会話の識別子から絶対パスを引く。見つからなければ null。 */
+  const chatFile = (id: unknown): string | null => {
+    if (typeof id !== 'string' || id.length === 0) return null
+    const path = deps.index.chatPathById(id)
+    return path === null ? null : join(deps.getConfig().dataDir, path)
+  }
+
   const app = new Hono()
 
   app.get('/api/health', (c) =>
@@ -208,13 +215,12 @@ export function createApp(deps: AppDeps): Hono {
   })
 
   app.post('/api/chats/branch', async (c) => {
-    const body = (await c.req.json().catch(() => ({}))) as { path?: unknown; index?: unknown }
-    if (typeof body.path !== 'string' || typeof body.index !== 'number') {
-      return c.json({ error: 'path と index を指定すること' }, 400)
-    }
-    const dataDir = deps.getConfig().dataDir
+    const body = (await c.req.json().catch(() => ({}))) as { id?: unknown; index?: unknown }
+    if (typeof body.index !== 'number') return c.json({ error: 'id と index を指定すること' }, 400)
+    const file = chatFile(body.id)
+    if (file === null) return c.json({ error: `会話が見つからない: ${String(body.id)}` }, 404)
     try {
-      const branch = await deps.branchChat(join(dataDir, body.path), body.index)
+      const branch = await deps.branchChat(file, body.index)
       return c.json(branch)
     } catch (error) {
       return c.json({ error: error instanceof Error ? error.message : String(error) }, 400)
@@ -222,11 +228,11 @@ export function createApp(deps: AppDeps): Hono {
   })
 
   app.post('/api/chats/reload', async (c) => {
-    const body = (await c.req.json().catch(() => ({}))) as { path?: unknown }
-    if (typeof body.path !== 'string') return c.json({ error: 'path を指定すること' }, 400)
-    const dataDir = deps.getConfig().dataDir
+    const body = (await c.req.json().catch(() => ({}))) as { id?: unknown }
+    const file = chatFile(body.id)
+    if (file === null) return c.json({ error: `会話が見つからない: ${String(body.id)}` }, 404)
     try {
-      const threadId = await deps.reloadChat(join(dataDir, body.path))
+      const threadId = await deps.reloadChat(file)
       return c.json({ codexThreadId: threadId })
     } catch (error) {
       return c.json({ error: error instanceof Error ? error.message : String(error) }, 502)
@@ -234,13 +240,12 @@ export function createApp(deps: AppDeps): Hono {
   })
 
   app.put('/api/chats/archived', async (c) => {
-    const body = (await c.req.json().catch(() => ({}))) as { path?: unknown; archived?: unknown }
-    if (typeof body.path !== 'string' || typeof body.archived !== 'boolean') {
-      return c.json({ error: 'path と archived を指定すること' }, 400)
-    }
-    const dataDir = deps.getConfig().dataDir
+    const body = (await c.req.json().catch(() => ({}))) as { id?: unknown; archived?: unknown }
+    if (typeof body.archived !== 'boolean') return c.json({ error: 'id と archived を指定すること' }, 400)
+    const file = chatFile(body.id)
+    if (file === null) return c.json({ error: `会話が見つからない: ${String(body.id)}` }, 404)
     try {
-      await deps.setArchived(join(dataDir, body.path), body.archived)
+      await deps.setArchived(file, body.archived)
       return c.json({ archived: body.archived })
     } catch (error) {
       return c.json({ error: error instanceof Error ? error.message : String(error) }, 404)
@@ -249,42 +254,45 @@ export function createApp(deps: AppDeps): Hono {
 
   // 消す経路は 1 つだけにする。押すだけで消える口は置かない(0006)。
   app.delete('/api/chats', async (c) => {
-    const body = (await c.req.json().catch(() => ({}))) as { path?: unknown; confirm?: unknown }
-    if (typeof body.path !== 'string') return c.json({ error: 'path を指定すること' }, 400)
+    const body = (await c.req.json().catch(() => ({}))) as { id?: unknown; confirm?: unknown }
     if (body.confirm !== true) return c.json({ error: '確認が要る' }, 400)
-    const dataDir = deps.getConfig().dataDir
-    const result = await deps.deleteChat(join(dataDir, body.path))
-    return c.json({ deleted: body.path, ...result })
+    const file = chatFile(body.id)
+    if (file === null) return c.json({ error: `会話が見つからない: ${String(body.id)}` }, 404)
+    const result = await deps.deleteChat(file)
+    return c.json({ deleted: body.id, ...result })
   })
 
   app.put('/api/chats/title', async (c) => {
-    const body = (await c.req.json().catch(() => ({}))) as { path?: unknown; title?: unknown }
-    if (typeof body.path !== 'string' || typeof body.title !== 'string' || body.title.trim().length === 0) {
-      return c.json({ error: 'path と title を指定すること' }, 400)
+    const body = (await c.req.json().catch(() => ({}))) as { id?: unknown; title?: unknown }
+    if (typeof body.title !== 'string' || body.title.trim().length === 0) {
+      return c.json({ error: 'id と title を指定すること' }, 400)
     }
     const dataDir = deps.getConfig().dataDir
-    const chat = await readChat(dataDir, join(dataDir, body.path))
-    if (chat === null) return c.json({ error: `会話が見つからない: ${body.path}` }, 404)
+    const file = chatFile(body.id)
+    if (file === null) return c.json({ error: `会話が見つからない: ${String(body.id)}` }, 404)
+    const chat = await readChat(dataDir, file)
+    if (chat === null) return c.json({ error: `会話が読めない: ${String(body.id)}` }, 404)
     // ユーザーが付けた名前は AI に上書きさせない(0002)。
     await writeChat(dataDir, {
       path: chat.path,
       messages: chat.messages,
       meta: { ...chat.meta, title: body.title.trim(), titleSource: 'user' },
     })
-    await deps.reindexChat(join(dataDir, body.path))
+    await deps.reindexChat(file)
     return c.json({ title: body.title.trim() })
   })
 
   // 会話の場所は `chats/YYYY/MM/DD/...` の相対パスなので、経路ではなく問い合わせで受ける。
   app.get('/api/chats/one', async (c) => {
-    const path = c.req.query('path')
-    if (path === undefined || path.length === 0) return c.json({ error: 'path を指定すること' }, 400)
-    const dataDir = deps.getConfig().dataDir
-    const chat = await readChat(dataDir, join(dataDir, path))
-    if (chat === null) return c.json({ error: `会話が見つからない: ${path}` }, 404)
+    const id = c.req.query('id')
+    const file = chatFile(id)
+    if (file === null) return c.json({ error: `会話が見つからない: ${id ?? ''}` }, 404)
+    const chat = await readChat(deps.getConfig().dataDir, file)
+    if (chat === null) return c.json({ error: `会話が読めない: ${id ?? ''}` }, 404)
     return c.json({
       meta: chat.meta,
       messages: chat.messages,
+      id: chat.meta.id,
       path: chat.path,
       running: deps.chats.isRunning(chat.path),
       state: await deps.chats.state(chat),
@@ -293,7 +301,7 @@ export function createApp(deps: AppDeps): Hono {
 
   app.post('/api/chats/messages', async (c) => {
     const body = (await c.req.json().catch(() => ({}))) as {
-      path?: unknown
+      id?: unknown
       text?: unknown
       model?: unknown
       effort?: unknown
@@ -301,15 +309,15 @@ export function createApp(deps: AppDeps): Hono {
     if (typeof body.text !== 'string' || body.text.trim().length === 0) {
       return c.json({ error: 'text を指定すること' }, 400)
     }
-    const dataDir = deps.getConfig().dataDir
-    // 場所を省くと、この発言で会話が作られる。始めただけの空の会話を残さない。
-    const target = typeof body.path === 'string' ? join(dataDir, body.path) : null
+    // 識別子を省くと、この発言で会話が作られる。始めただけの空の会話を残さない。
+    const target = body.id === undefined ? null : chatFile(body.id)
+    if (body.id !== undefined && target === null) return c.json({ error: `会話が見つからない: ${String(body.id)}` }, 404)
     const options = {
       ...(typeof body.model === 'string' ? { model: body.model } : {}),
       ...(typeof body.effort === 'string' ? { effort: body.effort } : {}),
     }
-    const { path } = await deps.chats.send(target, body.text.trim(), options)
-    return c.json({ path: relative(dataDir, path) })
+    const sent = await deps.chats.send(target, body.text.trim(), options)
+    return c.json({ id: sent.id })
   })
 
   app.get('/api/feed', (c) => c.json({ items: deps.feed.list(), unread: deps.feed.unreadCount() }))

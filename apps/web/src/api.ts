@@ -214,22 +214,22 @@ export const api = {
     if (filter.archived !== undefined) params.set('archived', String(filter.archived))
     return getJson<{ hits: ChatSearchHit[] }>(`/api/chats/search?${params.toString()}`)
   },
-  chat: (path: string) =>
-    getJson<{ meta: ChatMeta; messages: ChatMessage[]; path: string; running: boolean; state: ChatState }>(
-      `/api/chats/one?path=${encodeURIComponent(path)}`,
+  chat: (id: string) =>
+    getJson<{ meta: ChatMeta; messages: ChatMessage[]; id: string; path: string; running: boolean; state: ChatState }>(
+      `/api/chats/one?id=${encodeURIComponent(id)}`,
     ),
-  reloadChat: (path: string) => sendJson<{ codexThreadId: string }>('POST', '/api/chats/reload', { path }),
-  branchChat: (path: string, index: number) =>
-    sendJson<{ path: string; forked: boolean }>('POST', '/api/chats/branch', { path, index }),
-  renameChat: (path: string, title: string) => sendJson<{ title: string }>('PUT', '/api/chats/title', { path, title }),
-  setChatArchived: (path: string, archived: boolean) =>
-    sendJson<{ archived: boolean }>('PUT', '/api/chats/archived', { path, archived }),
+  reloadChat: (id: string) => sendJson<{ codexThreadId: string }>('POST', '/api/chats/reload', { id }),
+  branchChat: (id: string, index: number) =>
+    sendJson<{ id: string; forked: boolean }>('POST', '/api/chats/branch', { id, index }),
+  renameChat: (id: string, title: string) => sendJson<{ title: string }>('PUT', '/api/chats/title', { id, title }),
+  setChatArchived: (id: string, archived: boolean) =>
+    sendJson<{ archived: boolean }>('PUT', '/api/chats/archived', { id, archived }),
   /** 確認を経てから呼ぶ。押すだけで消える経路は作らない。 */
-  deleteChat: (path: string) =>
-    sendJson<{ deleted: string; threadDeleted: boolean }>('DELETE', '/api/chats', { path, confirm: true }),
-  /** path を省くと、この発言で会話が作られる。 */
-  sendChatMessage: (path: string | null, text: string, model: string, effort: string) =>
-    sendJson<{ path: string }>('POST', '/api/chats/messages', { path, text, model, effort }),
+  deleteChat: (id: string) =>
+    sendJson<{ deleted: string; threadDeleted: boolean }>('DELETE', '/api/chats', { id, confirm: true }),
+  /** id を省くと、この発言で会話が作られる。 */
+  sendChatMessage: (id: string | null, text: string, model: string, effort: string) =>
+    sendJson<{ id: string }>('POST', '/api/chats/messages', { ...(id === null ? {} : { id }), text, model, effort }),
   feed: () => getJson<{ items: FeedItem[]; unread: number }>('/api/feed'),
   markFeedRead: (arxivIds: string[]) =>
     sendJson<{ read: number; unread: number }>('POST', '/api/feed/read', { arxivIds }),

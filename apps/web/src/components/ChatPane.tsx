@@ -5,9 +5,9 @@ import { Markdown } from './Markdown.tsx'
 import { SlugSuggest } from './SlugSuggest.tsx'
 
 export type ChatPaneProps = {
-  /** 一覧で選ばれた会話。null なら新しく始める案内を出す。 */
-  path: string | null
-  onOpen: (path: string | null) => void
+  /** 一覧で選ばれた会話の識別子。null なら新しく始める案内を出す。 */
+  id: string | null
+  onOpen: (id: string | null) => void
   /** 制限に達していると送れない。回復時刻を出す(0003)。 */
   limits: RateLimitView | null
   /** 補完に使う slug の一覧。 */
@@ -34,9 +34,9 @@ function estimateHeight(text: string): number {
   return 24 + Math.ceil(text.length / 90) * 22
 }
 
-type Turn = { path: string; delta: string }
+type Turn = { id: string; delta: string }
 
-export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPaneProps) {
+export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   // いま出ている発言がどの会話のものか。場所が変わっても、届くまでは前の会話の
   // 発言が出ているので、末尾へ送る判断はこちらで行う。
@@ -78,8 +78,8 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
 
   // 入力欄は会話を作った後に描かれるので、焦点は描かれてから移す。
   useEffect(() => {
-    if (path !== null) input.current?.focus()
-  }, [path])
+    if (id !== null) input.current?.focus()
+  }, [id])
 
   /**
    * 末尾へ送る。
@@ -136,7 +136,7 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
       .then((r) => {
         setMessages(r.messages)
         setHidden(Math.max(0, r.messages.length - BATCH))
-        setShown(r.path)
+        setShown(r.id)
         setState(r.state)
         setArchived(r.meta.archived)
         setError(null)
@@ -146,7 +146,7 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
 
   useEffect(() => {
     // 新しい会話に切り替えたら、開いていた会話の表示を片付ける。
-    if (path === null) {
+    if (id === null) {
       setMessages([])
       setHidden(0)
       setShown(null)
@@ -156,33 +156,33 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
       setError(null)
       return
     }
-    load(path)
-  }, [path, load])
+    load(id)
+  }, [id, load])
 
   useEffect(
     () =>
       subscribe((event) => {
-        const payload = event.payload as { path?: string; delta?: string; message?: string }
-        if (path === null || payload.path !== path) return
+        const payload = event.payload as { id?: string; delta?: string; message?: string }
+        if (id === null || payload.id !== id) return
         switch (event.type) {
           case 'chat.turn.started':
-            setTurn({ path, delta: '' })
+            setTurn({ id, delta: '' })
             return
           case 'chat.turn.delta':
-            setTurn((previous) => ({ path, delta: (previous?.delta ?? '') + (payload.delta ?? '') }))
+            setTurn((previous) => ({ id, delta: (previous?.delta ?? '') + (payload.delta ?? '') }))
             return
           case 'chat.turn.completed':
             setTurn(null)
-            load(path)
+            load(id)
             return
           case 'chat.turn.failed':
             setTurn(null)
             setError(payload.message ?? '応答が返らなかった')
-            load(path)
+            load(id)
             return
           // アーカイブや題の書き換えは一覧からも起きる。
           case 'chat.changed':
-            load(path)
+            load(id)
             return
           case 'chat.removed':
             onOpen(null)
@@ -191,23 +191,23 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
             return
         }
       }),
-    [subscribe, path, load, onOpen],
+    [subscribe, id, load, onOpen],
   )
 
   // 分岐したらその会話へ移る。分かれた先で続きを話すのが分岐の目的である(0006)。
   const branch = (index: number): void => {
-    if (path === null) return
+    if (id === null) return
     void api
-      .branchChat(path, index)
-      .then((made) => onOpen(made.path))
+      .branchChat(id, index)
+      .then((made) => onOpen(made.id))
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
   }
 
   const reload = (): void => {
-    if (path === null) return
+    if (id === null) return
     setReloading(true)
     void api
-      .reloadChat(path)
+      .reloadChat(id)
       .then(() => {
         setState('resumable')
         setError(null)
@@ -223,10 +223,10 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
     // 送った発言はターンの完了で読み直すまで手元で見せる。
     setMessages((previous) => [...previous, { role: 'user', at: new Date().toISOString(), text }])
     void api
-      .sendChatMessage(path, text, model, effort)
+      .sendChatMessage(id, text, model, effort)
       .then((r) => {
         // 初めての発言では、ここで会話の場所が決まる。
-        if (path === null) onOpen(r.path)
+        if (id === null) onOpen(r.id)
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
   }
@@ -243,7 +243,7 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
           if (hidden > 0 && edge !== undefined && top !== undefined && edge > top - NEAR_TOP) grow()
         }}
       >
-        {path === null && messages.length === 0 && (
+        {id === null && messages.length === 0 && (
           <p className="pane__empty">論文について議論します。@ で論文を指して尋ねると、その論文を読んで答えます。</p>
         )}
         {hidden > 0 && (
@@ -263,7 +263,7 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
           <article key={`${message.at}-${index}`} className={`turn turn--${message.role}`}>
             <Markdown text={message.text} />
             {/* 最初の turn より後の発言から分岐できる(0012)。 */}
-            {path !== null && index >= 2 && (
+            {id !== null && index >= 2 && (
               <button
                 type="button"
                 className="turn__branch"
@@ -297,9 +297,9 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
           <button
             type="button"
             onClick={() => {
-              if (path === null) return
+              if (id === null) return
               void api
-                .setChatArchived(path, false)
+                .setChatArchived(id, false)
                 .then(() => setArchived(false))
                 .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
             }}

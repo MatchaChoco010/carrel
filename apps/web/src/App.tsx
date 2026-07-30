@@ -230,7 +230,7 @@ export function App() {
           </header>
           <div className="pane__body">
             <ChatPane
-              path={activeChat}
+              id={activeChat}
               onOpen={setActiveChat}
               limits={codex?.rateLimits ?? null}
               slugs={slugs}

@@ -1,7 +1,7 @@
 import { serve } from '@hono/node-server'
 import { mkdir } from 'node:fs/promises'
 import type { Server } from 'node:http'
-import { relative } from 'node:path'
+import { join, relative } from 'node:path'
 import { WebSocketServer } from 'ws'
 import { CodexService } from './codex/service.ts'
 import { enqueueConvert, registerConvert } from './convert/job.ts'
@@ -54,11 +54,11 @@ async function main(): Promise<void> {
   const collection = new Collection(config.dataDir, index, {
     onPaperChanged: (slug) => hub.broadcast({ type: 'paper.changed', payload: { slug } }),
     onPaperRemoved: (slug) => hub.broadcast({ type: 'paper.removed', payload: { slug } }),
-    onChatChanged: (path) => {
-      hub.broadcast({ type: 'chat.changed', payload: { path } })
-      enqueueChatChunks(path)
+    onChatChanged: (chat) => {
+      hub.broadcast({ type: 'chat.changed', payload: chat })
+      enqueueChatChunks(chat.path)
     },
-    onChatRemoved: (path) => hub.broadcast({ type: 'chat.removed', payload: { path } }),
+    onChatRemoved: (chat) => hub.broadcast({ type: 'chat.removed', payload: chat }),
   },
   () => ingests.incompleteSlugs())
 
@@ -165,7 +165,11 @@ async function main(): Promise<void> {
     effort: config.ingest.effort,
     serviceTier: config.ingest.serviceTier,
     reindex: (absolutePath) => collection.reloadChat(absolutePath),
-    onDone: (path) => hub.broadcast({ type: 'chat.changed', payload: { path } }),
+    chatFile: (id) => {
+      const path = index.chatPathById(id)
+      return path === null ? null : join(config.dataDir, path)
+    },
+    onDone: (id) => hub.broadcast({ type: 'chat.changed', payload: { id } }),
   })
 
   const chats = new ChatSessions({
@@ -173,13 +177,13 @@ async function main(): Promise<void> {
     codex: codex.client,
     createChat: async (options) => {
       const created = await createChat(config.dataDir, options)
-      return { absolutePath: created.absolutePath }
+      return { absolutePath: created.absolutePath, id: created.chat.meta.id }
     },
     knownSlug: (slug) => index.getPaper(slug) !== null,
     defaults: () => ({ model: config.chat.defaultModel, effort: config.chat.defaultEffort }),
     onEvent: (event) => {
       hub.broadcast({ type: event.type, payload: event })
-      if (event.type === 'chat.turn.completed') digests.touch(event.path)
+      if (event.type === 'chat.turn.completed') digests.touch(event.id)
     },
     reindex: (absolutePath) => collection.reloadChat(absolutePath),
   })

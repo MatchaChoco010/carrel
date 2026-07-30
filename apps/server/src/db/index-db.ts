@@ -437,6 +437,17 @@ export class IndexDb {
     return rows.map((r) => r.id)
   }
 
+  /** 会話の識別子から置き場所を引く。参照は識別子で行い、場所は引き直す(0002)。 */
+  chatPathById(id: string): string | null {
+    const row = this.#db.prepare('select path from chats where id = ?').get(id) as { path: string } | undefined
+    return row?.path ?? null
+  }
+
+  chatIdByPath(path: string): string | null {
+    const row = this.#db.prepare('select id from chats where path = ?').get(path) as { id: string } | undefined
+    return row?.id ?? null
+  }
+
   getChatById(id: string): ChatSummary | null {
     const row = this.#db
       .prepare(
