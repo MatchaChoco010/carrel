@@ -11,6 +11,8 @@ import {
 export type CodexServiceEvents = {
   onRateLimits?: (view: RateLimitView) => void
   onApprovalDeclined?: (method: string) => void
+  /** 起動時に残枠を読めなかった。app-server は使える。 */
+  onRateLimitsUnavailable?: (error: unknown) => void
 }
 
 /**
@@ -24,8 +26,8 @@ export class CodexService {
   readonly #events: CodexServiceEvents
   #snapshot: RateLimitSnapshot | null = null
 
-  constructor(events: CodexServiceEvents = {}) {
-    this.#client = new CodexClient()
+  constructor(events: CodexServiceEvents = {}, client: CodexClient = new CodexClient()) {
+    this.#client = client
     this.#events = events
 
     this.#client.on('notification', (notification: Notification) => {
@@ -77,7 +79,13 @@ export class CodexService {
 
   async start(): Promise<void> {
     await this.#client.start()
-    await this.refreshRateLimits()
+    // 残枠は表示のための付随情報なので、読めなくても起動は続ける。ChatGPT 側が
+    // 一時的に応えないだけで Codex は使えるし、turn を回せば通知で入ってくる。
+    try {
+      await this.refreshRateLimits()
+    } catch (error) {
+      this.#events.onRateLimitsUnavailable?.(error)
+    }
   }
 
   async stop(): Promise<void> {
