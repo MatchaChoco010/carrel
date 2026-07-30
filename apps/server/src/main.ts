@@ -43,6 +43,9 @@ import { converterScript, indexDbFile, stateDbFile, stateDir, textLayerScript, w
 
 async function main(): Promise<void> {
   let config: Config = await loadConfig()
+  // 置き場所は起動時に固定する。索引・走査・ジョブがこの場所に紐づくので、途中で
+  // 変えると取り込みと変換が別の場所を見る。保存した値は次の起動から効く。
+  const dataDir = config.dataDir
   await mkdir(stateDir(), { recursive: true })
 
   const hub = new Hub()
@@ -53,7 +56,7 @@ async function main(): Promise<void> {
   // 起動時の走査はキューを作る前に走るので、そのぶんは走査の後にまとめて積む。
   let enqueueChatChunks: (path: string) => void = () => {}
 
-  const collection = new Collection(config.dataDir, index, {
+  const collection = new Collection(dataDir, index, {
     onPaperChanged: (slug) => hub.broadcast({ type: 'paper.changed', payload: { slug } }),
     onPaperRemoved: (slug) => hub.broadcast({ type: 'paper.removed', payload: { slug } }),
     onChatChanged: (chat) => {
@@ -65,7 +68,7 @@ async function main(): Promise<void> {
   () => ingests.incompleteSlugs())
 
   await collection.ensureDirs()
-  await writeAgentsMd(config.dataDir)
+  await writeAgentsMd(dataDir)
   const scanned = await collection.scan()
   console.log(
     `索引を同期した: 論文 ${scanned.papersIndexed} 件を読み込み ${scanned.papersRemoved} 件を除去、` +
@@ -90,7 +93,7 @@ async function main(): Promise<void> {
   })
 
   registerConvert(jobs, {
-    dataDir: config.dataDir,
+    dataDir,
     ingests,
     paths: {
       python: config.converter.python,
@@ -102,7 +105,7 @@ async function main(): Promise<void> {
   })
 
   registerVerify(jobs, {
-    dataDir: config.dataDir,
+    dataDir,
     ingests,
     codex: codex.client,
     model: config.ingest.model,
@@ -113,7 +116,7 @@ async function main(): Promise<void> {
   })
 
   registerTranslate(jobs, {
-    dataDir: config.dataDir,
+    dataDir,
     ingests,
     codex: codex.client,
     model: config.ingest.model,
@@ -129,7 +132,7 @@ async function main(): Promise<void> {
     console.log('埋め込みのモデルが変わったので、索引の作り直しが要る')
   }
   const registerDeps = {
-    dataDir: config.dataDir,
+    dataDir,
     chunks,
     embed,
     model: embeddingModel,
@@ -147,7 +150,7 @@ async function main(): Promise<void> {
   }
 
   const chatChunks = new ChatChunkStore(index.db)
-  registerChatIndex(jobs, { dataDir: config.dataDir, chunks: chatChunks, embed })
+  registerChatIndex(jobs, { dataDir, chunks: chatChunks, embed })
   enqueueChatChunks = (path) => {
     enqueueChatIndex(jobs, path)
   }
@@ -174,7 +177,7 @@ async function main(): Promise<void> {
 
   const digests = new ChatDigestScheduler({ run: (path) => enqueueChatDigest(jobs, path) })
   registerChatDigest(jobs, {
-    dataDir: config.dataDir,
+    dataDir,
     codex: codex.client,
     model: config.ingest.model,
     effort: config.ingest.effort,
@@ -182,16 +185,16 @@ async function main(): Promise<void> {
     reindex: (absolutePath) => collection.reloadChat(absolutePath),
     chatFile: (id) => {
       const path = index.chatPathById(id)
-      return path === null ? null : join(config.dataDir, path)
+      return path === null ? null : join(dataDir, path)
     },
     onDone: (id) => hub.broadcast({ type: 'chat.changed', payload: { id } }),
   })
 
   const chats = new ChatSessions({
-    dataDir: config.dataDir,
+    dataDir,
     codex: codex.client,
     createChat: async (options) => {
-      const created = await createChat(config.dataDir, options)
+      const created = await createChat(dataDir, options)
       return { absolutePath: created.absolutePath, id: created.chat.meta.id }
     },
     knownSlug: (slug) => index.getPaper(slug) !== null,
@@ -208,6 +211,7 @@ async function main(): Promise<void> {
     search: (query) => search(query, { index, chunks, embed }),
     searchChats: (query) => searchChats(query, { index, chunks: chatChunks, embed }),
     onIngested: (slug) => enqueueConvert(jobs, slug),
+    dataDir,
     getConfig: () => config,
     setConfig: (next) => {
       config = next
@@ -234,15 +238,15 @@ async function main(): Promise<void> {
     reindexChat: (absolutePath) => collection.reloadChat(absolutePath),
     setArchived: (absolutePath, archived) =>
       setArchived(absolutePath, archived, {
-        dataDir: config.dataDir,
+        dataDir,
         codex: codex.client,
         dropFromIndex: (path) => index.deleteChatByPath(path),
         reindex: (absolutePath) => collection.reloadChat(absolutePath),
       }),
     deleteChat: (absolutePath) => {
-      digests.cancel(relative(config.dataDir, absolutePath))
+      digests.cancel(relative(dataDir, absolutePath))
       return deleteChat(absolutePath, {
-        dataDir: config.dataDir,
+        dataDir,
         codex: codex.client,
         dropFromIndex: (path) => index.deleteChatByPath(path),
         reindex: (target) => collection.reloadChat(target),
@@ -250,7 +254,7 @@ async function main(): Promise<void> {
     },
     branchChat: (absolutePath, selected) =>
       branchChat(absolutePath, selected, {
-        dataDir: config.dataDir,
+        dataDir,
         codex: codex.client,
         knownSlug: (slug) => index.getPaper(slug) !== null,
         isResumable: async (threadId) => (await chats.stateOfThread(threadId)) === 'resumable',
@@ -261,7 +265,7 @@ async function main(): Promise<void> {
       }),
     reloadChat: async (absolutePath) => {
       const threadId = await reloadChat(absolutePath, {
-        dataDir: config.dataDir,
+        dataDir,
         codex: codex.client,
         knownSlug: (slug) => index.getPaper(slug) !== null,
         mcpUrl,
@@ -283,7 +287,7 @@ async function main(): Promise<void> {
   wss.on('connection', (socket) => hub.add(socket))
 
   console.log(`listening on http://${config.server.host}:${config.server.port}`)
-  console.log(`data dir: ${config.dataDir}`)
+  console.log(`data dir: ${dataDir}`)
 
   jobs.start()
 

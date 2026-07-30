@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { test } from 'node:test'
-import { defaultConfig, mergeConfig } from './config.ts'
+import { defaultConfig, mergeConfig, unusableDataDir } from './config.ts'
 
 test('空の設定は既定値になる', () => {
   assert.deepEqual(mergeConfig({}), defaultConfig)
@@ -75,4 +78,41 @@ test('埋め込みの設定を読む', () => {
 test('埋め込みの次元が整数でなければ既定値を保つ', () => {
   const c = mergeConfig({ embedding: { dimensions: 0 } })
   assert.equal(c.embedding.dimensions, 1024)
+})
+
+test('置き場所は絶対パスでなければ断る', async () => {
+  assert.match((await unusableDataDir('papers')) ?? '', /絶対パス/)
+})
+
+test('置き場所が無いときは、作れるかを親で判断する', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'pct-config-'))
+  try {
+    assert.equal(await unusableDataDir(join(root, 'papers')), null)
+    assert.match((await unusableDataDir(join(root, 'a', 'b'))) ?? '', /親のディレクトリが無い/)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('置き場所がファイルなら断る', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'pct-config-'))
+  try {
+    const file = join(root, 'papers')
+    writeFileSync(file, '')
+    assert.match((await unusableDataDir(file)) ?? '', /ディレクトリではない/)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('置き場所に書き込めなければ断る', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'pct-config-'))
+  try {
+    const dir = join(root, 'papers')
+    mkdirSync(dir, { mode: 0o500 })
+    assert.match((await unusableDataDir(dir)) ?? '', /書き込めない/)
+  } finally {
+    chmodSync(join(root, 'papers'), 0o700)
+    rmSync(root, { recursive: true, force: true })
+  }
 })

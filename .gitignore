@@ -11,3 +11,5 @@ dist/
 *.tsbuildinfo
 apps/converter/.venv/
 release/
+# 開発用のサーバーの設定・状態・コレクション
+.dev/

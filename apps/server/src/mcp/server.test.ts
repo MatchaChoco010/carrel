@@ -57,7 +57,7 @@ async function rpc(app: ReturnType<typeof createMcpApp>, body: unknown): Promise
 
 function app(hits: SearchHit[] = [HIT]) {
   return createMcpApp({
-    dataDir: () => '/data',
+    dataDir: '/data',
     search: async () => hits,
     tags: () => [{ tag: '3d', count: 2 }],
   })

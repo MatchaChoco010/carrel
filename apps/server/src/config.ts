@@ -1,7 +1,8 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { constants } from 'node:fs'
+import { access, mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { configDir, configFile } from './paths.ts'
+import { dirname, isAbsolute, join } from 'node:path'
+import { configDir, configFile, converterPython } from './paths.ts'
 
 export type Config = {
   dataDir: string
@@ -73,7 +74,7 @@ export const defaultConfig: Config = {
     dimensions: 1024,
   },
   converter: {
-    python: join(homedir(), 'ghq/github.com/MatchaChoco010/paper-collection-tool/apps/converter/.venv/bin/python'),
+    python: converterPython(),
     llamaServer: 'llama-server',
     llamaLibDir: '',
     pageScale: 2,
@@ -169,6 +170,44 @@ export function mergeConfig(stored: unknown): Config {
   }
 
   return merged
+}
+
+/**
+ * コレクションの置き場所として使えない理由を返す。使えるなら null。
+ *
+ * 保存を通してしまうと、次に起動したサーバーがコレクションを読めない。書き込めるかは
+ * 実際に確かめるしかないので、保存の前に見る。ここでは作らない。
+ */
+export async function unusableDataDir(path: string): Promise<string | null> {
+  if (!isAbsolute(path)) return '置き場所は絶対パスで指定する'
+
+  const writable = async (target: string): Promise<boolean> => {
+    try {
+      await access(target, constants.W_OK)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  try {
+    const found = await stat(path)
+    if (!found.isDirectory()) return `ディレクトリではない: ${path}`
+    if (!(await writable(path))) return `書き込めない: ${path}`
+    return null
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+  }
+
+  // 無ければサーバーが作る。作れるかは親を見て判断する。
+  const parent = dirname(path)
+  try {
+    if (!(await stat(parent)).isDirectory()) return `ディレクトリではない: ${parent}`
+  } catch {
+    return `親のディレクトリが無い: ${parent}`
+  }
+  if (!(await writable(parent))) return `書き込めない: ${parent}`
+  return null
 }
 
 /** 設定を読む。ファイルが無ければ既定値を書き出してからそれを返す。 */

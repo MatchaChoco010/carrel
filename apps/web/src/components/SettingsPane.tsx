@@ -1,4 +1,4 @@
-import { Loader2, Plus, RotateCcw, X } from 'lucide-react'
+import { Check, Loader2, Plus, RotateCcw, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api, type CodexModel, type Config } from '../api.ts'
 
@@ -18,12 +18,25 @@ export function SettingsPane({ onChanged }: SettingsPaneProps) {
   const [category, setCategory] = useState('')
   const [notice, setNotice] = useState<Notice | null>(null)
   const [rebuilding, setRebuilding] = useState(false)
+  // 動いているサーバーが使っている場所。保存した設定と違うときに知らせる。
+  const [runningDataDir, setRunningDataDir] = useState<string | null>(null)
+  // 打っている途中の値。保存は明示の操作でだけ行う。
+  const [dataDir, setDataDir] = useState<string | null>(null)
+  const [fetchInterval, setFetchInterval] = useState<number | null>(null)
 
   useEffect(() => {
     void api
       .config()
-      .then(setConfig)
+      .then((next) => {
+        setConfig(next)
+        setDataDir(next.dataDir)
+        setFetchInterval(next.arxiv.fetchIntervalMinutes)
+      })
       .catch((e: unknown) => setNotice({ kind: 'error', text: e instanceof Error ? e.message : String(e) }))
+    void api
+      .health()
+      .then((h) => setRunningDataDir(h.dataDir))
+      .catch(() => setRunningDataDir(null))
     // モデルの選択肢は Codex から取る。固定の一覧は持たない(0003)。
     void api
       .models()
@@ -31,12 +44,14 @@ export function SettingsPane({ onChanged }: SettingsPaneProps) {
       .catch(() => setModels([]))
   }, [])
 
-  const save = (patch: Partial<Config>): void => {
+  const save = (patch: Partial<Config>, text = '保存した'): void => {
     void api
       .saveConfig(patch)
       .then((next) => {
         setConfig(next)
-        setNotice({ kind: 'saved', text: '保存した' })
+        setDataDir(next.dataDir)
+        setFetchInterval(next.arxiv.fetchIntervalMinutes)
+        setNotice({ kind: 'saved', text })
       })
       .catch((e: unknown) => setNotice({ kind: 'error', text: e instanceof Error ? e.message : String(e) }))
   }
@@ -61,6 +76,13 @@ export function SettingsPane({ onChanged }: SettingsPaneProps) {
   }
 
   const efforts = models.find((m) => m.id === config.chat.defaultModel)?.efforts ?? []
+
+  // 0 や空欄をそのまま送ると、サーバーが範囲外として捨てて既定値へ戻る。送らせない。
+  const nextInterval = fetchInterval ?? config.arxiv.fetchIntervalMinutes
+  const intervalChanged =
+    Number.isInteger(nextInterval) && nextInterval >= 1 && nextInterval !== config.arxiv.fetchIntervalMinutes
+  const nextDataDir = (dataDir ?? config.dataDir).trim()
+  const dataDirChanged = nextDataDir.length > 0 && nextDataDir !== config.dataDir
 
   const addCategory = (): void => {
     const value = category.trim()
@@ -116,12 +138,18 @@ export function SettingsPane({ onChanged }: SettingsPaneProps) {
           <input
             type="number"
             min={1}
-            value={config.arxiv.fetchIntervalMinutes}
-            onChange={(e) => setConfig({ ...config, arxiv: { ...config.arxiv, fetchIntervalMinutes: Number(e.target.value) } })}
-            onBlur={() => save({ arxiv: config.arxiv })}
+            value={fetchInterval ?? config.arxiv.fetchIntervalMinutes}
+            onChange={(e) => setFetchInterval(Number(e.target.value))}
             aria-label="取得間隔(分)"
           />
           <span className="settings__unit">分</span>
+          <button
+            type="button"
+            onClick={() => save({ arxiv: { ...config.arxiv, fetchIntervalMinutes: nextInterval } })}
+            disabled={!intervalChanged}
+          >
+            <Check size={ICON} aria-hidden /> 保存
+          </button>
         </div>
       </section>
 
@@ -161,14 +189,25 @@ export function SettingsPane({ onChanged }: SettingsPaneProps) {
         <h3>コレクションの置き場所</h3>
         <div className="settings__row">
           <input
-            value={config.dataDir}
-            onChange={(e) => setConfig({ ...config, dataDir: e.target.value })}
-            onBlur={() => save({ dataDir: config.dataDir })}
+            value={dataDir ?? config.dataDir}
+            onChange={(e) => setDataDir(e.target.value)}
             aria-label="$PCT_DATA の場所"
           />
+          <button
+            type="button"
+            onClick={() => save({ dataDir: nextDataDir }, '保存した。次に pct を起動したときから使う。')}
+            disabled={!dataDirChanged}
+          >
+            <Check size={ICON} aria-hidden /> 変える
+          </button>
         </div>
+        {runningDataDir !== null && runningDataDir !== config.dataDir && (
+          <p className="settings__hint settings__hint--warn">
+            動いているサーバーは {runningDataDir} を使っている。起動し直すまで変わらない。
+          </p>
+        )}
         <p className="settings__hint">
-          設定はこの場所の中には置かず、この PC の設定ファイルに保存する。変えた後は pct を起動し直す。
+          設定はこの場所の中には置かず、この PC の設定ファイルに保存する。中身は動かさないので、移すときは自分で移す。
         </p>
       </section>
 

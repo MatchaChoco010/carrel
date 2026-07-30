@@ -11,7 +11,8 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
-    "dev": "pnpm --filter @pct/server dev"
+    "dev": "apps/server/scripts/dev-server.sh",
+    "dev:web": "pnpm --filter @pct/web dev"
   },
   "devDependencies": {
     "typescript": "^5.9.3"
