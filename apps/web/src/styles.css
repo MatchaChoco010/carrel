@@ -1129,6 +1129,9 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-gutter: stable;
+  /* 古い発言を足したときの位置合わせは自分で行う。ブラウザの scroll anchoring に
+     任せると、こちらの補正と二重にかかる。 */
+  overflow-anchor: none;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -1471,5 +1474,28 @@ body {
   padding: 4px 10px;
   font: inherit;
   font-size: 12px;
+  cursor: pointer;
+}
+
+/* 描いていない発言のぶんの高さ。スクロールの長さが実際の会話に近い形で残る。 */
+.chat__earlier {
+  /* 縦の flex の中では height だけでは縮むので、伸縮を止める。 */
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  max-width: var(--chat-text);
+  width: 100%;
+  margin-inline: auto;
+}
+
+.chat__earlier button {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 10px;
   cursor: pointer;
 }
