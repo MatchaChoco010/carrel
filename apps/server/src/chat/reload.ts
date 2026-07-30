@@ -1,9 +1,10 @@
 import type { CodexClient } from '../codex/client.ts'
-import { textInput } from '../codex/protocol.ts'
+import { imagesAndTextInput } from '../codex/protocol.ts'
 import { runTurn, startConversationThread } from '../codex/threads.ts'
 import { readChat, withoutTurnIds, writeChat, type Chat } from '../data/chat.ts'
 import { nowIsoDateTime } from '../data/datetime.ts'
 import { paperDir } from '../data/layout.ts'
+import { attachmentPaths, referencedAttachments } from './attachments.ts'
 import { serializeMessages } from '../data/chat.ts'
 
 export type ReloadDeps = {
@@ -39,6 +40,9 @@ export function buildReloadInput(chat: Chat, dataDir: string, knownSlug: (slug: 
       '必要になったら読み直すこと。いま読む必要はない。',
     )
   }
+  if (referencedAttachments(chat.messages).length > 0) {
+    parts.push('', '記録の中の `assets/...` の画像は、この入力に添えてある。')
+  }
   parts.push('', 'この記録を踏まえて、次の発言を待て。返答は要らない。')
   return parts.join('\n')
 }
@@ -58,9 +62,11 @@ export async function reloadChat(absolutePath: string, deps: ReloadDeps): Promis
     model: chat.meta.model ?? '',
     mcpUrl: deps.mcpUrl,
   })
+  // 画像は文字で場所を示しても見えないので、実体を載せる(0013)。
+  const images = await attachmentPaths(absolutePath, referencedAttachments(chat.messages))
   await runTurn(deps.codex, {
     threadId,
-    input: textInput(buildReloadInput(chat, deps.dataDir, deps.knownSlug)),
+    input: imagesAndTextInput(images, buildReloadInput(chat, deps.dataDir, deps.knownSlug)),
   })
 
   await writeChat(deps.dataDir, {

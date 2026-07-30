@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import type { CodexClient } from '../codex/client.ts'
-import { METHODS, textInput } from '../codex/protocol.ts'
+import { METHODS, imagesAndTextInput } from '../codex/protocol.ts'
 import { runTurn, startConversationThread } from '../codex/threads.ts'
 import {
   chatPathFor,
@@ -12,6 +12,7 @@ import {
   type ChatMessage,
 } from '../data/chat.ts'
 import { nowIsoDateTime, toIsoDateTime } from '../data/datetime.ts'
+import { attachmentPaths, copyAttachments, referencedAttachments } from './attachments.ts'
 import { buildReloadInput } from './reload.ts'
 
 export type BranchDeps = {
@@ -80,7 +81,7 @@ export async function branchChat(absolutePath: string, selected: number, deps: B
 
   const threadId = canFork
     ? await forkThread(deps.codex, source.meta.codexThreadId as string, turnId as string)
-    : await primeThread(source, messages, model, deps)
+    : await primeThread(source, absolutePath, messages, model, deps)
   deps.markResumed(threadId)
 
   const now = new Date()
@@ -104,6 +105,8 @@ export async function branchChat(absolutePath: string, selected: number, deps: B
     },
   }
   await writeChat(deps.dataDir, next)
+  // 分岐先が単体で読める状態を保つ。参照は識別子を含まないので本文は書き替えない(0013)。
+  await copyAttachments(absolutePath, join(deps.dataDir, next.path), referencedAttachments(messages))
   await deps.reindex(join(deps.dataDir, next.path))
   return { id: next.meta.id, forked: canFork }
 }
@@ -120,6 +123,7 @@ async function forkThread(codex: CodexClient, threadId: string, lastTurn: string
 /** 引き継ぐ範囲の記録で新しいスレッドを立てる。読み込み直しと同じ組み立てを使う。 */
 async function primeThread(
   source: Chat,
+  sourcePath: string,
   messages: ChatMessage[],
   model: string,
   deps: BranchDeps,
@@ -129,9 +133,10 @@ async function primeThread(
     model,
     mcpUrl: deps.mcpUrl,
   })
+  const images = await attachmentPaths(sourcePath, referencedAttachments(messages))
   await runTurn(deps.codex, {
     threadId,
-    input: textInput(buildReloadInput({ ...source, messages }, deps.dataDir, deps.knownSlug)),
+    input: imagesAndTextInput(images, buildReloadInput({ ...source, messages }, deps.dataDir, deps.knownSlug)),
   })
   return threadId
 }
