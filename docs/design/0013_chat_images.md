@@ -1,7 +1,7 @@
 # チャットで画像を扱う
 
 - created: 2026-07-30
-- status: reviewing
+- status: approved
 - implementation: not-started
 
 ## 解決したい問題
