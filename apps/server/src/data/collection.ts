@@ -154,11 +154,8 @@ export class Collection {
   /**
    * 稼働中の編集を拾う。書き込みの途中で何度も発火するので、少し待ってから読む。
    *
-   * 監視はディレクトリごとに張り、`recursive` は使わない。Linux の recursive では、
-   * ファイルが rename で置き換えられると 2 回目以降の変更が届かなくなる。
-   * エディタの保存も pct 自身の書き込みも置き換えなので、これを踏むと索引が黙って
-   * 古いまま残る。実測: 置き換え 3 回で届いた通知は recursive が 3・3・3 件、
-   * recursive なしが 4・8・12 件(Node 22.22)。
+   * 監視はディレクトリごとに張り、`recursive` は使わない。Linux の recursive は
+   * rename による置き換えに追随せず、2 回目以降の変更が届かない。
    */
   startWatching(debounceMs = 250): void {
     this.stopWatching()
@@ -173,7 +170,7 @@ export class Collection {
     this.#pending.clear()
   }
 
-  /** いま監視しているディレクトリの数。 */
+  /** 監視の張り方を試験から確かめるための口。 */
   get watchedDirs(): number {
     return this.#watchers.size
   }
@@ -195,7 +192,7 @@ export class Collection {
     }
   }
 
-  /** 論文は `papers/<slug>/` まで、会話は `chats/` の下のすべてのディレクトリ。 */
+  /** 論文の markdown は `papers/<slug>/` に直に置くので、その下(assets と pages)は見ない。 */
   async #dirsToWatch(): Promise<string[]> {
     const papers = papersDir(this.#dataDir)
     const chats = chatsDir(this.#dataDir)
@@ -217,7 +214,6 @@ export class Collection {
     return dirs
   }
 
-  /** 監視を 1 つ張る。張れたら true を返す。 */
   #watchDir(dir: string): boolean {
     let watcher: FSWatcher
     try {
