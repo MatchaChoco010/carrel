@@ -82,6 +82,7 @@ async function main(): Promise<void> {
       jobs.onQuotaChanged()
     },
     onApprovalDeclined: (method) => hub.broadcast({ type: 'codex.approvalDeclined', payload: { method } }),
+    onRateLimitsUnavailable: (error) => console.warn('codex の残枠を読めなかった', error),
   })
 
   const jobs = new JobQueue(new JobStore(state.db), {
