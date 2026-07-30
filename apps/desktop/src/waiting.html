@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <title>pct</title>
+    <style>
+      /* 窓は透明な surface なので、ここでも背景を透明にする。 */
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: transparent;
+        color: rgba(232, 240, 238, 0.92);
+        font-family: system-ui, sans-serif;
+      }
+
+      body {
+        display: grid;
+        place-items: center;
+        background: rgba(10, 22, 24, 0.42);
+      }
+
+      .waiting {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        font-size: 14px;
+      }
+
+      .waiting__dots {
+        display: flex;
+        gap: 6px;
+      }
+
+      .waiting__dots span {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: rgba(232, 240, 238, 0.5);
+        animation: pulse 1.2s infinite ease-in-out;
+      }
+
+      .waiting__dots span:nth-child(2) {
+        animation-delay: 0.2s;
+      }
+
+      .waiting__dots span:nth-child(3) {
+        animation-delay: 0.4s;
+      }
+
+      .waiting__hint {
+        color: rgba(232, 240, 238, 0.6);
+        font-size: 12px;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 0.3;
+        }
+        50% {
+          opacity: 1;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="waiting">
+      <p>pct のサーバーに繋がるのを待っています</p>
+      <div class="waiting__dots" aria-hidden="true"><span></span><span></span><span></span></div>
+      <p class="waiting__hint">繋がると自動で切り替わります</p>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,21 @@
+appId: dev.matchachoco010.pct
+productName: pct
+artifactName: pct-${version}.${arch}.${ext}
+directories:
+  output: release
+afterPack: scripts/after-pack.cjs
+files:
+  - dist/**/*
+  - package.json
+linux:
+  icon: build/icon.png
+  target:
+    - AppImage
+  category: Science
+  executableName: pct
+  desktop:
+    entry:
+      Name: pct
+      Comment: 論文を集めて読み、エージェントと議論する
+      Categories: Science;Education;
+asar: true
