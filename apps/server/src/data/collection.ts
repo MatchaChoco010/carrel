@@ -19,8 +19,8 @@ export type IncompleteImports = () => Set<string>
 export type CollectionEvents = {
   onPaperChanged?: (slug: string) => void
   onPaperRemoved?: (slug: string) => void
-  onChatChanged?: (path: string) => void
-  onChatRemoved?: (path: string) => void
+  onChatChanged?: (chat: { id: string; path: string }) => void
+  onChatRemoved?: (chat: { id: string; path: string }) => void
 }
 
 export class Collection {
@@ -80,8 +80,9 @@ export class Collection {
       if (await this.#indexChat(file, known)) result.chatsIndexed += 1
     }
     for (const path of knownChats.keys()) {
+      const id = this.#index.chatIdByPath(path)
       this.#index.deleteChatByPath(path)
-      this.#events.onChatRemoved?.(path)
+      if (id !== null) this.#events.onChatRemoved?.({ id, path })
       result.chatsRemoved += 1
     }
 
@@ -122,15 +123,16 @@ export class Collection {
     if (chat === null) {
       const path = relative(this.#dataDir, absolutePath)
       if (knownMtimeMs !== undefined) {
+        const id = this.#index.chatIdByPath(path)
         this.#index.deleteChatByPath(path)
-        this.#events.onChatRemoved?.(path)
+        if (id !== null) this.#events.onChatRemoved?.({ id, path })
       }
       return false
     }
     if (knownMtimeMs !== undefined && chat.mtimeMs === knownMtimeMs) return false
 
     this.#index.upsertChat(chat)
-    this.#events.onChatChanged?.(chat.path)
+    this.#events.onChatChanged?.({ id: chat.meta.id, path: chat.path })
     return true
   }
 

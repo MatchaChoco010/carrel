@@ -9,7 +9,7 @@ export type SessionDeps = {
   dataDir: string
   codex: CodexClient
   /** 会話のファイルを作る。最初の発言のときに呼ぶ。 */
-  createChat: (options: { model: string | null; effort: string | null }) => Promise<{ absolutePath: string }>
+  createChat: (options: { model: string | null; effort: string | null }) => Promise<{ absolutePath: string; id: string }>
   /** その slug の論文をコレクションが持っているか。 */
   knownSlug: (slug: string) => boolean
   /**
@@ -25,10 +25,10 @@ export type SessionDeps = {
 }
 
 export type ChatTurnEvent =
-  | { type: 'chat.turn.started'; path: string }
-  | { type: 'chat.turn.delta'; path: string; delta: string }
-  | { type: 'chat.turn.completed'; path: string; message: ChatMessage }
-  | { type: 'chat.turn.failed'; path: string; message: string }
+  | { type: 'chat.turn.started'; id: string }
+  | { type: 'chat.turn.delta'; id: string; delta: string }
+  | { type: 'chat.turn.completed'; id: string; message: ChatMessage }
+  | { type: 'chat.turn.failed'; id: string; message: string }
 
 type Running = {
   /** ターン中に届いた入力。捨てずに溜め、そのターンの完了後にまとめて流す。 */
@@ -100,20 +100,18 @@ export class ChatSessions {
     path: string | null,
     text: string,
     options: { model?: string; effort?: string } = {},
-  ): Promise<{ path: string }> {
-    const absolutePath =
-      path ??
-      (
-        await this.#deps.createChat({
-          model: options.model ?? null,
-          effort: options.effort ?? null,
-        })
-      ).absolutePath
+  ): Promise<{ path: string; id: string }> {
+    const created =
+      path === null
+        ? await this.#deps.createChat({ model: options.model ?? null, effort: options.effort ?? null })
+        : null
+    const absolutePath = created?.absolutePath ?? (path as string)
+    const id = created?.id ?? (await readChat(this.#deps.dataDir, absolutePath))?.meta.id ?? absolutePath
 
     const running = this.#running.get(absolutePath)
     if (running !== undefined) {
       running.queued.push(text)
-      return { path: absolutePath }
+      return { path: absolutePath, id }
     }
 
     this.#running.set(absolutePath, { queued: [] })
@@ -124,7 +122,7 @@ export class ChatSessions {
       })
       .finally(() => this.#running.delete(absolutePath))
 
-    return { path: absolutePath }
+    return { path: absolutePath, id }
   }
 
   /** 溜まった入力が無くなるまでターンを続ける。 */
@@ -150,13 +148,13 @@ export class ChatSessions {
     // 間にファイルを読んだ画面から発言が消える。
     const asked: ChatMessage = { role: 'user', at: nowIsoDateTime(), text }
     const withAsked = await this.#append(absolutePath, chat, [asked], threadId, model, effort)
-    this.#deps.onEvent({ type: 'chat.turn.started', path: chat.path })
+    this.#deps.onEvent({ type: 'chat.turn.started', id: chat.meta.id })
 
     try {
       const outcome = await runTurn(
         this.#deps.codex,
         { threadId, input: textInput(expandMentions(text, this.#deps.dataDir, this.#deps.knownSlug)), effort },
-        { onDelta: (delta) => this.#deps.onEvent({ type: 'chat.turn.delta', path: chat.path, delta }) },
+        { onDelta: (delta) => this.#deps.onEvent({ type: 'chat.turn.delta', id: chat.meta.id, delta }) },
       )
 
       // 応答が無いまま終わったターンは失敗として扱う。空の発言を残すと、記録の上で
@@ -169,10 +167,10 @@ export class ChatSessions {
       // 完了した turn だけが分岐点になれる(0012)。
       if (outcome.turnId !== null) answered.turnId = outcome.turnId
       const saved = await this.#append(absolutePath, withAsked, [answered], threadId, model, effort)
-      this.#deps.onEvent({ type: 'chat.turn.completed', path: saved.path, message: answered })
+      this.#deps.onEvent({ type: 'chat.turn.completed', id: saved.meta.id, message: answered })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      this.#deps.onEvent({ type: 'chat.turn.failed', path: chat.path, message })
+      this.#deps.onEvent({ type: 'chat.turn.failed', id: chat.meta.id, message })
       throw error
     }
   }

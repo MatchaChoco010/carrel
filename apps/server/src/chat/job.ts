@@ -19,9 +19,18 @@ export function enqueueChatDigest(queue: JobQueue, path: string): Job {
   return queue.enqueue({ kind: CHAT_DIGEST_JOB, target: path, resource: 'codex', priority: 'background' })
 }
 
-export function registerChatDigest(queue: JobQueue, deps: ChatDigestDeps & { onDone: (path: string) => void }): void {
+export function registerChatDigest(
+  queue: JobQueue,
+  deps: ChatDigestDeps & {
+    /** 会話の識別子から絶対パスを引く。名前が変わっても追える(0002)。 */
+    chatFile: (id: string) => string | null
+    onDone: (id: string) => void
+  },
+): void {
   queue.register(CHAT_DIGEST_JOB, async (job) => {
-    const digest = await digestChat(join(deps.dataDir, job.target), deps)
+    const file = deps.chatFile(job.target)
+    if (file === null) return
+    const digest = await digestChat(file, deps)
     if (digest !== null) deps.onDone(job.target)
   })
 }

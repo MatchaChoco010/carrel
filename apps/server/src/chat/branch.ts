@@ -21,8 +21,8 @@ export type BranchDeps = {
 }
 
 export type Branch = {
-  /** 新しい会話の `$PCT_DATA` からの相対パス。 */
-  path: string
+  /** 新しい会話の識別子。 */
+  id: string
   /** 中間状態を引き継いだかどうか。 */
   forked: boolean
 }
@@ -96,7 +96,7 @@ export async function branchChat(absolutePath: string, selected: number, deps: B
   }
   await writeChat(deps.dataDir, next)
   await deps.reindex(join(deps.dataDir, path))
-  return { path, forked: canFork }
+  return { id: next.meta.id, forked: canFork }
 }
 
 async function forkThread(codex: CodexClient, threadId: string, lastTurn: string): Promise<string> {
