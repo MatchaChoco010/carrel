@@ -32,6 +32,16 @@ function converterDir(): string {
   return join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'converter')
 }
 
+/**
+ * 変換器の venv の python。
+ *
+ * 動かしているコードと同じ clone の venv を既定にする。clone が複数あるときに、
+ * どちらのコードを動かしても自分の隣を指す。
+ */
+export function converterPython(): string {
+  return join(converterDir(), '.venv', 'bin', 'python')
+}
+
 /** 変換スクリプト。リポジトリの中の位置は動かないので、実行ファイルから辿る。 */
 export function converterScript(): string {
   return join(converterDir(), 'pct_convert.py')

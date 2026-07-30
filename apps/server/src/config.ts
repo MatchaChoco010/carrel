@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { configDir, configFile } from './paths.ts'
+import { configDir, configFile, converterPython } from './paths.ts'
 
 export type Config = {
   dataDir: string
@@ -73,7 +73,7 @@ export const defaultConfig: Config = {
     dimensions: 1024,
   },
   converter: {
-    python: join(homedir(), 'ghq/github.com/MatchaChoco010/paper-collection-tool/apps/converter/.venv/bin/python'),
+    python: converterPython(),
     llamaServer: 'llama-server',
     llamaLibDir: '',
     pageScale: 2,
