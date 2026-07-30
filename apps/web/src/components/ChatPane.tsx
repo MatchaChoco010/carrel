@@ -1,5 +1,5 @@
 import { ArchiveRestore, GitBranch, Loader2, RotateCcw, Send } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { api, type ChatMessage, type ChatState, type CodexModel, type RateLimitView } from '../api.ts'
 import { Markdown } from './Markdown.tsx'
 import { SlugSuggest } from './SlugSuggest.tsx'
@@ -18,6 +18,22 @@ export type ChatPaneProps = {
 
 const ICON = 15
 
+/**
+ * 一度に描く発言の数。
+ *
+ * 会話が伸びると markdown の解析と数式のレイアウトが開くまでの時間を押し上げ、
+ * DOM の要素数も比例して増える。
+ */
+const BATCH = 20
+
+/** 描いていない範囲の下端がここまで近づいたら、古い発言を足す。 */
+const NEAR_TOP = 400
+
+/** 描いていない発言の高さの見積もり。 */
+function estimateHeight(text: string): number {
+  return 24 + Math.ceil(text.length / 90) * 22
+}
+
 type Turn = { path: string; delta: string }
 
 export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPaneProps) {
@@ -33,11 +49,16 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
   const [model, setModel] = useState<string>('')
   const [effort, setEffort] = useState<string>('')
   const [turn, setTurn] = useState<Turn | null>(null)
+  // 末尾から数えて描く発言の外にある、古い発言の数。
+  const [hidden, setHidden] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const input = useRef<HTMLTextAreaElement>(null)
   const log = useRef<HTMLDivElement>(null)
   // 末尾へ送り終えた会話。開き直したときにもう一度送るための目印。
   const scrolledFor = useRef<string | null>(null)
+  // 古い発言を足す直前の高さ。足した後に見ている場所を保つのに使う。
+  const heightBeforeGrow = useRef<number | null>(null)
+  const earlier = useRef<HTMLDivElement>(null)
 
   const blocked = limits?.reached === true
 
@@ -88,6 +109,25 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
     if (nearBottom) node.scrollTop = node.scrollHeight
   }, [messages, turn, shown])
 
+  const grow = useCallback(() => {
+    const node = log.current
+    if (node === null) return
+    setHidden((previous) => {
+      if (previous === 0) return previous
+      heightBeforeGrow.current = node.scrollHeight
+      return Math.max(0, previous - BATCH)
+    })
+  }, [])
+
+  // 足した発言のぶんだけ上へ伸びるので、その差を足して見ている場所を保つ。
+  useLayoutEffect(() => {
+    const node = log.current
+    const before = heightBeforeGrow.current
+    if (node === null || before === null) return
+    heightBeforeGrow.current = null
+    node.scrollTop += node.scrollHeight - before
+  }, [hidden])
+
   const efforts = useMemo(() => models.find((m) => m.id === model)?.efforts ?? [], [models, model])
 
   const load = useCallback((target: string) => {
@@ -95,6 +135,7 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
       .chat(target)
       .then((r) => {
         setMessages(r.messages)
+        setHidden(Math.max(0, r.messages.length - BATCH))
         setShown(r.path)
         setState(r.state)
         setArchived(r.meta.archived)
@@ -107,6 +148,7 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
     // 新しい会話に切り替えたら、開いていた会話の表示を片付ける。
     if (path === null) {
       setMessages([])
+      setHidden(0)
       setShown(null)
       setState('new')
       setTurn(null)
@@ -191,11 +233,33 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
 
   return (
     <div className="chat">
-      <div className="chat__log" ref={log}>
+      <div
+        className="chat__log"
+        ref={log}
+        onScroll={() => {
+          // 上端で判じると、見積もりの高さぶんの空白を通り抜けるまで足されない。
+          const edge = earlier.current?.getBoundingClientRect().bottom
+          const top = log.current?.getBoundingClientRect().top
+          if (hidden > 0 && edge !== undefined && top !== undefined && edge > top - NEAR_TOP) grow()
+        }}
+      >
         {path === null && messages.length === 0 && (
           <p className="pane__empty">論文について議論します。@ で論文を指して尋ねると、その論文を読んで答えます。</p>
         )}
-        {messages.map((message, index) => (
+        {hidden > 0 && (
+          <div
+            className="chat__earlier"
+            ref={earlier}
+            style={{ height: `${messages.slice(0, hidden).reduce((sum, m) => sum + estimateHeight(m.text), 0)}px` }}
+          >
+            <button type="button" onClick={grow}>
+              前の {Math.min(BATCH, hidden)} 件を読み込む(残り {hidden} 件)
+            </button>
+          </div>
+        )}
+        {messages.slice(hidden).map((message, offset) => {
+          const index = hidden + offset
+          return (
           <article key={`${message.at}-${index}`} className={`turn turn--${message.role}`}>
             <Markdown text={message.text} />
             {/* 最初の turn より後の発言から分岐できる(0012)。 */}
@@ -210,7 +274,8 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
               </button>
             )}
           </article>
-        ))}
+          )
+        })}
         {turn !== null && (
           <article className="turn turn--assistant turn--running">
             {turn.delta.length === 0 ? (
