@@ -124,8 +124,6 @@ export async function verifyPaper(slug: string, deps: VerifyDeps): Promise<void>
   const parts = done.map((d) => d.markdown.trim()).filter((text) => text.length > 0)
   const reports: PageReport[] = done.map((d) => d.report)
 
-  // ページを繋いだ後に、段とページの境目で割れた段落を繋ぐ。照合はページ単位で
-  // 走るので、ページを跨ぐ文はどのページからも見えない。
   const joined = joinSplitParagraphs(parts.join('\n\n'))
 
   // frontmatter が正なので(0002)、本文だけを差し替えて書き戻す。
