@@ -219,6 +219,8 @@ export const api = {
       `/api/chats/one?path=${encodeURIComponent(path)}`,
     ),
   reloadChat: (path: string) => sendJson<{ codexThreadId: string }>('POST', '/api/chats/reload', { path }),
+  branchChat: (path: string, index: number) =>
+    sendJson<{ path: string; forked: boolean }>('POST', '/api/chats/branch', { path, index }),
   renameChat: (path: string, title: string) => sendJson<{ title: string }>('PUT', '/api/chats/title', { path, title }),
   setChatArchived: (path: string, archived: boolean) =>
     sendJson<{ archived: boolean }>('PUT', '/api/chats/archived', { path, archived }),

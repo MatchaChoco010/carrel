@@ -1139,6 +1139,31 @@ body {
   border-radius: 8px;
   padding: 10px 12px;
   font-size: 13px;
+  position: relative;
+}
+
+/* 読んでいる間は出さない。目に入るのは、その発言に触れたときでよい。 */
+.turn__branch {
+  position: absolute;
+  right: 8px;
+  bottom: 4px;
+  opacity: 0;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.turn:hover .turn__branch,
+.turn__branch:focus-visible {
+  opacity: 1;
 }
 
 /* 発言の向きは背景で分ける。左右に振ると本文の幅が狭くなる。 */

@@ -32,6 +32,7 @@ import {
   registerChatIndex,
 } from './chat/job.ts'
 import { ChatSessions } from './chat/session.ts'
+import { branchChat } from './chat/branch.ts'
 import { reloadChat } from './chat/reload.ts'
 import { deleteChat, setArchived } from './chat/lifecycle.ts'
 import { listModels } from './codex/models.ts'
@@ -223,6 +224,16 @@ async function main(): Promise<void> {
         reindex: (target) => collection.reloadChat(target),
       })
     },
+    branchChat: (absolutePath, selected) =>
+      branchChat(absolutePath, selected, {
+        dataDir: config.dataDir,
+        codex: codex.client,
+        knownSlug: (slug) => index.getPaper(slug) !== null,
+        isResumable: async (threadId) => (await chats.stateOfThread(threadId)) === 'resumable',
+        markResumed: (threadId) => chats.markResumed(threadId),
+        defaults: () => ({ model: config.chat.defaultModel, effort: config.chat.defaultEffort }),
+        reindex: (target) => collection.reloadChat(target),
+      }),
     reloadChat: async (absolutePath) => {
       const threadId = await reloadChat(absolutePath, {
         dataDir: config.dataDir,
