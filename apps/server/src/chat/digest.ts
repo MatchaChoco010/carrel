@@ -1,7 +1,8 @@
+import { join } from 'node:path'
 import type { CodexClient } from '../codex/client.ts'
 import { textInput } from '../codex/protocol.ts'
 import { runTurn, startWorkThread } from '../codex/threads.ts'
-import { readChat, writeChat, type Chat, type ChatMessage } from '../data/chat.ts'
+import { readChat, renameChatToTitle, writeChat, type Chat, type ChatMessage } from '../data/chat.ts'
 import { nowIsoDateTime } from '../data/datetime.ts'
 
 const INSTRUCTIONS = `あなたは論文についての議論の記録に、一覧で見分けるためのタイトルと要約を付ける。
@@ -144,16 +145,17 @@ export async function digestChat(absolutePath: string, deps: ChatDigestDeps): Pr
   // 生成の間に届いた発言を落とさないよう、書き込みの直前に読み直す。
   const latest = (await readChat(deps.dataDir, absolutePath)) ?? chat
   const title = latest.meta.titleSource === 'user' ? latest.meta.title : digest.title ?? latest.meta.title
-  await writeChat(deps.dataDir, {
-    path: latest.path,
-    messages: latest.messages,
+  const next: Chat = {
+    ...latest,
     meta: {
       ...latest.meta,
       updated: nowIsoDateTime(),
       title,
       summary: digest.summary ?? latest.meta.summary,
     },
-  })
-  await deps.reindex(absolutePath)
+  }
+  await writeChat(deps.dataDir, next)
+  const path = await renameChatToTitle(deps.dataDir, next)
+  await deps.reindex(join(deps.dataDir, path))
   return digest
 }

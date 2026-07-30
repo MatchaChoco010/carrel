@@ -8,7 +8,7 @@ import type { IndexDb } from './db/index-db.ts'
 import { extractArxivId } from './ingest/arxiv.ts'
 import { ChatSessions } from './chat/session.ts'
 import type { CodexModel } from './codex/models.ts'
-import { readChat, writeChat } from './data/chat.ts'
+import { readChat, renameChatToTitle, writeChat, type Chat } from './data/chat.ts'
 import { FeedStore } from './feed/store.ts'
 import { discardIngest, ingestFromUrl } from './ingest/pipeline.ts'
 import type { IngestStore } from './ingest/store.ts'
@@ -273,12 +273,13 @@ export function createApp(deps: AppDeps): Hono {
     const chat = await readChat(dataDir, file)
     if (chat === null) return c.json({ error: `会話が読めない: ${String(body.id)}` }, 404)
     // ユーザーが付けた名前は AI に上書きさせない(0002)。
-    await writeChat(dataDir, {
-      path: chat.path,
-      messages: chat.messages,
+    const renamed: Chat = {
+      ...chat,
       meta: { ...chat.meta, title: body.title.trim(), titleSource: 'user' },
-    })
-    await deps.reindexChat(file)
+    }
+    await writeChat(dataDir, renamed)
+    const path = await renameChatToTitle(dataDir, renamed)
+    await deps.reindexChat(join(dataDir, path))
     return c.json({ title: body.title.trim() })
   })
 

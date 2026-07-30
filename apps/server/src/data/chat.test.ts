@@ -1,6 +1,20 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { parseMessages, serializeMessages, withoutTurnIds, type ChatMessage } from './chat.ts'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import {
+  freeChatPath,
+  newChatId,
+  parseMessages,
+  readChat,
+  renameChatToTitle,
+  serializeMessages,
+  withoutTurnIds,
+  writeChat,
+  type Chat,
+  type ChatMessage,
+} from './chat.ts'
 import { toIsoDateTime } from './datetime.ts'
 
 const AT = toIsoDateTime(new Date('2026-07-30T08:24:40+09:00'))
@@ -64,4 +78,114 @@ test('識別子だけを落とし、本文と時刻は変えない', () => {
     { role: 'user', at: AT, text: '質問' },
     { role: 'assistant', at: AT, text: '応答' },
   ])
+})
+
+test('ファイル名をタイトルに合わせて付け直す', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'pct-rename-'))
+  try {
+    const created = '2026-07-30T09:00:00+09:00' as ChatMessage['at']
+    const chat: Chat = {
+      path: 'chats/2026/07/30/09-00-00-無題の会話.md',
+      mtimeMs: 1,
+      messages: [{ role: 'user', at: created, text: 'あ' }],
+      meta: {
+        id: 'chats/2026/07/30/09-00-00-無題の会話.md',
+        created,
+        updated: created,
+        title: '位置エンコーディングの役割',
+        titleSource: 'user',
+        summary: '',
+        archived: false,
+        codexThreadId: null,
+        model: null,
+        effort: null,
+        papers: [],
+        forkedFrom: null,
+      },
+    }
+    await mkdir(join(dir, 'chats/2026/07/30'), { recursive: true })
+    await writeChat(dir, chat)
+
+    const path = await renameChatToTitle(dir, chat)
+
+    assert.equal(path, 'chats/2026/07/30/09-00-00-位置エンコーディングの役割.md')
+    const moved = await readChat(dir, join(dir, path))
+    assert.equal(moved?.meta.title, '位置エンコーディングの役割')
+    assert.equal(moved?.meta.id, chat.meta.id, '識別子は動かさない')
+    await assert.rejects(() => readFile(join(dir, chat.path), 'utf8'))
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('題が同じなら動かさない', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'pct-rename-'))
+  try {
+    const created = '2026-07-30T09:00:00+09:00' as ChatMessage['at']
+    const path = 'chats/2026/07/30/09-00-00-そのままの題.md'
+    const chat: Chat = {
+      path,
+      mtimeMs: 1,
+      messages: [],
+      meta: {
+        id: path,
+        created,
+        updated: created,
+        title: 'そのままの題',
+        titleSource: 'user',
+        summary: '',
+        archived: false,
+        codexThreadId: null,
+        model: null,
+        effort: null,
+        papers: [],
+        forkedFrom: null,
+      },
+    }
+    await mkdir(join(dir, 'chats/2026/07/30'), { recursive: true })
+    await writeChat(dir, chat)
+
+    assert.equal(await renameChatToTitle(dir, chat), path)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('同じ秒に同じ題の会話があれば連番を付ける', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'pct-rename-'))
+  try {
+    const at = new Date('2026-07-30T09:00:00+09:00')
+    await mkdir(join(dir, 'chats/2026/07/30'), { recursive: true })
+    await writeFile(join(dir, 'chats/2026/07/30/09-00-00-同じ題.md'), 'x', 'utf8')
+
+    assert.equal(await freeChatPath(dir, at, '同じ題'), 'chats/2026/07/30/09-00-00-同じ題-2.md')
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('自分の置き場所は衝突として数えない', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'pct-rename-'))
+  try {
+    const at = new Date('2026-07-30T09:00:00+09:00')
+    const path = 'chats/2026/07/30/09-00-00-同じ題.md'
+    await mkdir(join(dir, 'chats/2026/07/30'), { recursive: true })
+    await writeFile(join(dir, path), 'x', 'utf8')
+
+    assert.equal(await freeChatPath(dir, at, '同じ題', path), path)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('識別子は置き場所とタイトルを写さない', () => {
+  const id = newChatId(new Date('2026-07-30T19:08:51+09:00'))
+
+  assert.match(id, /^20260730T190851-[0-9a-f]{6}$/)
+})
+
+test('同じ時刻でも識別子は重ならない', () => {
+  const at = new Date('2026-07-30T19:08:51+09:00')
+
+  assert.notEqual(newChatId(at), newChatId(at))
 })

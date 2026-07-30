@@ -1,9 +1,16 @@
-import { access } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { CodexClient } from '../codex/client.ts'
 import { METHODS, textInput } from '../codex/protocol.ts'
 import { runTurn, startConversationThread } from '../codex/threads.ts'
-import { chatPathFor, readChat, withoutTurnIds, writeChat, type Chat, type ChatMessage } from '../data/chat.ts'
+import {
+  freeChatPath,
+  newChatId,
+  readChat,
+  withoutTurnIds,
+  writeChat,
+  type Chat,
+  type ChatMessage,
+} from '../data/chat.ts'
 import { nowIsoDateTime, toIsoDateTime } from '../data/datetime.ts'
 import { buildReloadInput } from './reload.ts'
 
@@ -75,14 +82,14 @@ export async function branchChat(absolutePath: string, selected: number, deps: B
   deps.markResumed(threadId)
 
   const now = new Date()
-  const path = await freePath(deps.dataDir, now, source.meta.title)
+  const path = await freeChatPath(deps.dataDir, now, source.meta.title)
   const next: Omit<Chat, 'mtimeMs'> = {
     path,
     // 立て直した経路では、写した発言の turn が新しいスレッドに無い(0012)。
     messages: canFork ? messages : withoutTurnIds(messages),
     meta: {
       ...source.meta,
-      id: path,
+      id: newChatId(now),
       created: toIsoDateTime(now),
       updated: nowIsoDateTime(),
       archived: false,
@@ -123,25 +130,3 @@ async function primeThread(
   return threadId
 }
 
-/**
- * まだ使われていない置き場所を返す。
- *
- * 名前は秒までしか持たないので、同じ会話から続けて分岐すると衝突する。
- * そのまま書くと前の分岐を消してしまう。
- */
-async function freePath(dataDir: string, now: Date, title: string): Promise<string> {
-  for (let at = 1; at <= 100; at += 1) {
-    const path = chatPathFor(dataDir, now, at === 1 ? title : `${title}-${at}`)
-    if (!(await exists(join(dataDir, path)))) return path
-  }
-  throw new Error('分岐の置き場所が決まらない')
-}
-
-async function exists(path: string): Promise<boolean> {
-  try {
-    await access(path)
-    return true
-  } catch {
-    return false
-  }
-}

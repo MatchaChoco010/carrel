@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
 import { EPOCH_ISO_DATE_TIME, parseIsoDateTime, type IsoDateTime } from './datetime.ts'
@@ -183,10 +184,66 @@ export async function writeChat(dataDir: string, chat: Omit<Chat, 'mtimeMs'>): P
   return absolutePath
 }
 
+/**
+ * 会話の識別子を作る。
+ *
+ * 置き場所とタイトルから作らない。どちらも後から変わるので、参照に使う値が
+ * それらを写していると、変わった後の値と食い違って読み手を惑わせる(0002)。
+ * 作成の時刻を含めるのは、記録を追うときに `created` と突き合わせられるようにするため。
+ */
+export function newChatId(createdAt: Date): string {
+  const pad = (value: number, width = 2): string => String(value).padStart(width, '0')
+  const stamp =
+    `${pad(createdAt.getFullYear(), 4)}${pad(createdAt.getMonth() + 1)}${pad(createdAt.getDate())}` +
+    `T${pad(createdAt.getHours())}${pad(createdAt.getMinutes())}${pad(createdAt.getSeconds())}`
+  return `${stamp}-${randomUUID().slice(0, 6)}`
+}
+
 /** 作成時刻とタイトルから、そのチャットを置くべき相対パスを決める。 */
 export function chatPathFor(dataDir: string, createdAt: Date, title: string): string {
   const dir = chatDayDir(dataDir, createdAt)
   return relative(dataDir, join(dir, chatFileName(createdAt, title)))
+}
+
+/**
+ * まだ使われていない置き場所を返す。
+ *
+ * 名前は秒までしか持たないので、同じ秒に同じ題の会話ができると衝突する。
+ * そのまま書くと先にあった会話を消してしまう。
+ */
+export async function freeChatPath(
+  dataDir: string,
+  createdAt: Date,
+  title: string,
+  keep?: string,
+): Promise<string> {
+  for (let at = 1; at <= 100; at += 1) {
+    const path = chatPathFor(dataDir, createdAt, at === 1 ? title : `${title}-${at}`)
+    if (path === keep || !(await exists(join(dataDir, path)))) return path
+  }
+  throw new Error('会話の置き場所が決まらない')
+}
+
+/** ファイル名をいまのタイトルに合わせる(0002)。動かしたら新しい相対パスを返す。 */
+export async function renameChatToTitle(dataDir: string, chat: Chat): Promise<string> {
+  const createdAt = new Date(chat.meta.created)
+  if (Number.isNaN(createdAt.getTime())) return chat.path
+
+  const wanted = await freeChatPath(dataDir, createdAt, chat.meta.title, chat.path)
+  if (wanted === chat.path) return chat.path
+
+  await mkdir(dirname(join(dataDir, wanted)), { recursive: true })
+  await rename(join(dataDir, chat.path), join(dataDir, wanted))
+  return wanted
+}
+
+async function exists(path: string): Promise<boolean> {
+  try {
+    await stat(path)
+    return true
+  } catch {
+    return false
+  }
 }
 
 export async function listChatFiles(dataDir: string): Promise<string[]> {
