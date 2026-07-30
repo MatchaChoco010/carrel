@@ -8,7 +8,7 @@ import type { IndexDb } from './db/index-db.ts'
 import { extractArxivId } from './ingest/arxiv.ts'
 import { ChatSessions } from './chat/session.ts'
 import type { CodexModel } from './codex/models.ts'
-import { readChat } from './data/chat.ts'
+import { readChat, writeChat } from './data/chat.ts'
 import { FeedStore } from './feed/store.ts'
 import { discardIngest, ingestFromUrl } from './ingest/pipeline.ts'
 import type { IngestStore } from './ingest/store.ts'
@@ -39,6 +39,8 @@ export type AppDeps = {
   createChat: (options: { model: string | null; effort: string | null; papers?: string[] }) => Promise<{ path: string }>
   /** 選べるモデルの一覧。 */
   models: () => Promise<CodexModel[]>
+  /** 会話を新しいスレッドへ載せ直す。 */
+  reloadChat: (absolutePath: string) => Promise<string>
   /** フィードの取得を今すぐ積む。 */
   refreshFeed: () => void
   /** ビルド済みの Web クライアントの場所。無ければ配信しない。 */
@@ -184,6 +186,44 @@ export function createApp(deps: AppDeps): Hono {
     return c.json(created)
   })
 
+  app.get('/api/chats', async (c) => {
+    const rows = deps.index.listChats()
+    // 続きを話せるかは Codex 側の状態なので、一覧の行にも出す(0006)。
+    const states = await Promise.all(rows.map((row) => deps.chats.stateOfThread(row.codex_thread_id)))
+    return c.json({
+      chats: rows.map((row, index) => ({ ...row, archived: row.archived !== 0, state: states[index] })),
+    })
+  })
+
+  app.post('/api/chats/reload', async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as { path?: unknown }
+    if (typeof body.path !== 'string') return c.json({ error: 'path を指定すること' }, 400)
+    const dataDir = deps.getConfig().dataDir
+    try {
+      const threadId = await deps.reloadChat(join(dataDir, body.path))
+      return c.json({ codexThreadId: threadId })
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 502)
+    }
+  })
+
+  app.put('/api/chats/title', async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as { path?: unknown; title?: unknown }
+    if (typeof body.path !== 'string' || typeof body.title !== 'string' || body.title.trim().length === 0) {
+      return c.json({ error: 'path と title を指定すること' }, 400)
+    }
+    const dataDir = deps.getConfig().dataDir
+    const chat = await readChat(dataDir, join(dataDir, body.path))
+    if (chat === null) return c.json({ error: `会話が見つからない: ${body.path}` }, 404)
+    // ユーザーが付けた名前は AI に上書きさせない(0002)。
+    await writeChat(dataDir, {
+      path: chat.path,
+      messages: chat.messages,
+      meta: { ...chat.meta, title: body.title.trim(), titleSource: 'user' },
+    })
+    return c.json({ title: body.title.trim() })
+  })
+
   // 会話の場所は `chats/YYYY/MM/DD/...` の相対パスなので、経路ではなく問い合わせで受ける。
   app.get('/api/chats/one', async (c) => {
     const path = c.req.query('path')
@@ -191,7 +231,13 @@ export function createApp(deps: AppDeps): Hono {
     const dataDir = deps.getConfig().dataDir
     const chat = await readChat(dataDir, join(dataDir, path))
     if (chat === null) return c.json({ error: `会話が見つからない: ${path}` }, 404)
-    return c.json({ meta: chat.meta, messages: chat.messages, path: chat.path, running: deps.chats.isRunning(chat.path) })
+    return c.json({
+      meta: chat.meta,
+      messages: chat.messages,
+      path: chat.path,
+      running: deps.chats.isRunning(chat.path),
+      state: await deps.chats.state(chat),
+    })
   })
 
   app.post('/api/chats/messages', async (c) => {

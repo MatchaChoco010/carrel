@@ -1,10 +1,13 @@
-import { Loader2, Plus, Send } from 'lucide-react'
+import { Loader2, Plus, RotateCcw, Send } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { api, type ChatMessage, type CodexModel, type RateLimitView } from '../api.ts'
+import { api, type ChatMessage, type ChatState, type CodexModel, type RateLimitView } from '../api.ts'
 import { Markdown } from './Markdown.tsx'
 import { SlugSuggest } from './SlugSuggest.tsx'
 
 export type ChatPaneProps = {
+  /** 一覧で選ばれた会話。null なら新しく始める案内を出す。 */
+  path: string | null
+  onOpen: (path: string | null) => void
   /** 制限に達していると送れない。回復時刻を出す(0003)。 */
   limits: RateLimitView | null
   /** 補完に使う slug の一覧。 */
@@ -17,9 +20,10 @@ const ICON = 15
 
 type Turn = { path: string; delta: string }
 
-export function ChatPane({ limits, slugs, subscribe }: ChatPaneProps) {
-  const [path, setPath] = useState<string | null>(null)
+export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPaneProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [state, setState] = useState<ChatState>('new')
+  const [reloading, setReloading] = useState(false)
   const [draft, setDraft] = useState('')
   const [models, setModels] = useState<CodexModel[]>([])
   const [model, setModel] = useState<string>('')
@@ -56,10 +60,15 @@ export function ChatPane({ limits, slugs, subscribe }: ChatPaneProps) {
       .chat(target)
       .then((r) => {
         setMessages(r.messages)
+        setState(r.state)
         setError(null)
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
   }, [])
+
+  useEffect(() => {
+    if (path !== null) load(path)
+  }, [path, load])
 
   useEffect(
     () =>
@@ -93,16 +102,30 @@ export function ChatPane({ limits, slugs, subscribe }: ChatPaneProps) {
     void api
       .createChat({ model, effort })
       .then((r) => {
-        setPath(r.path)
+        onOpen(r.path)
         setMessages([])
+        setState('new')
         setError(null)
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
   }
 
+  const reload = (): void => {
+    if (path === null) return
+    setReloading(true)
+    void api
+      .reloadChat(path)
+      .then(() => {
+        setState('resumable')
+        setError(null)
+      })
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setReloading(false))
+  }
+
   const send = (): void => {
     const text = draft.trim()
-    if (text.length === 0 || path === null || blocked) return
+    if (text.length === 0 || path === null || blocked || state === 'needsReload') return
     setDraft('')
     // 送った発言はターンの完了で読み直すまで手元で見せる。
     setMessages((previous) => [...previous, { role: 'user', at: new Date().toISOString(), text }])
@@ -145,6 +168,16 @@ export function ChatPane({ limits, slugs, subscribe }: ChatPaneProps) {
 
       {error !== null && <p className="error">{error}</p>}
 
+      {state === 'needsReload' && (
+        <div className="chat__reload">
+          <p>この会話の実行状態は残っていません。続けるには内容を読み込み直してください。</p>
+          <button type="button" onClick={reload} disabled={reloading}>
+            {reloading ? <Loader2 size={ICON} className="spin" aria-hidden /> : <RotateCcw size={ICON} aria-hidden />}
+            読み込み直す
+          </button>
+        </div>
+      )}
+
       <div className="chat__compose">
         {blocked && (
           <p className="status-item status-item--warn">
@@ -158,7 +191,11 @@ export function ChatPane({ limits, slugs, subscribe }: ChatPaneProps) {
         {/* 送るボタンを入力欄の次に置く。Escape のあと Tab を 1 回で届くようにする。
             見た目の並びは CSS の order で戻す。 */}
         <div className="chat__controls">
-          <button type="button" onClick={send} disabled={draft.trim().length === 0 || blocked}>
+          <button
+            type="button"
+            onClick={send}
+            disabled={draft.trim().length === 0 || blocked || state === 'needsReload'}
+          >
             <Send size={ICON} aria-hidden /> 送る
           </button>
           <select value={model} onChange={(e) => setModel(e.target.value)} aria-label="モデル">

@@ -1,6 +1,6 @@
 import type { CodexClient } from '../codex/client.ts'
 import { textInput } from '../codex/protocol.ts'
-import { runTurn, startConversationThread } from '../codex/threads.ts'
+import { resumeThread, runTurn, startConversationThread } from '../codex/threads.ts'
 import { nowIsoDateTime } from '../data/datetime.ts'
 import { readChat, writeChat, type Chat, type ChatMessage } from '../data/chat.ts'
 import { expandMentions, findMentions } from './mentions.ts'
@@ -26,9 +26,20 @@ type Running = {
 }
 
 /** 会話 1 つぶんの実行を受け持つ。ターンが完了するたびに markdown へ追記する。 */
+/** 会話が続きを話せるかどうか。 */
+export type ChatState = 'new' | 'resumable' | 'needsReload'
+
 export class ChatSessions {
   readonly #deps: SessionDeps
   readonly #running = new Map<string, Running>()
+  /**
+   * スレッドが Codex 側に残っているか。一度調べた結果を覚える。
+   *
+   * 調べるには resume を投げるほかなく、一覧を出すたびに会話の数だけ投げることに
+   * なるので、結果を持ち回す。失われたスレッドが後から戻ることは無いので、
+   * 否定の結果も覚えてよい。読み込み直しをしたときだけ書き換わる。
+   */
+  readonly #alive = new Map<string, boolean>()
 
   constructor(deps: SessionDeps) {
     this.#deps = deps
@@ -36,6 +47,37 @@ export class ChatSessions {
 
   isRunning(path: string): boolean {
     return this.#running.has(path)
+  }
+
+  /**
+   * その会話が続きを話せるかを調べる。
+   *
+   * スレッドを持たない会話は `new` で、最初の発言のときに立てる。持っているのに
+   * Codex 側に無いものは `needsReload` とし、読み込み直しはユーザーが実行する(0006)。
+   */
+  async state(chat: Chat): Promise<ChatState> {
+    const threadId = chat.meta.codexThreadId
+    if (threadId === null) return 'new'
+    return (await this.#isAlive(threadId)) ? 'resumable' : 'needsReload'
+  }
+
+  /** 一覧の行のために、スレッドの識別子から状態を引く。 */
+  async stateOfThread(threadId: string | null): Promise<ChatState> {
+    if (threadId === null) return 'new'
+    return (await this.#isAlive(threadId)) ? 'resumable' : 'needsReload'
+  }
+
+  /** 読み込み直しの後に、そのスレッドを使えると記録する。 */
+  markResumed(threadId: string): void {
+    this.#alive.set(threadId, true)
+  }
+
+  async #isAlive(threadId: string): Promise<boolean> {
+    const known = this.#alive.get(threadId)
+    if (known !== undefined) return known
+    const alive = await resumeThread(this.#deps.codex, threadId)
+    this.#alive.set(threadId, alive)
+    return alive
   }
 
   async send(absolutePath: string, text: string, options: { model?: string; effort?: string } = {}): Promise<void> {
@@ -97,13 +139,24 @@ export class ChatSessions {
     }
   }
 
-  /** 対応するスレッドを返す。無ければ新しく立てて frontmatter へ書き戻す。 */
+  /**
+   * 対応するスレッドを返す。無ければ新しく立てる。
+   *
+   * app-server を起動し直すとスレッドは記憶から降りるので、ターンを流す前に一度
+   * 読み込み直す。降りたままターンを始めても届かない。
+   */
   async #threadFor(chat: Chat, model: string | null): Promise<string> {
-    if (chat.meta.codexThreadId !== null) return chat.meta.codexThreadId
-    return startConversationThread(this.#deps.codex, {
+    const existing = chat.meta.codexThreadId
+    if (existing !== null) {
+      if (await this.#isAlive(existing)) return existing
+      throw new Error('この会話の実行状態は残っていない。読み込み直しが要る')
+    }
+    const created = await startConversationThread(this.#deps.codex, {
       dataDir: this.#deps.dataDir,
       model: model ?? '',
     })
+    this.#alive.set(created, true)
+    return created
   }
 
   async #append(

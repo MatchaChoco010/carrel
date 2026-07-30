@@ -69,6 +69,20 @@ export type ChatMeta = {
   effort: string | null
 }
 
+/** 会話が続きを話せるかどうか。 */
+export type ChatState = 'new' | 'resumable' | 'needsReload'
+
+export type ChatSummary = {
+  id: string
+  path: string
+  created: string
+  updated: string
+  title: string
+  summary: string
+  archived: boolean
+  state: ChatState
+}
+
 export type CodexModel = {
   id: string
   displayName: string
@@ -182,10 +196,13 @@ export const api = {
   models: () => getJson<{ models: CodexModel[] }>('/api/codex/models'),
   createChat: (options: { model: string; effort: string }) =>
     sendJson<{ path: string }>('POST', '/api/chats', options),
+  chats: () => getJson<{ chats: ChatSummary[] }>('/api/chats'),
   chat: (path: string) =>
-    getJson<{ meta: ChatMeta; messages: ChatMessage[]; path: string; running: boolean }>(
+    getJson<{ meta: ChatMeta; messages: ChatMessage[]; path: string; running: boolean; state: ChatState }>(
       `/api/chats/one?path=${encodeURIComponent(path)}`,
     ),
+  reloadChat: (path: string) => sendJson<{ codexThreadId: string }>('POST', '/api/chats/reload', { path }),
+  renameChat: (path: string, title: string) => sendJson<{ title: string }>('PUT', '/api/chats/title', { path, title }),
   sendChatMessage: (path: string, text: string, model: string, effort: string) =>
     sendJson<{ accepted: boolean }>('POST', '/api/chats/messages', { path, text, model, effort }),
   feed: () => getJson<{ items: FeedItem[]; unread: number }>('/api/feed'),
