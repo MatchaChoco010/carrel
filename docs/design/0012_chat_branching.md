@@ -1,7 +1,7 @@
 # 会話の分岐に turn の識別子を持たせる
 
 - created: 2026-07-30
-- status: ready for review
+- status: reviewing
 - implementation: not-started
 
 ## 解決したい問題
