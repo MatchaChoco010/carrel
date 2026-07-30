@@ -1,9 +1,9 @@
-import { watch, type FSWatcher } from 'node:fs'
-import { mkdir } from 'node:fs/promises'
+import { watch, type Dirent, type FSWatcher } from 'node:fs'
+import { mkdir, readdir } from 'node:fs/promises'
 import { join, relative, sep } from 'node:path'
 import type { IndexDb } from '../db/index-db.ts'
 import { listChatFiles, readChat } from './chat.ts'
-import { CHATS_DIR, chatsDir, PAPERS_DIR, papersDir } from './layout.ts'
+import { chatsDir, papersDir } from './layout.ts'
 import { deletePaperDir, listPaperSlugs, readPaper } from './paper.ts'
 
 export type ScanResult = {
@@ -28,7 +28,8 @@ export class Collection {
   readonly #index: IndexDb
   readonly #events: CollectionEvents
   readonly #incomplete: IncompleteImports
-  #watchers: FSWatcher[] = []
+  #watchers = new Map<string, FSWatcher>()
+  #debounceMs = 250
   #pending = new Map<string, NodeJS.Timeout>()
 
   constructor(
@@ -150,31 +151,92 @@ export class Collection {
     this.#events.onPaperRemoved?.(slug)
   }
 
-  /** 稼働中の編集を拾う。書き込みの途中で何度も発火するので、少し待ってから読む。 */
+  /**
+   * 稼働中の編集を拾う。書き込みの途中で何度も発火するので、少し待ってから読む。
+   *
+   * 監視はディレクトリごとに張り、`recursive` は使わない。Linux の recursive は
+   * rename による置き換えに追随せず、2 回目以降の変更が届かない。
+   */
   startWatching(debounceMs = 250): void {
     this.stopWatching()
-    for (const [root, kind] of [
-      [papersDir(this.#dataDir), PAPERS_DIR],
-      [chatsDir(this.#dataDir), CHATS_DIR],
-    ] as const) {
-      const watcher = watch(root, { recursive: true }, (_event, filename) => {
-        if (filename === null) return
-        this.#schedule(kind, filename.toString(), debounceMs)
-      })
-      watcher.on('error', () => this.stopWatching())
-      this.#watchers.push(watcher)
-    }
+    this.#debounceMs = debounceMs
+    void this.#syncWatches()
   }
 
   stopWatching(): void {
-    for (const watcher of this.#watchers) watcher.close()
-    this.#watchers = []
+    for (const watcher of this.#watchers.values()) watcher.close()
+    this.#watchers.clear()
     for (const timer of this.#pending.values()) clearTimeout(timer)
     this.#pending.clear()
   }
 
-  #schedule(kind: typeof PAPERS_DIR | typeof CHATS_DIR, filename: string, debounceMs: number): void {
-    const target = this.#resolveTarget(kind, filename)
+  /** 監視の張り方を試験から確かめるための口。 */
+  get watchedDirs(): number {
+    return this.#watchers.size
+  }
+
+  /**
+   * 監視を実際のディレクトリの木に合わせる。
+   *
+   * 日付のディレクトリは後から増えるので、増えたぶんをここで足す。足したときは、
+   * すでに中にあるファイルも索引に載せる。監視を張る前に置かれたファイルは通知が
+   * 来ないためである。
+   */
+  async #syncWatches(): Promise<void> {
+    for (const dir of await this.#dirsToWatch()) {
+      if (this.#watchers.has(dir)) continue
+      if (!this.#watchDir(dir)) continue
+      for (const entry of await readdirSafe(dir)) {
+        if (entry.isFile()) this.#schedule(join(dir, entry.name))
+      }
+    }
+  }
+
+  /** 論文の markdown は `papers/<slug>/` に直に置くので、その下(assets と pages)は見ない。 */
+  async #dirsToWatch(): Promise<string[]> {
+    const papers = papersDir(this.#dataDir)
+    const chats = chatsDir(this.#dataDir)
+    const dirs = [papers, chats]
+
+    for (const entry of await readdirSafe(papers)) {
+      if (entry.isDirectory()) dirs.push(join(papers, entry.name))
+    }
+
+    const walk = async (dir: string): Promise<void> => {
+      for (const entry of await readdirSafe(dir)) {
+        if (!entry.isDirectory()) continue
+        const child = join(dir, entry.name)
+        dirs.push(child)
+        await walk(child)
+      }
+    }
+    await walk(chats)
+    return dirs
+  }
+
+  #watchDir(dir: string): boolean {
+    let watcher: FSWatcher
+    try {
+      watcher = watch(dir, (event, filename) => {
+        if (filename !== null) this.#schedule(join(dir, filename.toString()))
+        // ディレクトリが増減した可能性があるので、木を見直す。
+        if (event === 'rename') void this.#syncWatches()
+      })
+    } catch {
+      return false
+    }
+    // 落ちたのはこの 1 つだけなので、他の監視は残す。消えたディレクトリでも起きる。
+    watcher.on('error', (error) => {
+      console.error('ファイルの監視が落ちた', dir, error)
+      this.#watchers.get(dir)?.close()
+      this.#watchers.delete(dir)
+    })
+    this.#watchers.set(dir, watcher)
+    return true
+  }
+
+  #schedule(absolutePath: string): void {
+    const target = this.#resolveTarget(absolutePath)
     if (target === null) return
 
     const existing = this.#pending.get(target.key)
@@ -184,25 +246,22 @@ export class Collection {
       setTimeout(() => {
         this.#pending.delete(target.key)
         void this.#applyChange(target)
-      }, debounceMs),
+      }, this.#debounceMs),
     )
   }
 
   #resolveTarget(
-    kind: typeof PAPERS_DIR | typeof CHATS_DIR,
-    filename: string,
+    absolutePath: string,
   ): { key: string; kind: 'paper'; slug: string } | { key: string; kind: 'chat'; absolutePath: string } | null {
-    const segments = filename.split(sep).filter((s) => s.length > 0)
-    if (segments.length === 0) return null
-
-    if (kind === PAPERS_DIR) {
-      const slug = segments[0] as string
-      return { key: `paper:${slug}`, kind: 'paper', slug }
+    const inPapers = relative(papersDir(this.#dataDir), absolutePath).split(sep).filter((s) => s.length > 0)
+    if (inPapers.length > 0 && inPapers[0] !== '..') {
+      return { key: `paper:${inPapers[0] as string}`, kind: 'paper', slug: inPapers[0] as string }
     }
 
-    const name = segments[segments.length - 1] as string
+    const inChats = relative(chatsDir(this.#dataDir), absolutePath).split(sep).filter((s) => s.length > 0)
+    if (inChats.length === 0 || inChats[0] === '..') return null
+    const name = inChats[inChats.length - 1] as string
     if (!name.endsWith('.md') || name.startsWith('.')) return null
-    const absolutePath = join(chatsDir(this.#dataDir), ...segments)
     return { key: `chat:${absolutePath}`, kind: 'chat', absolutePath }
   }
 
@@ -220,5 +279,14 @@ export class Collection {
     } catch (error) {
       console.error('索引の更新に失敗した', target, error)
     }
+  }
+}
+
+/** 消えているディレクトリでも落ちない読み取り。監視の張り直しの途中で起きる。 */
+async function readdirSafe(dir: string): Promise<Dirent[]> {
+  try {
+    return await readdir(dir, { withFileTypes: true })
+  } catch {
+    return []
   }
 }
