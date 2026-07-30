@@ -73,8 +73,8 @@ function MarkdownView({ text, slug, linkReferences = false }: MarkdownProps) {
 /**
  * 同じ markdown を二度組み立てない。
  *
- * 会話の欄は応答の途中で何度も描き直される。記憶化しないと、そのたびに過去の
- * 発言まで解析と数式の組版をやり直すことになる。実測で 200 発言の会話では
+ * 会話の欄は応答の途中で何度も描き直される。メモ化しないと、そのたびに過去の
+ * 発言まで解析と数式のレイアウトをやり直すことになる。実測で 200 発言の会話では
  * 1 回の描き直しに 1.2 秒かかっていた。
  */
 export const Markdown = memo(MarkdownView)

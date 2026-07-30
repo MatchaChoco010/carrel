@@ -1,4 +1,4 @@
-import { ArchiveRestore, Loader2, RotateCcw, Send } from 'lucide-react'
+import { ArchiveRestore, GitBranch, Loader2, RotateCcw, Send } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, type ChatMessage, type ChatState, type CodexModel, type RateLimitView } from '../api.ts'
 import { Markdown } from './Markdown.tsx'
@@ -76,7 +76,7 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
 
     if (shown !== null && scrolledFor.current !== shown) {
       scrolledFor.current = shown
-      // 数式の組版と字体の読み込みで高さが後から変わるので、次の描画でもう一度送る。
+      // 数式のレイアウトとフォントの読み込みで高さが後から変わるので、次の描画でもう一度送る。
       node.scrollTop = node.scrollHeight
       requestAnimationFrame(() => {
         node.scrollTop = node.scrollHeight
@@ -152,6 +152,15 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
     [subscribe, path, load, onOpen],
   )
 
+  // 分岐したらその会話へ移る。分かれた先で続きを話すのが分岐の目的である(0006)。
+  const branch = (index: number): void => {
+    if (path === null) return
+    void api
+      .branchChat(path, index)
+      .then((made) => onOpen(made.path))
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+  }
+
   const reload = (): void => {
     if (path === null) return
     setReloading(true)
@@ -189,6 +198,17 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
         {messages.map((message, index) => (
           <article key={`${message.at}-${index}`} className={`turn turn--${message.role}`}>
             <Markdown text={message.text} />
+            {/* 最初の turn より後の発言から分岐できる(0012)。 */}
+            {path !== null && index >= 2 && (
+              <button
+                type="button"
+                className="turn__branch"
+                onClick={() => branch(index)}
+                title="ここから別の会話にする"
+              >
+                <GitBranch size={ICON} aria-hidden /> ここから分岐
+              </button>
+            )}
           </article>
         ))}
         {turn !== null && (

@@ -36,7 +36,7 @@ export function SlugSuggest({ slugs, value, onChange, inputRef }: SlugSuggestPro
     return slugs.filter((slug) => slug.includes(typing)).slice(0, LIMIT)
   }, [slugs, typing, escaped])
 
-  // 内容に合わせて縦に伸ばす。長文を書いている途中で入力欄が窓になるのを避ける。
+  // 内容に合わせて縦に伸ばす。長文を書いている途中で数行しか見えなくなるのを避ける。
   useEffect(() => {
     const node = inputRef.current
     if (node === null) return

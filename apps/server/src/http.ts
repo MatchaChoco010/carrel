@@ -42,6 +42,8 @@ export type AppDeps = {
   models: () => Promise<CodexModel[]>
   /** 会話を新しいスレッドへ載せ直す。 */
   reloadChat: (absolutePath: string) => Promise<string>
+  /** 会話を分岐する。選んだ発言が属する turn の 1 つ前までを引き継ぐ(0012)。 */
+  branchChat: (absolutePath: string, selected: number) => Promise<{ path: string; forked: boolean }>
   /** 会話を索引へ載せ直す。 */
   reindexChat: (absolutePath: string) => Promise<void>
   /** アーカイブの状態を切り替える。 */
@@ -202,6 +204,20 @@ export function createApp(deps: AppDeps): Hono {
       return c.json({ hits: await deps.searchChats(query) })
     } catch (error) {
       return c.json({ error: error instanceof Error ? error.message : String(error) }, 502)
+    }
+  })
+
+  app.post('/api/chats/branch', async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as { path?: unknown; index?: unknown }
+    if (typeof body.path !== 'string' || typeof body.index !== 'number') {
+      return c.json({ error: 'path と index を指定すること' }, 400)
+    }
+    const dataDir = deps.getConfig().dataDir
+    try {
+      const branch = await deps.branchChat(join(dataDir, body.path), body.index)
+      return c.json(branch)
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 400)
     }
   })
 
