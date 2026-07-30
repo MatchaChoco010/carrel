@@ -10,6 +10,8 @@ export type ChatMessage = {
   role: ChatRole
   at: IsoDateTime
   text: string
+  /** その発言で完了した turn。分岐点として使う(0012)。応答にだけ付く。 */
+  turnId?: string
 }
 
 export type ChatMeta = {
@@ -52,7 +54,8 @@ const FRONTMATTER_KEYS = {
 
 // 発言の区切り。役割と、日時として読める文字列の両方が揃った行だけを境界と
 // みなすので、応答の本文に現れる見出しと取り違えない。
-const MESSAGE_HEADING = /^## (user|assistant) · (\S+)$/
+// 末尾の turn は分岐点を指す識別子で、無い見出しも妥当である(0012)。
+const MESSAGE_HEADING = /^## (user|assistant) · (\S+)(?: · turn (\S+))?$/
 
 function asString(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null
@@ -101,11 +104,13 @@ export function serializeChatMeta(meta: ChatMeta): Record<string, unknown> {
 export function parseMessages(body: string): ChatMessage[] {
   const lines = body.split('\n')
   const messages: ChatMessage[] = []
-  let current: { role: ChatRole; at: IsoDateTime; lines: string[] } | null = null
+  let current: { role: ChatRole; at: IsoDateTime; turnId: string | null; lines: string[] } | null = null
 
   const flush = (): void => {
     if (current === null) return
-    messages.push({ role: current.role, at: current.at, text: current.lines.join('\n').trim() })
+    const message: ChatMessage = { role: current.role, at: current.at, text: current.lines.join('\n').trim() }
+    if (current.turnId !== null) message.turnId = current.turnId
+    messages.push(message)
   }
 
   for (const line of lines) {
@@ -113,7 +118,7 @@ export function parseMessages(body: string): ChatMessage[] {
     const at = match === null ? null : parseIsoDateTime(match[2])
     if (match !== null && at !== null) {
       flush()
-      current = { role: match[1] as ChatRole, at, lines: [] }
+      current = { role: match[1] as ChatRole, at, turnId: match[3] ?? null, lines: [] }
       continue
     }
     if (current !== null) current.lines.push(line)
@@ -124,7 +129,19 @@ export function parseMessages(body: string): ChatMessage[] {
 }
 
 export function serializeMessages(messages: ChatMessage[]): string {
-  return messages.map((m) => `## ${m.role} · ${m.at}\n\n${m.text}\n`).join('\n')
+  return messages
+    .map((m) => `## ${m.role} · ${m.at}${m.turnId === undefined ? '' : ` · turn ${m.turnId}`}\n\n${m.text}\n`)
+    .join('\n')
+}
+
+/**
+ * 記録から turn の識別子を落とす。
+ *
+ * 読み込み直しで新しいスレッドへ移るときに使う。記録の識別子は常に
+ * `codex_thread_id` のスレッドに属する、という約束を保つためである(0012)。
+ */
+export function withoutTurnIds(messages: ChatMessage[]): ChatMessage[] {
+  return messages.map(({ role, at, text }) => ({ role, at, text }))
 }
 
 export async function readChat(dataDir: string, absolutePath: string): Promise<Chat | null> {
