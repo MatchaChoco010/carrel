@@ -1081,6 +1081,19 @@ body {
   margin-inline: auto;
 }
 
+/*
+ * 始めの案内。発言が並ぶ列に載せ、空の記録の中で上下も中央に置く。
+ * 欄の隅に貼り付くと、この欄が何をするところかの説明に見えない。
+ */
+.chat__intro {
+  margin: auto;
+  width: 100%;
+  max-width: var(--chat-text);
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
 /* 枠を持たないので、広く取っても余白が広がるだけに見える。 */
 .turn--assistant {
   width: 100%;
