@@ -1,6 +1,6 @@
 import { Archive, ArchiveRestore, Check, MoreHorizontal, Pencil, Plus, RotateCcw, Search, Trash2, X } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { api, type ChatSearchHit, type ChatSummary } from '../api.ts'
+import { api, type ChatSearchHit, type ChatState, type ChatSummary } from '../api.ts'
 
 export type ChatsPaneProps = {
   /** いま開いている会話。 */
@@ -16,13 +16,53 @@ const ICON = 14
 /** 打っている間に毎打鍵で引かない。埋め込みの生成を伴うため(0005)。 */
 const SEARCH_DELAY_MS = 300
 
+/**
+ * 一覧と検索結果に共通の行の中身。
+ *
+ * 検索した状態でもアーカイブと削除ができるように、どちらも同じ行として描く。
+ */
+type Row = {
+  path: string
+  title: string
+  updated: string
+  archived: boolean
+  /** 一覧のときだけ付く。検索結果は当たった発言を出す。 */
+  state: ChatState | null
+  /** 当たった発言の役割。一覧では付かない。 */
+  matched: ChatSearchHit['role']
+  text: string
+}
+
 function day(at: string): string {
   return at.slice(0, 10)
 }
 
 function who(role: ChatSearchHit['role']): string {
-  if (role === 'user') return '自分の発言'
-  return role === 'assistant' ? 'エージェントの発言' : ''
+  return role === 'user' ? '自分の発言' : 'エージェントの発言'
+}
+
+function fromSummary(chat: ChatSummary): Row {
+  return {
+    path: chat.path,
+    title: chat.title,
+    updated: chat.updated,
+    archived: chat.archived,
+    state: chat.state,
+    matched: null,
+    text: chat.summary,
+  }
+}
+
+function fromHit(hit: ChatSearchHit): Row {
+  return {
+    path: hit.path,
+    title: hit.title,
+    updated: hit.updated,
+    archived: hit.archived,
+    state: null,
+    matched: hit.role,
+    text: hit.excerpt,
+  }
 }
 
 export function ChatsPane({ active, onOpen, revision, onChanged }: ChatsPaneProps) {
@@ -83,6 +123,7 @@ export function ChatsPane({ active, onOpen, revision, onChanged }: ChatsPaneProp
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
   }
 
+  // 検索している間は、結果の側も引き直す。revision を上げると検索の効果が走る。
   const act = (run: Promise<unknown>): void => {
     void run
       .then(() => {
@@ -91,6 +132,8 @@ export function ChatsPane({ active, onOpen, revision, onChanged }: ChatsPaneProp
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
   }
+
+  const rows: Row[] = hits === null ? chats.map(fromSummary) : hits.map(fromHit)
 
   return (
     <div className="chats">
@@ -104,6 +147,7 @@ export function ChatsPane({ active, onOpen, revision, onChanged }: ChatsPaneProp
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
+            if (e.nativeEvent.isComposing) return
             if (e.key === 'Escape') setQuery('')
           }}
           placeholder="発言を検索"
@@ -117,66 +161,39 @@ export function ChatsPane({ active, onOpen, revision, onChanged }: ChatsPaneProp
       </div>
 
       {error !== null && <p className="error">{error}</p>}
+      {rows.length === 0 && error === null && (
+        <p className="empty">{hits === null ? '会話はまだありません' : '当たる会話がありません'}</p>
+      )}
 
-      {hits !== null ? (
-        <>
-          {hits.length === 0 && <p className="empty">当たる会話がありません</p>}
-          {hits.map((hit) => (
-            <article
-              key={hit.path}
-              className={`chat-row ${hit.archived ? 'chat-row--archived' : ''} ${hit.path === active ? 'chat-row--active' : ''}`}
-            >
-              <header>
-                <button type="button" className="chat-row__title" onClick={() => onOpen(hit.path)}>
-                  {hit.title}
-                </button>
-              </header>
-              <p className="chat-row__meta">
-                {day(hit.updated)}
-                {hit.role !== null && <span className="chat-row__badge">{who(hit.role)}</span>}
-                {hit.archived && (
-                  <span className="chat-row__badge">
-                    <Archive size={ICON} aria-hidden /> アーカイブ済み
-                  </span>
-                )}
-              </p>
-              <p className="chat-row__summary">{hit.excerpt}</p>
-            </article>
-          ))}
-        </>
-      ) : null}
-
-      {hits === null && chats.length === 0 && error === null && <p className="empty">会話はまだありません</p>}
-
-      {(hits === null ? chats : []).map((chat) => (
+      {rows.map((row) => (
         <article
-          key={chat.path}
-          className={`chat-row ${chat.archived ? 'chat-row--archived' : ''} ${chat.path === active ? 'chat-row--active' : ''}`}
+          key={row.path}
+          className={`chat-row ${row.archived ? 'chat-row--archived' : ''} ${row.path === active ? 'chat-row--active' : ''}`}
         >
           <header>
-            {editing === chat.path ? (
+            {editing === row.path ? (
               <input
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-                onBlur={() => rename(chat.path)}
+                onBlur={() => rename(row.path)}
                 onKeyDown={(e) => {
                   if (e.nativeEvent.isComposing) return
-                  if (e.key === 'Enter') rename(chat.path)
+                  if (e.key === 'Enter') rename(row.path)
                   if (e.key === 'Escape') setEditing(null)
                 }}
                 aria-label="会話のタイトル"
               />
             ) : (
-              <button type="button" className="chat-row__title" onClick={() => onOpen(chat.path)}>
-                {chat.title}
+              <button type="button" className="chat-row__title" onClick={() => onOpen(row.path)}>
+                {row.title}
               </button>
             )}
             <button
               type="button"
               className="ghost"
               onClick={() => {
-                setEditing(chat.path)
-                setDraft(chat.title)
+                setEditing(row.path)
+                setDraft(row.title)
               }}
               title="タイトルを書き換える"
               aria-label="タイトルを書き換える"
@@ -189,21 +206,21 @@ export function ChatsPane({ active, onOpen, revision, onChanged }: ChatsPaneProp
                 type="button"
                 className="ghost"
                 aria-label="この会話の操作"
-                onClick={() => setMenuOpen(menuOpen === chat.path ? null : chat.path)}
+                onClick={() => setMenuOpen(menuOpen === row.path ? null : row.path)}
               >
                 <MoreHorizontal size={ICON} aria-hidden />
               </button>
-              {menuOpen === chat.path && (
+              {menuOpen === row.path && (
                 <div className="menu-items" role="menu">
                   <button
                     type="button"
                     role="menuitem"
                     onClick={() => {
                       setMenuOpen(null)
-                      act(api.setChatArchived(chat.path, !chat.archived))
+                      act(api.setChatArchived(row.path, !row.archived))
                     }}
                   >
-                    {chat.archived ? (
+                    {row.archived ? (
                       <>
                         <ArchiveRestore size={ICON} aria-hidden /> アーカイブを解除
                       </>
@@ -219,7 +236,7 @@ export function ChatsPane({ active, onOpen, revision, onChanged }: ChatsPaneProp
                     role="menuitem"
                     onClick={() => {
                       setMenuOpen(null)
-                      setConfirming(chat.path)
+                      setConfirming(row.path)
                     }}
                   >
                     <Trash2 size={ICON} aria-hidden /> 削除
@@ -229,15 +246,15 @@ export function ChatsPane({ active, onOpen, revision, onChanged }: ChatsPaneProp
             </div>
           </header>
 
-          {confirming === chat.path && (
+          {confirming === row.path && (
             <p className="chat-row__confirm">
               この会話を消します。記録と実行状態の両方が無くなり、戻せません。
               <button
                 type="button"
                 onClick={() => {
                   setConfirming(null)
-                  if (chat.path === active) onOpen(null)
-                  act(api.deleteChat(chat.path))
+                  if (row.path === active) onOpen(null)
+                  act(api.deleteChat(row.path))
                 }}
               >
                 消す
@@ -249,25 +266,26 @@ export function ChatsPane({ active, onOpen, revision, onChanged }: ChatsPaneProp
           )}
 
           <p className="chat-row__meta">
-            {day(chat.updated)}
-            {chat.archived && (
+            {day(row.updated)}
+            {row.matched !== null && <span className="chat-row__badge">{who(row.matched)}</span>}
+            {row.archived && (
               <span className="chat-row__badge">
                 <Archive size={ICON} aria-hidden /> アーカイブ済み
               </span>
             )}
-            {chat.state === 'needsReload' && (
+            {row.state === 'needsReload' && (
               <span className="chat-row__badge chat-row__badge--warn">
                 <RotateCcw size={ICON} aria-hidden /> 要再読み込み
               </span>
             )}
-            {chat.state === 'resumable' && (
+            {row.state === 'resumable' && (
               <span className="chat-row__badge">
                 <Check size={ICON} aria-hidden /> 続けられる
               </span>
             )}
           </p>
 
-          {chat.summary.length > 0 && <p className="chat-row__summary">{chat.summary}</p>}
+          {row.text.length > 0 && <p className="chat-row__summary">{row.text}</p>}
         </article>
       ))}
     </div>
