@@ -1124,7 +1124,12 @@ body {
   padding: 8px 10px;
   font: inherit;
   font-size: 13px;
+  line-height: 1.7;
+  /* 高さは中身に合わせて JS が決める。掴んで変えられる余地も残す。 */
+  min-height: 96px;
+  max-height: 320px;
   resize: vertical;
+  overflow-y: auto;
 }
 
 /* 候補は入力欄の上に出す。入力欄が画面の下端にあるため。 */

@@ -154,7 +154,7 @@ export function ChatPane({ limits, slugs, subscribe }: ChatPaneProps) {
               : ''}
           </p>
         )}
-        <SlugSuggest slugs={slugs} value={draft} onChange={setDraft} inputRef={input} onSubmit={send} />
+        <SlugSuggest slugs={slugs} value={draft} onChange={setDraft} inputRef={input} />
         <div className="chat__controls">
           <select value={model} onChange={(e) => setModel(e.target.value)} aria-label="モデル">
             {models.map((m) => (
