@@ -16,7 +16,7 @@ import type { SearchHit, SearchQuery } from '../search/search.ts'
  */
 
 export type McpDeps = {
-  dataDir: () => string
+  dataDir: string
   search: (query: SearchQuery) => Promise<SearchHit[]>
   tags: () => Array<{ tag: string; count: number }>
 }
@@ -93,7 +93,7 @@ export function createMcpServer(deps: McpDeps): McpServer {
         'コレクションの論文を検索する。語句は日本語でも英語でもよい。本文は返らないので、返ったファイルの場所を自分で読むこと。',
       inputSchema: SEARCH_INPUT,
     },
-    async (args) => text(describeHits(await deps.search(buildQuery(args as SearchArgs)), deps.dataDir())),
+    async (args) => text(describeHits(await deps.search(buildQuery(args as SearchArgs)), deps.dataDir)),
   )
 
   server.registerTool(

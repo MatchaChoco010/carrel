@@ -28,6 +28,14 @@ export type AppDeps = {
   searchChats: (query: ChatSearchQuery) => Promise<ChatSearchHit[]>
   /** 解決と取得が済んだ論文の、残りの段階を始める。 */
   onIngested: (slug: string) => void
+  /**
+   * コレクションの置き場所。
+   *
+   * 起動時に決まった値を渡す。設定を書き替えても動いている間は変えない。索引と走査と
+   * ジョブは起動時の場所に紐づいているので、要求ごとに読み直すと取り込みが新しい場所へ
+   * 書いて変換が古い場所を読む。
+   */
+  dataDir: string
   getConfig: () => Config
   setConfig: (config: Config) => void
   clientCount: () => number
@@ -62,7 +70,7 @@ export function createApp(deps: AppDeps): Hono {
   const chatFile = (id: unknown): string | null => {
     if (typeof id !== 'string' || id.length === 0) return null
     const path = deps.index.chatPathById(id)
-    return path === null ? null : join(deps.getConfig().dataDir, path)
+    return path === null ? null : join(deps.dataDir, path)
   }
 
   const app = new Hono()
@@ -168,7 +176,7 @@ export function createApp(deps: AppDeps): Hono {
 
     try {
       const result = await ingestFromUrl(url.trim(), {
-        dataDir: deps.getConfig().dataDir,
+        dataDir: deps.dataDir,
         index: deps.index,
         ingests: deps.ingests,
         codex: deps.codex.client,
@@ -268,7 +276,7 @@ export function createApp(deps: AppDeps): Hono {
     if (typeof body.title !== 'string' || body.title.trim().length === 0) {
       return c.json({ error: 'id と title を指定すること' }, 400)
     }
-    const dataDir = deps.getConfig().dataDir
+    const dataDir = deps.dataDir
     const file = chatFile(body.id)
     if (file === null) return c.json({ error: `会話が見つからない: ${String(body.id)}` }, 404)
     const chat = await readChat(dataDir, file)
@@ -289,7 +297,7 @@ export function createApp(deps: AppDeps): Hono {
     const id = c.req.query('id')
     const file = chatFile(id)
     if (file === null) return c.json({ error: `会話が見つからない: ${id ?? ''}` }, 404)
-    const chat = await readChat(deps.getConfig().dataDir, file)
+    const chat = await readChat(deps.dataDir, file)
     if (chat === null) return c.json({ error: `会話が読めない: ${id ?? ''}` }, 404)
     return c.json({
       meta: chat.meta,
@@ -343,7 +351,7 @@ export function createApp(deps: AppDeps): Hono {
   )
 
   app.get('/api/papers/:slug', async (c) => {
-    const dataDir = deps.getConfig().dataDir
+    const dataDir = deps.dataDir
     const slug = c.req.param('slug')
     const paper = await readPaper(dataDir, slug)
     if (paper === null) return c.json({ error: `論文が見つからない: ${slug}` }, 404)
@@ -372,7 +380,7 @@ export function createApp(deps: AppDeps): Hono {
     if (!Array.isArray(raw['tags'])) return c.json({ error: 'tags が配列ではない' }, 400)
     const tags = [...new Set(raw['tags'].filter((t): t is string => typeof t === 'string' && t.trim().length > 0))]
 
-    const dataDir = deps.getConfig().dataDir
+    const dataDir = deps.dataDir
     const paper = await readPaper(dataDir, slug)
     if (paper === null) return c.json({ error: `論文が見つからない: ${slug}` }, 404)
     // markdown を先に書く。索引はファイルの監視が拾って追随する。
@@ -389,7 +397,7 @@ export function createApp(deps: AppDeps): Hono {
       return c.json({ error: '図の名前が不正' }, 400)
     }
     try {
-      const file = join(paperAssetsDir(deps.getConfig().dataDir, slug), name)
+      const file = join(paperAssetsDir(deps.dataDir, slug), name)
       const body = await readFile(file)
       const type = name.endsWith('.png') ? 'image/png' : 'image/jpeg'
       return c.body(body as unknown as ArrayBuffer, 200, { 'content-type': type, 'cache-control': 'max-age=3600' })
@@ -399,7 +407,7 @@ export function createApp(deps: AppDeps): Hono {
   })
 
   app.get('/api/papers/:slug/raw', async (c) => {
-    const raw = await readPaperSideFile(deps.getConfig().dataDir, c.req.param('slug'), 'raw')
+    const raw = await readPaperSideFile(deps.dataDir, c.req.param('slug'), 'raw')
     if (raw === null) return c.json({ error: '照合前の本文が無い' }, 404)
     return c.json({ raw })
   })
@@ -410,7 +418,7 @@ export function createApp(deps: AppDeps): Hono {
     // 仕事が消えた論文を読みにいく。
     const jobs = deps.jobs.cancelPending(slug)
     await deps.collection.deletePaper(slug)
-    await discardIngest(deps.getConfig().dataDir, slug, deps.ingests)
+    await discardIngest(deps.dataDir, slug, deps.ingests)
     return c.json({ deleted: slug, cancelledJobs: jobs.cancelled, runningJobs: jobs.running })
   })
 
@@ -418,7 +426,7 @@ export function createApp(deps: AppDeps): Hono {
   app.route(
     '/mcp',
     createMcpApp({
-      dataDir: () => deps.getConfig().dataDir,
+      dataDir: deps.dataDir,
       search: deps.search,
       tags: () => deps.index.tagCounts(),
     }),
