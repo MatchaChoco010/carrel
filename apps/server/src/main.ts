@@ -1,6 +1,7 @@
 import { serve } from '@hono/node-server'
 import { mkdir } from 'node:fs/promises'
 import type { Server } from 'node:http'
+import { relative } from 'node:path'
 import { WebSocketServer } from 'ws'
 import { CodexService } from './codex/service.ts'
 import { enqueueConvert, registerConvert } from './convert/job.ts'
@@ -21,6 +22,7 @@ import { IngestStore } from './ingest/store.ts'
 import { enqueueFeedFetch, registerFeed } from './feed/job.ts'
 import { FeedStore } from './feed/store.ts'
 import { createChat } from './chat/create.ts'
+import { ChatDigestScheduler, enqueueChatDigest, registerChatDigest } from './chat/job.ts'
 import { ChatSessions } from './chat/session.ts'
 import { reloadChat } from './chat/reload.ts'
 import { deleteChat, setArchived } from './chat/lifecycle.ts'
@@ -134,6 +136,17 @@ async function main(): Promise<void> {
     onFetched: () => hub.broadcast({ type: 'feed.changed', payload: { unread: feed.unreadCount() } }),
   })
 
+  const digests = new ChatDigestScheduler({ run: (path) => enqueueChatDigest(jobs, path) })
+  registerChatDigest(jobs, {
+    dataDir: config.dataDir,
+    codex: codex.client,
+    model: config.ingest.model,
+    effort: config.ingest.effort,
+    serviceTier: config.ingest.serviceTier,
+    reindex: (absolutePath) => collection.reloadChat(absolutePath),
+    onDone: (path) => hub.broadcast({ type: 'chat.changed', payload: { path } }),
+  })
+
   const chats = new ChatSessions({
     dataDir: config.dataDir,
     codex: codex.client,
@@ -142,7 +155,10 @@ async function main(): Promise<void> {
       return { absolutePath: created.absolutePath }
     },
     knownSlug: (slug) => index.getPaper(slug) !== null,
-    onEvent: (event) => hub.broadcast({ type: event.type, payload: event }),
+    onEvent: (event) => {
+      hub.broadcast({ type: event.type, payload: event })
+      if (event.type === 'chat.turn.completed') digests.touch(event.path)
+    },
     reindex: (absolutePath) => collection.reloadChat(absolutePath),
   })
 
@@ -176,13 +192,15 @@ async function main(): Promise<void> {
         dropFromIndex: (path) => index.deleteChatByPath(path),
         reindex: (absolutePath) => collection.reloadChat(absolutePath),
       }),
-    deleteChat: (absolutePath) =>
-      deleteChat(absolutePath, {
+    deleteChat: (absolutePath) => {
+      digests.cancel(relative(config.dataDir, absolutePath))
+      return deleteChat(absolutePath, {
         dataDir: config.dataDir,
         codex: codex.client,
         dropFromIndex: (path) => index.deleteChatByPath(path),
         reindex: (target) => collection.reloadChat(target),
-      }),
+      })
+    },
     reloadChat: async (absolutePath) => {
       const threadId = await reloadChat(absolutePath, {
         dataDir: config.dataDir,
@@ -232,6 +250,7 @@ async function main(): Promise<void> {
     console.log(`${signal} を受けたので終了する`)
     collection.stopWatching()
     clearInterval(feedTimer)
+    digests.stop()
     jobs.stop()
     void codex.stop()
     hub.closeAll()
