@@ -18,6 +18,7 @@ import {
   VERIFY_OUTPUT_SCHEMA,
   type VerifyPageResult,
 } from './prompt.ts'
+import { normalizeHeadingLevels } from '../convert/headings.ts'
 import { joinSplitParagraphs } from '../convert/paragraphs.ts'
 import { buildReport, type PageReport } from './report.ts'
 import { readTextLayer, type TextLayerPaths } from './textlayer.ts'
@@ -125,14 +126,15 @@ export async function verifyPaper(slug: string, deps: VerifyDeps): Promise<void>
   const reports: PageReport[] = done.map((d) => d.report)
 
   const joined = joinSplitParagraphs(parts.join('\n\n'))
+  const leveled = normalizeHeadingLevels(joined.markdown)
 
   // frontmatter が正なので(0002)、本文だけを差し替えて書き戻す。
   const paper = await readPaper(deps.dataDir, slug)
   if (paper === null) throw new Error(`論文が読めない: ${slug}`)
-  await writePaper(deps.dataDir, paper.meta, `${joined.markdown}\n`)
+  await writePaper(deps.dataDir, paper.meta, `${leveled.markdown}\n`)
   await writeFile(
     paperFile(deps.dataDir, slug, 'verification'),
-    buildReport(reports, joined.joined),
+    buildReport(reports, { joined: joined.joined, releveled: leveled.releveled }),
     'utf8',
   )
 }

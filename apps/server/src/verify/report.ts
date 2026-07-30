@@ -31,7 +31,15 @@ const SOURCE_LABELS: Record<VerifyChange['source'], string> = {
  * 経ても残った文字の欠落を記録する。文字の欠落という 1 つの事象に限れば機械的
  * に確かめられる(0009)。
  */
-export function buildReport(reports: PageReport[], joinedParagraphs = 0): string {
+/** 照合の後に本文へ機械的に加えた手当て。 */
+export type Cleanup = {
+  /** 段とページの境目で割れていた段落を繋いだ数。 */
+  joined: number
+  /** 番号に合わせて階層を直した見出しの数。 */
+  releveled: number
+}
+
+export function buildReport(reports: PageReport[], cleanup: Cleanup = { joined: 0, releveled: 0 }): string {
   const lines: string[] = []
   const changed = reports.filter((r) => r.changes.length > 0)
   const withRemaining = reports.filter((r) => r.remaining !== null)
@@ -44,8 +52,11 @@ export function buildReport(reports: PageReport[], joinedParagraphs = 0): string
   if (withRemaining.length > 0) {
     lines.push(`${withRemaining.length} ページに、照合の後も文字の欠落が残っている。`)
   }
-  if (joinedParagraphs > 0) {
-    lines.push(`ページを繋いだ後に、段とページの境目で割れていた段落を ${joinedParagraphs} 箇所繋いだ。`)
+  if (cleanup.joined > 0) {
+    lines.push(`ページを繋いだ後に、段とページの境目で割れていた段落を ${cleanup.joined} 箇所繋いだ。`)
+  }
+  if (cleanup.releveled > 0) {
+    lines.push(`番号に合わせて、見出し ${cleanup.releveled} 件の階層を直した。`)
   }
   if (transcribed.length > 0) {
     lines.push('')
