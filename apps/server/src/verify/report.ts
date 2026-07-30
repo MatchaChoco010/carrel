@@ -31,7 +31,7 @@ const SOURCE_LABELS: Record<VerifyChange['source'], string> = {
  * 経ても残った文字の欠落を記録する。文字の欠落という 1 つの事象に限れば機械的
  * に確かめられる(0009)。
  */
-export function buildReport(reports: PageReport[]): string {
+export function buildReport(reports: PageReport[], joinedParagraphs = 0): string {
   const lines: string[] = []
   const changed = reports.filter((r) => r.changes.length > 0)
   const withRemaining = reports.filter((r) => r.remaining !== null)
@@ -43,6 +43,9 @@ export function buildReport(reports: PageReport[]): string {
   )
   if (withRemaining.length > 0) {
     lines.push(`${withRemaining.length} ページに、照合の後も文字の欠落が残っている。`)
+  }
+  if (joinedParagraphs > 0) {
+    lines.push(`ページを繋いだ後に、段とページの境目で割れていた段落を ${joinedParagraphs} 箇所繋いだ。`)
   }
   if (transcribed.length > 0) {
     lines.push('')
