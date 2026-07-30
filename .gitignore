@@ -10,3 +10,5 @@ node_modules/
 dist/
 *.tsbuildinfo
 apps/converter/.venv/
+# 開発用のサーバーの設定・状態・コレクション
+.dev/
