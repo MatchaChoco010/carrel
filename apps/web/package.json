@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "dev": "vite"
+    "dev": "vite",
+    "test": "node --disable-warning=ExperimentalWarning --experimental-strip-types --test 'src/**/*.test.ts'"
   },
   "dependencies": {
     "katex": "^0.18.1",

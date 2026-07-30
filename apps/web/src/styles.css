@@ -791,7 +791,9 @@ body {
   border: 1px solid var(--border);
   padding: 4px 8px;
   text-align: left;
-  white-space: nowrap;
+  /* 長い升は折り返す。折り返さないと表が横へ伸び続けて読めなくなる。 */
+  max-width: 22ch;
+  overflow-wrap: anywhere;
 }
 
 .markdown blockquote {
@@ -1024,10 +1026,50 @@ body {
   gap: 10px;
 }
 
-/* 画面が広いときは会話の列を中央へ置く。行が長くなりすぎると読みにくい。 */
-.chat > * {
+/*
+ * 会話の幅は 2 段で決める。
+ *
+ * 外側(--chat-wide)は数式と表が使える幅で、スクロールバーを欄の端に置くため
+ * 記録の欄そのものには上限をかけない。内側(--chat-text)は地の文の幅で、行が
+ * 長くなりすぎないところに抑える。短い数式や表は内側より広い枠の中で中央に来る。
+ */
+.chat {
+  --chat-wide: 52rem;
+  --chat-text: 38rem;
+}
+
+.chat__compose,
+.chat__reload,
+.chat > .error {
   width: 100%;
-  max-width: 52rem;
+  max-width: var(--chat-wide);
+  margin-inline: auto;
+}
+
+.turn {
+  width: 100%;
+  max-width: var(--chat-wide);
+  margin-inline: auto;
+}
+
+/* 地の文は内側の幅に収める。数式と表はこの制限を受けない。 */
+.turn .markdown > p,
+.turn .markdown > ul,
+.turn .markdown > ol,
+.turn .markdown > blockquote,
+.turn .markdown > h1,
+.turn .markdown > h2,
+.turn .markdown > h3,
+.turn .markdown > h4 {
+  max-width: var(--chat-text);
+  margin-inline: auto;
+}
+
+/* 数式と表は外側の幅まで使い、短いときは中央に来る。 */
+.turn .markdown > .katex-display,
+.turn .markdown > table,
+.turn .markdown > pre {
+  max-width: 100%;
   margin-inline: auto;
 }
 
@@ -1047,10 +1089,14 @@ body {
 .chat__log {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  /* スクロールバーは欄の端に置く。中の列だけを中央へ寄せる。 */
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  padding-right: 4px;
 }
 
 .turn {

@@ -6,6 +6,7 @@ import rehypeRaw from 'rehype-raw'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import { linkCitations } from '../citations.ts'
+import { normalizeMathDelimiters } from '../mathDelimiters.ts'
 
 export type MarkdownProps = {
   text: string
@@ -28,7 +29,10 @@ function scrollToAnchor(event: MouseEvent<HTMLAnchorElement>, id: string): void 
 }
 
 export function Markdown({ text, slug, linkReferences = false }: MarkdownProps) {
-  const source = useMemo(() => (linkReferences ? linkCitations(text) : text), [text, linkReferences])
+  const source = useMemo(() => {
+    const normalized = normalizeMathDelimiters(text)
+    return linkReferences ? linkCitations(normalized) : normalized
+  }, [text, linkReferences])
 
   return (
     <div className="markdown">

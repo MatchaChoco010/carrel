@@ -104,10 +104,14 @@ export function App() {
         case 'feed.changed':
           setUnread((event.payload as { unread: number }).unread)
           return
-        case 'paper.changed':
-        case 'paper.removed':
         case 'chat.changed':
         case 'chat.removed':
+          // 会話が増えたり題が変わったら一覧を読み直す。
+          setRevision((n) => n + 1)
+          void api.indexStatus().then(setIndex).catch(() => {})
+          return
+        case 'paper.changed':
+        case 'paper.removed':
         case 'index.rebuilt':
           void api.indexStatus().then(setIndex).catch(() => {})
           return

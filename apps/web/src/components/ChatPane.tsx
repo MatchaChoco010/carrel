@@ -31,6 +31,7 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
   const [turn, setTurn] = useState<Turn | null>(null)
   const [error, setError] = useState<string | null>(null)
   const input = useRef<HTMLTextAreaElement>(null)
+  const log = useRef<HTMLDivElement>(null)
 
   const blocked = limits?.reached === true
 
@@ -52,6 +53,15 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
   useEffect(() => {
     if (path !== null) input.current?.focus()
   }, [path])
+
+  // 発言や応答が増えたら末尾へ送る。読んでいる途中で戻されないよう、末尾の近くに
+  // いるときだけ動かす。
+  useEffect(() => {
+    const node = log.current
+    if (node === null) return
+    const nearBottom = node.scrollHeight - node.scrollTop - node.clientHeight < 160
+    if (nearBottom) node.scrollTop = node.scrollHeight
+  }, [messages, turn])
 
   const efforts = useMemo(() => models.find((m) => m.id === model)?.efforts ?? [], [models, model])
 
@@ -136,7 +146,7 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
 
   return (
     <div className="chat">
-      <div className="chat__log">
+      <div className="chat__log" ref={log}>
         {path === null && messages.length === 0 && (
           <p className="pane__empty">論文について議論します。@ で論文を指して尋ねると、その論文を読んで答えます。</p>
         )}

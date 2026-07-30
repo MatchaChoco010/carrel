@@ -138,8 +138,11 @@ export class ChatSessions {
     const model = options.model ?? chat.meta.model
     const threadId = await this.#threadFor(chat, model)
 
-    this.#deps.onEvent({ type: 'chat.turn.started', path: chat.path })
+    // ユーザーの発言は応答を待たずに記録する。待ってから書くと、応答が返るまでの
+    // 間にファイルを読んだ画面から発言が消える。
     const asked: ChatMessage = { role: 'user', at: nowIsoDateTime(), text }
+    const withAsked = await this.#append(absolutePath, chat, [asked], threadId, model, options.effort)
+    this.#deps.onEvent({ type: 'chat.turn.started', path: chat.path })
 
     try {
       const outcome = await runTurn(
@@ -153,13 +156,10 @@ export class ChatSessions {
       )
 
       const answered: ChatMessage = { role: 'assistant', at: nowIsoDateTime(), text: outcome.text }
-      const saved = await this.#append(absolutePath, chat, [asked, answered], threadId, model, options.effort)
+      const saved = await this.#append(absolutePath, withAsked, [answered], threadId, model, options.effort)
       this.#deps.onEvent({ type: 'chat.turn.completed', path: saved.path, message: answered })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      // 応答が返らなくても、ユーザーの発言は記録に残す。何を尋ねたかが失われると
-      // 会話として読めなくなる。
-      await this.#append(absolutePath, chat, [asked], threadId, model, options.effort)
       this.#deps.onEvent({ type: 'chat.turn.failed', path: chat.path, message })
       throw error
     }
