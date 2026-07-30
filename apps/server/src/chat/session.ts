@@ -12,6 +12,12 @@ export type SessionDeps = {
   createChat: (options: { model: string | null; effort: string | null }) => Promise<{ absolutePath: string }>
   /** その slug の論文をコレクションが持っているか。 */
   knownSlug: (slug: string) => boolean
+  /**
+   * 呼び出しにも会話にもモデルの指定が無いときに使う値。
+   *
+   * 設定は動いている間に書き換わるので、都度読む。
+   */
+  defaults: () => { model: string; effort: string }
   /** ターンの進みを画面へ流す。 */
   onEvent: (event: ChatTurnEvent) => void
   /** 会話を索引へ載せ直す。一覧が追随するのに要る。 */
@@ -135,28 +141,26 @@ export class ChatSessions {
     const chat = await readChat(this.#deps.dataDir, absolutePath)
     if (chat === null) throw new Error(`会話が読めない: ${absolutePath}`)
 
-    const model = options.model ?? chat.meta.model
+    const defaults = this.#deps.defaults()
+    const model = options.model ?? chat.meta.model ?? defaults.model
+    const effort = options.effort ?? chat.meta.effort ?? defaults.effort
     const threadId = await this.#threadFor(chat, model)
 
     // ユーザーの発言は応答を待たずに記録する。待ってから書くと、応答が返るまでの
     // 間にファイルを読んだ画面から発言が消える。
     const asked: ChatMessage = { role: 'user', at: nowIsoDateTime(), text }
-    const withAsked = await this.#append(absolutePath, chat, [asked], threadId, model, options.effort)
+    const withAsked = await this.#append(absolutePath, chat, [asked], threadId, model, effort)
     this.#deps.onEvent({ type: 'chat.turn.started', path: chat.path })
 
     try {
       const outcome = await runTurn(
         this.#deps.codex,
-        {
-          threadId,
-          input: textInput(expandMentions(text, this.#deps.dataDir, this.#deps.knownSlug)),
-          ...(options.effort ?? chat.meta.effort ? { effort: (options.effort ?? chat.meta.effort) as never } : {}),
-        },
+        { threadId, input: textInput(expandMentions(text, this.#deps.dataDir, this.#deps.knownSlug)), effort },
         { onDelta: (delta) => this.#deps.onEvent({ type: 'chat.turn.delta', path: chat.path, delta }) },
       )
 
       const answered: ChatMessage = { role: 'assistant', at: nowIsoDateTime(), text: outcome.text }
-      const saved = await this.#append(absolutePath, withAsked, [answered], threadId, model, options.effort)
+      const saved = await this.#append(absolutePath, withAsked, [answered], threadId, model, effort)
       this.#deps.onEvent({ type: 'chat.turn.completed', path: saved.path, message: answered })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -171,15 +175,17 @@ export class ChatSessions {
    * app-server を起動し直すとスレッドは記憶から降りるので、ターンを流す前に一度
    * 読み込み直す。降りたままターンを始めても届かない。
    */
-  async #threadFor(chat: Chat, model: string | null): Promise<string> {
+  async #threadFor(chat: Chat, model: string): Promise<string> {
     const existing = chat.meta.codexThreadId
     if (existing !== null) {
       if (await this.#isAlive(existing)) return existing
       throw new Error('この会話の実行状態は残っていない。読み込み直しが要る')
     }
+    // 空のモデルでもスレッドは立つが、ターンは何も返さずに終わる。
+    if (model.length === 0) throw new Error('モデルが決まっていない。設定の chat.defaultModel を確かめること')
     const created = await startConversationThread(this.#deps.codex, {
       dataDir: this.#deps.dataDir,
-      model: model ?? '',
+      model,
     })
     this.#alive.set(created, true)
     return created
@@ -190,8 +196,8 @@ export class ChatSessions {
     chat: Chat,
     added: ChatMessage[],
     threadId: string,
-    model: string | null,
-    effort: string | undefined,
+    model: string,
+    effort: string,
   ): Promise<Chat> {
     // 追記の直前に読み直す。ターンの間に別の経路が書いていることがある。
     const latest = (await readChat(this.#deps.dataDir, absolutePath)) ?? chat
@@ -205,7 +211,7 @@ export class ChatSessions {
         updated: nowIsoDateTime(),
         codexThreadId: threadId,
         model,
-        effort: effort ?? latest.meta.effort,
+        effort,
         papers: [...new Set([...latest.meta.papers, ...mentioned])],
       },
     }
