@@ -4,6 +4,7 @@ import { resumeThread, runTurn, startConversationThread } from '../codex/threads
 import { nowIsoDateTime } from '../data/datetime.ts'
 import { readChat, writeChat, type Chat, type ChatMessage } from '../data/chat.ts'
 import { storeImages, withAttachments, type IncomingImage } from './attachments.ts'
+import { chatInstructions } from './instructions.ts'
 import { expandMentions, findMentions } from './mentions.ts'
 
 export type SessionDeps = {
@@ -21,6 +22,8 @@ export type SessionDeps = {
    * 設定は動いている間に書き換わるので、都度読む。
    */
   defaults: () => { model: string; effort: string }
+  /** ユーザーが決めた応答の仕方への指示(0014)。 */
+  instructions: () => string
   /** ターンの進みを画面へ流す。 */
   onEvent: (event: ChatTurnEvent) => void
   /** 会話を索引へ載せ直す。一覧が追随するのに要る。 */
@@ -223,6 +226,7 @@ export class ChatSessions {
       dataDir: this.#deps.dataDir,
       model,
       mcpUrl: this.#deps.mcpUrl,
+      instructions: chatInstructions(this.#deps.instructions()),
     })
     this.#alive.set(created, true)
     return created

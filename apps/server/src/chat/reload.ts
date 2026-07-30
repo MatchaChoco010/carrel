@@ -5,6 +5,7 @@ import { readChat, withoutTurnIds, writeChat, type Chat } from '../data/chat.ts'
 import { nowIsoDateTime } from '../data/datetime.ts'
 import { paperDir } from '../data/layout.ts'
 import { attachmentPaths, referencedAttachments } from './attachments.ts'
+import { chatInstructions } from './instructions.ts'
 import { serializeMessages } from '../data/chat.ts'
 
 export type ReloadDeps = {
@@ -13,6 +14,8 @@ export type ReloadDeps = {
   knownSlug: (slug: string) => boolean
   /** 議論中のエージェントが接続する MCP の口(0005)。 */
   mcpUrl: string
+  /** ユーザーが決めた応答の仕方への指示(0014)。 */
+  instructions: () => string
 }
 
 /**
@@ -61,6 +64,7 @@ export async function reloadChat(absolutePath: string, deps: ReloadDeps): Promis
     dataDir: deps.dataDir,
     model: chat.meta.model ?? '',
     mcpUrl: deps.mcpUrl,
+    instructions: chatInstructions(deps.instructions()),
   })
   // 画像は文字で場所を示しても見えないので、実体を載せる(0013)。
   const images = await attachmentPaths(absolutePath, referencedAttachments(chat.messages))

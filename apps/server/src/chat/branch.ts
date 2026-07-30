@@ -13,6 +13,7 @@ import {
 } from '../data/chat.ts'
 import { nowIsoDateTime, toIsoDateTime } from '../data/datetime.ts'
 import { attachmentPaths, copyAttachments, referencedAttachments } from './attachments.ts'
+import { chatInstructions } from './instructions.ts'
 import { buildReloadInput } from './reload.ts'
 
 export type BranchDeps = {
@@ -27,6 +28,8 @@ export type BranchDeps = {
   defaults: () => { model: string; effort: string }
   /** 議論中のエージェントが接続する MCP の口(0005)。 */
   mcpUrl: string
+  /** ユーザーが決めた応答の仕方への指示(0014)。 */
+  instructions: () => string
   reindex: (absolutePath: string) => Promise<void>
 }
 
@@ -132,6 +135,7 @@ async function primeThread(
     dataDir: deps.dataDir,
     model,
     mcpUrl: deps.mcpUrl,
+    instructions: chatInstructions(deps.instructions()),
   })
   const images = await attachmentPaths(sourcePath, referencedAttachments(messages))
   await runTurn(deps.codex, {

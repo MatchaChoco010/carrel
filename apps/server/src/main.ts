@@ -201,6 +201,7 @@ async function main(): Promise<void> {
     knownSlug: (slug) => index.getPaper(slug) !== null,
     mcpUrl,
     defaults: () => ({ model: config.chat.defaultModel, effort: config.chat.defaultEffort }),
+    instructions: () => config.chat.instructions,
     onEvent: (event) => {
       hub.broadcast({ type: event.type, payload: event })
       if (event.type === 'chat.turn.completed') digests.touch(event.id)
@@ -261,6 +262,7 @@ async function main(): Promise<void> {
         isResumable: async (threadId) => (await chats.stateOfThread(threadId)) === 'resumable',
         markResumed: (threadId) => chats.markResumed(threadId),
         defaults: () => ({ model: config.chat.defaultModel, effort: config.chat.defaultEffort }),
+        instructions: () => config.chat.instructions,
         mcpUrl,
         reindex: (target) => collection.reloadChat(target),
       }),
@@ -270,6 +272,7 @@ async function main(): Promise<void> {
         codex: codex.client,
         knownSlug: (slug) => index.getPaper(slug) !== null,
         mcpUrl,
+        instructions: () => config.chat.instructions,
       })
       chats.markResumed(threadId)
       return threadId
