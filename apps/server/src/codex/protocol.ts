@@ -32,6 +32,7 @@ export const METHODS = {
   threadStart: 'thread/start',
   threadResume: 'thread/resume',
   threadFork: 'thread/fork',
+  threadDelete: 'thread/delete',
   turnStart: 'turn/start',
   turnInterrupt: 'turn/interrupt',
   turnSteer: 'turn/steer',

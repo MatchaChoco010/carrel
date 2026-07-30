@@ -530,6 +530,32 @@ body {
   border-radius: 6px;
   padding: 4px;
   z-index: 2;
+  /* 包む枠がボタンの幅しかないので、折り返しを止めないと 1 文字ずつ縦に並ぶ。 */
+  white-space: nowrap;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.menu-items button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: var(--text);
+  padding: 5px 10px;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu-items button:hover {
+  background: var(--surface-raised);
+  color: var(--accent);
 }
 
 .confirm {
@@ -1370,4 +1396,28 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+/* 消す前の確認。押すだけで消える経路は置かない(0006)。 */
+.chat-row__confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--warn);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.chat-row__confirm button {
+  flex: 0 0 auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
 }

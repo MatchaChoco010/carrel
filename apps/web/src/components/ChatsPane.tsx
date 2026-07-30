@@ -1,4 +1,4 @@
-import { Archive, Check, Pencil, Plus, RotateCcw } from 'lucide-react'
+import { Archive, ArchiveRestore, Check, MoreHorizontal, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { api, type ChatSummary } from '../api.ts'
 
@@ -22,6 +22,8 @@ export function ChatsPane({ active, onOpen, revision, onChanged }: ChatsPaneProp
   const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
+  const [menuOpen, setMenuOpen] = useState<string | null>(null)
+  const [confirming, setConfirming] = useState<string | null>(null)
 
   const load = useCallback(() => {
     void api
@@ -41,6 +43,15 @@ export function ChatsPane({ active, onOpen, revision, onChanged }: ChatsPaneProp
     if (title.length === 0) return
     void api
       .renameChat(path, title)
+      .then(() => {
+        load()
+        onChanged()
+      })
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+  }
+
+  const act = (run: Promise<unknown>): void => {
+    void run
       .then(() => {
         load()
         onChanged()
@@ -92,7 +103,70 @@ export function ChatsPane({ active, onOpen, revision, onChanged }: ChatsPaneProp
             >
               <Pencil size={ICON} aria-hidden />
             </button>
+
+            <div className="menu">
+              <button
+                type="button"
+                className="ghost"
+                aria-label="この会話の操作"
+                onClick={() => setMenuOpen(menuOpen === chat.path ? null : chat.path)}
+              >
+                <MoreHorizontal size={ICON} aria-hidden />
+              </button>
+              {menuOpen === chat.path && (
+                <div className="menu-items" role="menu">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuOpen(null)
+                      act(api.setChatArchived(chat.path, !chat.archived))
+                    }}
+                  >
+                    {chat.archived ? (
+                      <>
+                        <ArchiveRestore size={ICON} aria-hidden /> アーカイブを解除
+                      </>
+                    ) : (
+                      <>
+                        <Archive size={ICON} aria-hidden /> アーカイブ
+                      </>
+                    )}
+                  </button>
+                  {/* 削除はここからだけ。確認を経てから実行する(0006)。 */}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuOpen(null)
+                      setConfirming(chat.path)
+                    }}
+                  >
+                    <Trash2 size={ICON} aria-hidden /> 削除
+                  </button>
+                </div>
+              )}
+            </div>
           </header>
+
+          {confirming === chat.path && (
+            <p className="chat-row__confirm">
+              この会話を消します。記録と実行状態の両方が無くなり、戻せません。
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirming(null)
+                  if (chat.path === active) onOpen(null)
+                  act(api.deleteChat(chat.path))
+                }}
+              >
+                消す
+              </button>
+              <button type="button" onClick={() => setConfirming(null)}>
+                やめる
+              </button>
+            </p>
+          )}
 
           <p className="chat-row__meta">
             {day(chat.updated)}

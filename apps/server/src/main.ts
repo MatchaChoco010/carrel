@@ -23,6 +23,7 @@ import { FeedStore } from './feed/store.ts'
 import { createChat } from './chat/create.ts'
 import { ChatSessions } from './chat/session.ts'
 import { reloadChat } from './chat/reload.ts'
+import { deleteChat, setArchived } from './chat/lifecycle.ts'
 import { listModels } from './codex/models.ts'
 import { Hub } from './hub.ts'
 import { converterScript, indexDbFile, stateDbFile, stateDir, textLayerScript, webRoot } from './paths.ts'
@@ -166,6 +167,18 @@ async function main(): Promise<void> {
     feed,
     chats,
     models: () => listModels(codex.client),
+    setArchived: (absolutePath, archived) =>
+      setArchived(absolutePath, archived, {
+        dataDir: config.dataDir,
+        codex: codex.client,
+        dropFromIndex: (path) => index.deleteChatByPath(path),
+      }),
+    deleteChat: (absolutePath) =>
+      deleteChat(absolutePath, {
+        dataDir: config.dataDir,
+        codex: codex.client,
+        dropFromIndex: (path) => index.deleteChatByPath(path),
+      }),
     reloadChat: async (absolutePath) => {
       const threadId = await reloadChat(absolutePath, {
         dataDir: config.dataDir,
