@@ -18,6 +18,6 @@ pct(paper collection tool)の設計判断の記録。
 | [0011](0011_parallel_translation.md) | 翻訳を節ごとに並べて走らせる | approved | done (2026-07-29) |
 | [0012](0012_chat_branching.md) | 会話の分岐に turn の識別子を持たせる | approved | done (2026-07-30) |
 | [0013](0013_chat_images.md) | チャットで画像を扱う | approved | not-started |
-| [0014](0014_chat_instructions.md) | 会話のエージェントへ渡す指示 | ready for review | not-started |
+| [0014](0014_chat_instructions.md) | 会話のエージェントへ渡す指示 | reviewing | not-started |
 
 件数: 14
