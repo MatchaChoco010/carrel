@@ -10,6 +10,8 @@ export type LifecycleDeps = {
   codex: CodexClient
   /** 索引から会話を外す。`$PCT_DATA` からの相対パスで指す。 */
   dropFromIndex: (path: string) => void
+  /** 会話を索引へ載せ直す。 */
+  reindex: (absolutePath: string) => Promise<void>
 }
 
 /**
@@ -27,6 +29,7 @@ export async function setArchived(absolutePath: string, archived: boolean, deps:
     messages: chat.messages,
     meta: { ...chat.meta, updated: nowIsoDateTime(), archived },
   })
+  await deps.reindex(absolutePath)
 }
 
 /**
@@ -38,8 +41,7 @@ export async function setArchived(absolutePath: string, archived: boolean, deps:
  * スレッドの破棄が失敗しても記録の削除は済ませる。ユーザーが消すと決めたものを
  * 残す理由はなく、残ったスレッドは参照されないままになる。
  *
- * 索引からはここで外す。ファイルの監視でも外れるが、消した直後に一覧を引くと
- * まだ載っている。
+ * 索引からはここで外す。ファイルの監視には任せない(#69)。
  */
 export async function deleteChat(absolutePath: string, deps: LifecycleDeps): Promise<{ threadDeleted: boolean }> {
   const chat = await readChat(deps.dataDir, absolutePath)

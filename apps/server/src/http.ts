@@ -39,6 +39,8 @@ export type AppDeps = {
   models: () => Promise<CodexModel[]>
   /** 会話を新しいスレッドへ載せ直す。 */
   reloadChat: (absolutePath: string) => Promise<string>
+  /** 会話を索引へ載せ直す。 */
+  reindexChat: (absolutePath: string) => Promise<void>
   /** アーカイブの状態を切り替える。 */
   setArchived: (absolutePath: string, archived: boolean) => Promise<void>
   /** 会話を消す。markdown と Codex のスレッドを破棄する。 */
@@ -233,6 +235,7 @@ export function createApp(deps: AppDeps): Hono {
       messages: chat.messages,
       meta: { ...chat.meta, title: body.title.trim(), titleSource: 'user' },
     })
+    await deps.reindexChat(join(dataDir, body.path))
     return c.json({ title: body.title.trim() })
   })
 

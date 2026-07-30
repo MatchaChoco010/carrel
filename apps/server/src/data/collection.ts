@@ -133,6 +133,16 @@ export class Collection {
     return true
   }
 
+  /**
+   * 会話 1 つを読み直して索引へ載せる。
+   *
+   * pct 自身が会話を書き換えたときに呼ぶ。ファイルの監視は外からの編集を拾うため
+   * の仕掛けなので、自分の書き込みをそれに任せない。
+   */
+  async reloadChat(absolutePath: string): Promise<void> {
+    await this.#indexChat(absolutePath)
+  }
+
   /** 論文を削除する。ファイルを消してから索引を消す。 */
   async deletePaper(slug: string): Promise<void> {
     await deletePaperDir(this.#dataDir, slug)

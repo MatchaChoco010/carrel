@@ -138,11 +138,18 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
             setError(payload.message ?? '応答が返らなかった')
             load(path)
             return
+          // アーカイブや題の書き換えは一覧からも起きる。
+          case 'chat.changed':
+            load(path)
+            return
+          case 'chat.removed':
+            onOpen(null)
+            return
           default:
             return
         }
       }),
-    [subscribe, path, load],
+    [subscribe, path, load, onOpen],
   )
 
   const reload = (): void => {

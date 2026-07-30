@@ -14,6 +14,8 @@ export type SessionDeps = {
   knownSlug: (slug: string) => boolean
   /** ターンの進みを画面へ流す。 */
   onEvent: (event: ChatTurnEvent) => void
+  /** 会話を索引へ載せ直す。一覧が追随するのに要る。 */
+  reindex: (absolutePath: string) => Promise<void>
 }
 
 export type ChatTurnEvent =
@@ -208,6 +210,7 @@ export class ChatSessions {
       },
     }
     await writeChat(this.#deps.dataDir, next)
+    await this.#deps.reindex(absolutePath)
     return { ...next, mtimeMs: Date.now() }
   }
 }

@@ -143,6 +143,7 @@ async function main(): Promise<void> {
     },
     knownSlug: (slug) => index.getPaper(slug) !== null,
     onEvent: (event) => hub.broadcast({ type: event.type, payload: event }),
+    reindex: (absolutePath) => collection.reloadChat(absolutePath),
   })
 
   const app = createApp({
@@ -167,17 +168,20 @@ async function main(): Promise<void> {
     feed,
     chats,
     models: () => listModels(codex.client),
+    reindexChat: (absolutePath) => collection.reloadChat(absolutePath),
     setArchived: (absolutePath, archived) =>
       setArchived(absolutePath, archived, {
         dataDir: config.dataDir,
         codex: codex.client,
         dropFromIndex: (path) => index.deleteChatByPath(path),
+        reindex: (absolutePath) => collection.reloadChat(absolutePath),
       }),
     deleteChat: (absolutePath) =>
       deleteChat(absolutePath, {
         dataDir: config.dataDir,
         codex: codex.client,
         dropFromIndex: (path) => index.deleteChatByPath(path),
+        reindex: (target) => collection.reloadChat(target),
       }),
     reloadChat: async (absolutePath) => {
       const threadId = await reloadChat(absolutePath, {
