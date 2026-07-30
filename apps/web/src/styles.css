@@ -1218,6 +1218,57 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  border-radius: 8px;
+}
+
+/* 落とし込みを受け付けることを、枠で示す。 */
+.chat__compose--dropping {
+  outline: 2px dashed var(--accent);
+  outline-offset: 4px;
+}
+
+.chat__attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chat__attachments li {
+  position: relative;
+}
+
+.chat__attachments img {
+  display: block;
+  height: 64px;
+  width: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.chat__attachments button {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  padding: 2px !important;
+  border-radius: 50% !important;
+  background: var(--surface-raised) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text) !important;
+  cursor: pointer;
+}
+
+/*
+ * 記録の中の画像は、縮めて出す。置いてある実体は原寸のままである(0013)。
+ * 高さで抑えるのは、縦長の画像 1 枚で発言が埋まるのを避けるためである。
+ */
+.turn .markdown img {
+  max-width: 100%;
+  max-height: 40vh;
+  height: auto;
+  border-radius: 6px;
 }
 
 .chat__controls {
@@ -1244,6 +1295,13 @@ body {
 .chat__controls button {
   order: 2;
   margin-left: auto;
+}
+
+/* 画像を添えるボタンは入力欄の側に置く。 */
+.chat__controls .chat__attach {
+  order: 0;
+  margin-left: 0;
+  padding: 7px 8px;
 }
 
 .suggest {
