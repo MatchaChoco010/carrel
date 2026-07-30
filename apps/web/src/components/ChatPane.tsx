@@ -1,4 +1,4 @@
-import { ArchiveRestore, GitBranch, Loader2, RotateCcw, Send } from 'lucide-react'
+import { ArchiveRestore, GitBranch, ImagePlus, Loader2, RotateCcw, Send, X } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { api, type ChatMessage, type ChatState, type CodexModel, type RateLimitView } from '../api.ts'
 import { Markdown } from './Markdown.tsx'
@@ -36,6 +36,9 @@ function estimateHeight(text: string): number {
 
 type Turn = { id: string; delta: string }
 
+/** 選んだ画像と、送るまでの間だけ使う見せかけの場所。 */
+type Attachment = { file: File; preview: string }
+
 export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   // いま出ている発言がどの会話のものか。場所が変わっても、届くまでは前の会話の
@@ -45,6 +48,10 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
   const [reloading, setReloading] = useState(false)
   const [archived, setArchived] = useState(false)
   const [draft, setDraft] = useState('')
+  /** 送る前の添付。実体は送信のときに初めてサーバーへ渡る(0013)。 */
+  const [attachments, setAttachments] = useState<Attachment[]>([])
+  const [dropping, setDropping] = useState(false)
+  const picker = useRef<HTMLInputElement>(null)
   const [models, setModels] = useState<CodexModel[]>([])
   const [model, setModel] = useState<string>('')
   const [effort, setEffort] = useState<string>('')
@@ -244,14 +251,55 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
       .finally(() => setReloading(false))
   }
 
+  // 画像だけでも送れる。本文が空でも、画像があれば尋ねる形になる(0013)。
+  const sendable =
+    (draft.trim().length > 0 || attachments.length > 0) && !blocked && state !== 'needsReload' && !archived
+
+  const attach = useCallback((files: Iterable<File>): void => {
+    const images = [...files].filter((file) => file.type.startsWith('image/'))
+    if (images.length === 0) return
+    setAttachments((previous) => [
+      ...previous,
+      ...images.map((file) => ({ file, preview: URL.createObjectURL(file) })),
+    ])
+  }, [])
+
+  // 貼り付けは入力欄の外で行われることもあるので、欄ではなく画面全体で拾う。
+  useEffect(() => {
+    const onPaste = (event: ClipboardEvent): void => {
+      const files = [...(event.clipboardData?.items ?? [])]
+        .filter((item) => item.kind === 'file')
+        .map((item) => item.getAsFile())
+        .filter((file): file is File => file !== null)
+      if (files.length > 0) attach(files)
+    }
+    window.addEventListener('paste', onPaste)
+    return () => window.removeEventListener('paste', onPaste)
+  }, [attach])
+
+  const drop = (): void => {
+    for (const attachment of attachments) URL.revokeObjectURL(attachment.preview)
+    setAttachments([])
+  }
+
+  const remove = (at: number): void => {
+    setAttachments((previous) => {
+      const target = previous[at]
+      if (target !== undefined) URL.revokeObjectURL(target.preview)
+      return previous.filter((_, index) => index !== at)
+    })
+  }
+
   const send = (): void => {
     const text = draft.trim()
-    if (text.length === 0 || blocked || state === 'needsReload' || archived) return
+    if (!sendable) return
+    const images = attachments.map((attachment) => attachment.file)
     setDraft('')
+    drop()
     // 送った発言はターンの完了で読み直すまで手元で見せる。
     setMessages((previous) => [...previous, { role: 'user', at: new Date().toISOString(), text }])
     void api
-      .sendChatMessage(id, text, model, effort)
+      .sendChatMessage(id, text, model, effort, images)
       .then((r) => {
         // 初めての発言では、ここで会話の場所が決まる。
         if (id === null) onOpen(r.id)
@@ -347,7 +395,24 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
         </div>
       )}
 
-      <div className="chat__compose">
+      <div
+        className={dropping ? 'chat__compose chat__compose--dropping' : 'chat__compose'}
+        onDragOver={(event) => {
+          if (!event.dataTransfer.types.includes('Files')) return
+          event.preventDefault()
+          setDropping(true)
+        }}
+        onDragLeave={(event) => {
+          if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+          setDropping(false)
+        }}
+        onDrop={(event) => {
+          if (!event.dataTransfer.types.includes('Files')) return
+          event.preventDefault()
+          setDropping(false)
+          attach(event.dataTransfer.files)
+        }}
+      >
         {blocked && (
           <p className="status-item status-item--warn">
             利用制限に達しています。
@@ -356,17 +421,45 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
               : ''}
           </p>
         )}
+        {attachments.length > 0 && (
+          <ul className="chat__attachments">
+            {attachments.map((attachment, at) => (
+              <li key={attachment.preview}>
+                <img src={attachment.preview} alt={attachment.file.name} />
+                <button type="button" className="ghost" aria-label={`${attachment.file.name} を外す`} onClick={() => remove(at)}>
+                  <X size={12} aria-hidden />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
         <SlugSuggest slugs={slugs} value={draft} onChange={setDraft} inputRef={input} />
         {/* 送るボタンを入力欄の次に置く。Escape のあと Tab を 1 回で届くようにする。
             見た目の並びは CSS の order で戻す。 */}
         <div className="chat__controls">
-          <button
-            type="button"
-            onClick={send}
-            disabled={draft.trim().length === 0 || blocked || state === 'needsReload' || archived}
-          >
+          <button type="button" onClick={send} disabled={!sendable}>
             <Send size={ICON} aria-hidden /> 送る
           </button>
+          <button
+            type="button"
+            className="chat__attach"
+            onClick={() => picker.current?.click()}
+            aria-label="画像を添える"
+            title="画像を添える"
+          >
+            <ImagePlus size={ICON} aria-hidden />
+          </button>
+          <input
+            ref={picker}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            multiple
+            hidden
+            onChange={(event) => {
+              attach(event.target.files ?? [])
+              event.target.value = ''
+            }}
+          />
           <select value={model} onChange={(e) => setModel(e.target.value)} aria-label="モデル">
             {/* 設定や会話が持つモデルが Codex の一覧に無いこともある。選択が消えないように出す。 */}
             {model.length > 0 && !models.some((m) => m.id === model) && <option value={model}>{model}</option>}

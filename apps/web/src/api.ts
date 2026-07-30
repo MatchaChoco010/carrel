@@ -260,8 +260,19 @@ export const api = {
   deleteChat: (id: string) =>
     sendJson<{ deleted: string; threadDeleted: boolean }>('DELETE', '/api/chats', { id, confirm: true }),
   /** id を省くと、この発言で会話が作られる。 */
-  sendChatMessage: (id: string | null, text: string, model: string, effort: string) =>
-    sendJson<{ id: string }>('POST', '/api/chats/messages', { ...(id === null ? {} : { id }), text, model, effort }),
+  sendChatMessage: async (id: string | null, text: string, model: string, effort: string, images: File[] = []) => {
+    // 画像は本文と 1 つの要求で送る(0013)。
+    const form = new FormData()
+    if (id !== null) form.set('id', id)
+    form.set('text', text)
+    form.set('model', model)
+    form.set('effort', effort)
+    for (const image of images) form.append('images', image)
+    const response = await fetch('/api/chats/messages', { method: 'POST', body: form })
+    const json = (await response.json()) as { id: string; error?: string }
+    if (!response.ok) throw new Error(json.error ?? `送信が ${response.status} を返した`)
+    return json
+  },
   feed: () => getJson<{ items: FeedItem[]; unread: number }>('/api/feed'),
   markFeedRead: (arxivIds: string[]) =>
     sendJson<{ read: number; unread: number }>('POST', '/api/feed/read', { arxivIds }),

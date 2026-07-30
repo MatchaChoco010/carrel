@@ -19,6 +19,7 @@ import { readPaper, readPaperSideFile, writePaper } from './data/paper.ts'
 import { readFile } from 'node:fs/promises'
 import { extname, join, relative } from 'node:path'
 import { chatAssetsDirOf, paperAssetsDir } from './data/layout.ts'
+import { unsupportedImageType, type IncomingImage } from './chat/attachments.ts'
 import { createMcpApp } from './mcp/server.ts'
 
 export type AppDeps = {
@@ -86,6 +87,46 @@ async function sendImage(c: Context, file: string, missing: string): Promise<Res
     return c.body(body as unknown as ArrayBuffer, 200, { 'content-type': type, 'cache-control': 'max-age=3600' })
   } catch {
     return c.json({ error: missing }, 404)
+  }
+}
+
+/** 発言の送信で受け取るもの。画像を添えるときは multipart で届く(0013)。 */
+type Sending = {
+  id?: string
+  text: string
+  model?: string
+  effort?: string
+  images: IncomingImage[]
+}
+
+async function readSending(c: Context): Promise<Sending> {
+  const text = (value: unknown): string | undefined => (typeof value === 'string' ? value : undefined)
+
+  if (!(c.req.header('content-type') ?? '').startsWith('multipart/form-data')) {
+    const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>
+    return {
+      ...(text(body['id']) === undefined ? {} : { id: text(body['id']) as string }),
+      text: (text(body['text']) ?? '').trim(),
+      ...(text(body['model']) === undefined ? {} : { model: text(body['model']) as string }),
+      ...(text(body['effort']) === undefined ? {} : { effort: text(body['effort']) as string }),
+      images: [],
+    }
+  }
+
+  const form = await c.req.parseBody({ all: true })
+  const files = form['images']
+  const list = files === undefined ? [] : Array.isArray(files) ? files : [files]
+  const images: IncomingImage[] = []
+  for (const file of list) {
+    if (!(file instanceof File)) continue
+    images.push({ name: file.name, type: file.type, bytes: new Uint8Array(await file.arrayBuffer()) })
+  }
+  return {
+    ...(text(form['id']) === undefined ? {} : { id: text(form['id']) as string }),
+    text: (text(form['text']) ?? '').trim(),
+    ...(text(form['model']) === undefined ? {} : { model: text(form['model']) as string }),
+    ...(text(form['effort']) === undefined ? {} : { effort: text(form['effort']) as string }),
+    images,
   }
 }
 
@@ -339,23 +380,29 @@ export function createApp(deps: AppDeps): Hono {
   })
 
   app.post('/api/chats/messages', async (c) => {
-    const body = (await c.req.json().catch(() => ({}))) as {
-      id?: unknown
-      text?: unknown
-      model?: unknown
-      effort?: unknown
+    let sending: Sending
+    try {
+      sending = await readSending(c)
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 400)
     }
-    if (typeof body.text !== 'string' || body.text.trim().length === 0) {
-      return c.json({ error: 'text を指定すること' }, 400)
+    if (sending.text.length === 0 && sending.images.length === 0) {
+      return c.json({ error: '本文か画像を指定すること' }, 400)
     }
+    const bad = sending.images.find((image) => unsupportedImageType(image.type))
+    if (bad !== undefined) return c.json({ error: `扱わない形式: ${bad.type}` }, 415)
+
     // 識別子を省くと、この発言で会話が作られる。始めただけの空の会話を残さない。
-    const target = body.id === undefined ? null : chatFile(body.id)
-    if (body.id !== undefined && target === null) return c.json({ error: `会話が見つからない: ${String(body.id)}` }, 404)
-    const options = {
-      ...(typeof body.model === 'string' ? { model: body.model } : {}),
-      ...(typeof body.effort === 'string' ? { effort: body.effort } : {}),
+    const target = sending.id === undefined ? null : chatFile(sending.id)
+    if (sending.id !== undefined && target === null) {
+      return c.json({ error: `会話が見つからない: ${sending.id}` }, 404)
     }
-    const sent = await deps.chats.send(target, body.text.trim(), options)
+    const options = {
+      ...(sending.model === undefined ? {} : { model: sending.model }),
+      ...(sending.effort === undefined ? {} : { effort: sending.effort }),
+      images: sending.images,
+    }
+    const sent = await deps.chats.send(target, sending.text, options)
     return c.json({ id: sent.id })
   })
 
