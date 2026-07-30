@@ -3,7 +3,7 @@ import type { CodexClient } from '../codex/client.ts'
 import { METHODS, textInput } from '../codex/protocol.ts'
 import { runTurn, startConversationThread } from '../codex/threads.ts'
 import {
-  freeChatPath,
+  chatPathFor,
   newChatId,
   readChat,
   withoutTurnIds,
@@ -84,14 +84,14 @@ export async function branchChat(absolutePath: string, selected: number, deps: B
   deps.markResumed(threadId)
 
   const now = new Date()
-  const path = await freeChatPath(deps.dataDir, now, source.meta.title)
+  const id = newChatId(now)
   const next: Omit<Chat, 'mtimeMs'> = {
-    path,
+    path: chatPathFor(deps.dataDir, now, id),
     // 立て直した経路では、写した発言の turn が新しいスレッドに無い(0012)。
     messages: canFork ? messages : withoutTurnIds(messages),
     meta: {
       ...source.meta,
-      id: newChatId(now),
+      id,
       created: toIsoDateTime(now),
       updated: nowIsoDateTime(),
       archived: false,
@@ -104,7 +104,7 @@ export async function branchChat(absolutePath: string, selected: number, deps: B
     },
   }
   await writeChat(deps.dataDir, next)
-  await deps.reindex(join(deps.dataDir, path))
+  await deps.reindex(join(deps.dataDir, next.path))
   return { id: next.meta.id, forked: canFork }
 }
 
