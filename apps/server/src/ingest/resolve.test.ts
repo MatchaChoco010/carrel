@@ -7,15 +7,11 @@ const NONE: KnownPapers = { byArxivId: () => null, bySourceUrl: () => null }
 
 /** turn/start に対して決められた JSON を返す、最小の代役。 */
 function fakeCodex(finalText: string): CodexClient {
-  const listeners = new Set<(n: { method: string; params?: unknown }) => void>()
+  const listeners = new Set<{ notify: (n: { method: string; params?: unknown }) => void }>()
   const client = {
-    on(event: string, handler: (n: { method: string; params?: unknown }) => void) {
-      if (event === 'notification') listeners.add(handler)
-      return client
-    },
-    off(event: string, handler: (n: { method: string; params?: unknown }) => void) {
-      if (event === 'notification') listeners.delete(handler)
-      return client
+    onThread(_threadId: string, listener: { notify: (n: { method: string; params?: unknown }) => void }) {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
     },
     async request(method: string, params?: unknown) {
       if (method === 'thread/start') return { threadId: 'th_1' }
@@ -23,11 +19,11 @@ function fakeCodex(finalText: string): CodexClient {
         const threadId = (params as { threadId: string }).threadId
         queueMicrotask(() => {
           for (const listener of listeners) {
-            listener({
+            listener.notify({
               method: 'item/completed',
               params: { threadId, item: { type: 'agentMessage', id: 'm1', text: finalText, phase: 'final_answer' } },
             })
-            listener({ method: 'turn/completed', params: { threadId, turn: { id: 't1', status: 'completed' } } })
+            listener.notify({ method: 'turn/completed', params: { threadId, turn: { id: 't1', status: 'completed' } } })
           }
         })
         return {}

@@ -19,6 +19,13 @@ export type CodexClientOptions = {
 
 export type CodexNotificationHandler = (notification: Notification) => void
 
+/** 1 つのスレッドの通知を待つ側。 */
+export type ThreadListener = {
+  notify: (notification: Notification) => void
+  /** これ以上そのスレッドの通知が来ないと分かったとき。 */
+  fail: (error: Error) => void
+}
+
 /** サーバーからの要求に答える期限。過ぎたら断る。 */
 const UNANSWERED_MS = 20_000
 
@@ -48,6 +55,8 @@ export class CodexClient extends EventEmitter {
   #pending = new Map<RequestId, { resolve: (value: unknown) => void; reject: (error: Error) => void; timer: NodeJS.Timeout }>()
   /** まだ答えていないサーバーからの要求。 */
   #unanswered = new Set<RequestId>()
+  /** スレッドごとの通知の配り先。 */
+  #threads = new Map<string, Set<ThreadListener>>()
   #stopping = false
 
   constructor(options: CodexClientOptions = {}) {
@@ -120,6 +129,25 @@ export class CodexClient extends EventEmitter {
     })
   }
 
+  /**
+   * スレッド宛の通知を受け取る。返り値を呼ぶと外れる。
+   *
+   * ターンごとに `notification` の listener を足すと、同時に流すターンの数だけ
+   * 並ぶ。照合と翻訳はページと節を 8 本ずつ流すので、EventEmitter の既定の上限を
+   * すぐ超える。ここで配り先を持てば、listener は最初の 1 つだけで済む。
+   */
+  onThread(threadId: string, listener: ThreadListener): () => void {
+    const listeners = this.#threads.get(threadId) ?? new Set<ThreadListener>()
+    listeners.add(listener)
+    this.#threads.set(threadId, listeners)
+    return () => {
+      const current = this.#threads.get(threadId)
+      if (current === undefined) return
+      current.delete(listener)
+      if (current.size === 0) this.#threads.delete(threadId)
+    }
+  }
+
   /** サーバーからの要求へ答える。`serverRequest` を受けた側が呼ぶ。 */
   respond(id: RequestId, result: unknown): void {
     this.#unanswered.delete(id)
@@ -148,8 +176,16 @@ export class CodexClient extends EventEmitter {
       return
     }
     if (typeof method === 'string') {
-      this.emit('notification', { method, params: message['params'] } satisfies Notification)
+      const notification = { method, params: message['params'] } satisfies Notification
+      this.emit('notification', notification)
+      this.#dispatchThread(notification)
     }
+  }
+
+  #dispatchThread(notification: Notification): void {
+    const params = (notification.params ?? {}) as { threadId?: unknown }
+    if (typeof params.threadId !== 'string') return
+    for (const listener of this.#threads.get(params.threadId) ?? []) listener.notify(notification)
   }
 
   #settle(id: RequestId, message: Record<string, unknown>): void {
@@ -194,11 +230,18 @@ export class CodexClient extends EventEmitter {
   }
 
   #handleExit(code: number | null, signal: NodeJS.Signals | null): void {
+    const gone = new Error(`app-server が終了した (code=${code} signal=${signal})`)
     for (const [, entry] of this.#pending) {
       clearTimeout(entry.timer)
-      entry.reject(new Error(`app-server が終了した (code=${code} signal=${signal})`))
+      entry.reject(gone)
     }
     this.#pending.clear()
+    // 通知を待っているターンは、要求としては既に答えが返っている。ここで知らせないと
+    // 待ったまま残る。
+    for (const listeners of this.#threads.values()) {
+      for (const listener of listeners) listener.fail(gone)
+    }
+    this.#threads.clear()
     this.#child = null
     this.#reader?.close()
     this.#reader = null
