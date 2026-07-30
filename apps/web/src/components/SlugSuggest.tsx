@@ -21,6 +21,9 @@ export function SlugSuggest({ slugs, value, onChange, inputRef }: SlugSuggestPro
   const [at, setAt] = useState(0)
   // Escape を押したかどうか。押すまでは Tab を入力欄の中で受け、押した後は
   // 隣の部品へ抜けさせる。文章を書いている間に焦点が飛ばないようにするため。
+  //
+  // 欄へ戻ってきたら解除する。Escape の効果は「いま欄を離れる」という 1 回の合図
+  // であって、次に欄を使うときまで持ち越すものではない。
   const [escaped, setEscaped] = useState(false)
 
   const typing = useMemo(() => {
@@ -122,6 +125,8 @@ export function SlugSuggest({ slugs, value, onChange, inputRef }: SlugSuggestPro
           setEscaped(false)
           onChange(e.target.value)
         }}
+        onFocus={() => setEscaped(false)}
+        onPointerDown={() => setEscaped(false)}
         onKeyDown={onKeyDown}
         placeholder="@ で論文を指して質問する(送信は送るボタン。Escape で欄を離れる)"
       />
