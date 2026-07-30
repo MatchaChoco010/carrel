@@ -131,6 +131,15 @@ export type Config = {
   converter: { python: string; llamaServer: string; llamaLibDir: string; pageScale: number }
 }
 
+/** 動いているサーバーの事実。設定として保存した値とは違いうる。 */
+export type Health = {
+  ok: boolean
+  pid: number
+  uptimeSeconds: number
+  clients: number
+  dataDir: string
+}
+
 export type ScanResult = {
   papersIndexed: number
   papersRemoved: number
@@ -222,6 +231,7 @@ export const api = {
   codexStatus: () => getJson<CodexStatus>('/api/codex/status'),
   jobs: () => getJson<JobsResponse>('/api/jobs'),
   indexStatus: () => getJson<IndexStatus>('/api/index/status'),
+  health: () => getJson<Health>('/api/health'),
   config: () => getJson<Config>('/api/config'),
   /** 一部だけを送れる。サーバーが今の設定に重ねてから検証する。 */
   saveConfig: (patch: Partial<Config>) => sendJson<Config>('PUT', '/api/config', patch),

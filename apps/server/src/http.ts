@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import type { CodexService } from './codex/service.ts'
 import type { Collection, ScanResult } from './data/collection.ts'
 import type { Config } from './config.ts'
-import { mergeConfig, saveConfig } from './config.ts'
+import { mergeConfig, saveConfig, unusableDataDir } from './config.ts'
 import type { IndexDb } from './db/index-db.ts'
 import { extractArxivId } from './ingest/arxiv.ts'
 import { ChatSessions } from './chat/session.ts'
@@ -81,6 +81,8 @@ export function createApp(deps: AppDeps): Hono {
       pid: process.pid,
       uptimeSeconds: Math.floor(process.uptime()),
       clients: deps.clientCount(),
+      // 動いているサーバーが使っている場所。保存した設定とは違いうる。
+      dataDir: deps.dataDir,
     }),
   )
 
@@ -95,6 +97,10 @@ export function createApp(deps: AppDeps): Hono {
     }
     // 現在の設定に受け取った値を重ねてから検証する。部分的な更新をそのまま受けられる。
     const next = mergeConfig({ ...deps.getConfig(), ...(body as Record<string, unknown>) })
+    if (next.dataDir !== deps.getConfig().dataDir) {
+      const problem = await unusableDataDir(next.dataDir)
+      if (problem !== null) return c.json({ error: problem }, 400)
+    }
     await saveConfig(next)
     deps.setConfig(next)
     return c.json(next)

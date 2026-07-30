@@ -1534,6 +1534,10 @@ body {
   font-size: 12px;
 }
 
+.settings__hint--warn {
+  color: var(--warn);
+}
+
 .settings__row {
   display: flex;
   align-items: center;
