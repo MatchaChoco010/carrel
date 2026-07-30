@@ -201,6 +201,11 @@ export const api = {
     ),
   reloadChat: (path: string) => sendJson<{ codexThreadId: string }>('POST', '/api/chats/reload', { path }),
   renameChat: (path: string, title: string) => sendJson<{ title: string }>('PUT', '/api/chats/title', { path, title }),
+  setChatArchived: (path: string, archived: boolean) =>
+    sendJson<{ archived: boolean }>('PUT', '/api/chats/archived', { path, archived }),
+  /** 確認を経てから呼ぶ。押すだけで消える経路は作らない。 */
+  deleteChat: (path: string) =>
+    sendJson<{ deleted: string; threadDeleted: boolean }>('DELETE', '/api/chats', { path, confirm: true }),
   /** path を省くと、この発言で会話が作られる。 */
   sendChatMessage: (path: string | null, text: string, model: string, effort: string) =>
     sendJson<{ path: string }>('POST', '/api/chats/messages', { path, text, model, effort }),

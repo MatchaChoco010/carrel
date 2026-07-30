@@ -39,6 +39,12 @@ export type AppDeps = {
   models: () => Promise<CodexModel[]>
   /** 会話を新しいスレッドへ載せ直す。 */
   reloadChat: (absolutePath: string) => Promise<string>
+  /** 会話を索引へ載せ直す。 */
+  reindexChat: (absolutePath: string) => Promise<void>
+  /** アーカイブの状態を切り替える。 */
+  setArchived: (absolutePath: string, archived: boolean) => Promise<void>
+  /** 会話を消す。markdown と Codex のスレッドを破棄する。 */
+  deleteChat: (absolutePath: string) => Promise<{ threadDeleted: boolean }>
   /** フィードの取得を今すぐ積む。 */
   refreshFeed: () => void
   /** ビルド済みの Web クライアントの場所。無ければ配信しない。 */
@@ -191,6 +197,30 @@ export function createApp(deps: AppDeps): Hono {
     }
   })
 
+  app.put('/api/chats/archived', async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as { path?: unknown; archived?: unknown }
+    if (typeof body.path !== 'string' || typeof body.archived !== 'boolean') {
+      return c.json({ error: 'path と archived を指定すること' }, 400)
+    }
+    const dataDir = deps.getConfig().dataDir
+    try {
+      await deps.setArchived(join(dataDir, body.path), body.archived)
+      return c.json({ archived: body.archived })
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 404)
+    }
+  })
+
+  // 消す経路は 1 つだけにする。押すだけで消える口は置かない(0006)。
+  app.delete('/api/chats', async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as { path?: unknown; confirm?: unknown }
+    if (typeof body.path !== 'string') return c.json({ error: 'path を指定すること' }, 400)
+    if (body.confirm !== true) return c.json({ error: '確認が要る' }, 400)
+    const dataDir = deps.getConfig().dataDir
+    const result = await deps.deleteChat(join(dataDir, body.path))
+    return c.json({ deleted: body.path, ...result })
+  })
+
   app.put('/api/chats/title', async (c) => {
     const body = (await c.req.json().catch(() => ({}))) as { path?: unknown; title?: unknown }
     if (typeof body.path !== 'string' || typeof body.title !== 'string' || body.title.trim().length === 0) {
@@ -205,6 +235,7 @@ export function createApp(deps: AppDeps): Hono {
       messages: chat.messages,
       meta: { ...chat.meta, title: body.title.trim(), titleSource: 'user' },
     })
+    await deps.reindexChat(join(dataDir, body.path))
     return c.json({ title: body.title.trim() })
   })
 

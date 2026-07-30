@@ -1,4 +1,4 @@
-import { Loader2, RotateCcw, Send } from 'lucide-react'
+import { ArchiveRestore, Loader2, RotateCcw, Send } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, type ChatMessage, type ChatState, type CodexModel, type RateLimitView } from '../api.ts'
 import { Markdown } from './Markdown.tsx'
@@ -27,6 +27,7 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
   const [shown, setShown] = useState<string | null>(null)
   const [state, setState] = useState<ChatState>('new')
   const [reloading, setReloading] = useState(false)
+  const [archived, setArchived] = useState(false)
   const [draft, setDraft] = useState('')
   const [models, setModels] = useState<CodexModel[]>([])
   const [model, setModel] = useState<string>('')
@@ -96,6 +97,7 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
         setMessages(r.messages)
         setShown(r.path)
         setState(r.state)
+        setArchived(r.meta.archived)
         setError(null)
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
@@ -108,6 +110,7 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
       setShown(null)
       setState('new')
       setTurn(null)
+      setArchived(false)
       setError(null)
       return
     }
@@ -135,11 +138,18 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
             setError(payload.message ?? '応答が返らなかった')
             load(path)
             return
+          // アーカイブや題の書き換えは一覧からも起きる。
+          case 'chat.changed':
+            load(path)
+            return
+          case 'chat.removed':
+            onOpen(null)
+            return
           default:
             return
         }
       }),
-    [subscribe, path, load],
+    [subscribe, path, load, onOpen],
   )
 
   const reload = (): void => {
@@ -157,7 +167,7 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
 
   const send = (): void => {
     const text = draft.trim()
-    if (text.length === 0 || blocked || state === 'needsReload') return
+    if (text.length === 0 || blocked || state === 'needsReload' || archived) return
     setDraft('')
     // 送った発言はターンの完了で読み直すまで手元で見せる。
     setMessages((previous) => [...previous, { role: 'user', at: new Date().toISOString(), text }])
@@ -196,7 +206,25 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
 
       {error !== null && <p className="error">{error}</p>}
 
-      {state === 'needsReload' && (
+      {archived && (
+        <div className="chat__reload">
+          <p>この会話はアーカイブしています。続けるにはアーカイブを解除してください。</p>
+          <button
+            type="button"
+            onClick={() => {
+              if (path === null) return
+              void api
+                .setChatArchived(path, false)
+                .then(() => setArchived(false))
+                .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+            }}
+          >
+            <ArchiveRestore size={ICON} aria-hidden /> 解除する
+          </button>
+        </div>
+      )}
+
+      {!archived && state === 'needsReload' && (
         <div className="chat__reload">
           <p>この会話の実行状態は残っていません。続けるには内容を読み込み直してください。</p>
           <button type="button" onClick={reload} disabled={reloading}>
@@ -222,7 +250,7 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
           <button
             type="button"
             onClick={send}
-            disabled={draft.trim().length === 0 || blocked || state === 'needsReload'}
+            disabled={draft.trim().length === 0 || blocked || state === 'needsReload' || archived}
           >
             <Send size={ICON} aria-hidden /> 送る
           </button>
