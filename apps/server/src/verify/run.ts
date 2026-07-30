@@ -18,6 +18,7 @@ import {
   VERIFY_OUTPUT_SCHEMA,
   type VerifyPageResult,
 } from './prompt.ts'
+import { joinSplitParagraphs } from '../convert/paragraphs.ts'
 import { buildReport, type PageReport } from './report.ts'
 import { readTextLayer, type TextLayerPaths } from './textlayer.ts'
 
@@ -123,9 +124,17 @@ export async function verifyPaper(slug: string, deps: VerifyDeps): Promise<void>
   const parts = done.map((d) => d.markdown.trim()).filter((text) => text.length > 0)
   const reports: PageReport[] = done.map((d) => d.report)
 
+  // ページを繋いだ後に、段とページの境目で割れた段落を繋ぐ。照合はページ単位で
+  // 走るので、ページを跨ぐ文はどのページからも見えない。
+  const joined = joinSplitParagraphs(parts.join('\n\n'))
+
   // frontmatter が正なので(0002)、本文だけを差し替えて書き戻す。
   const paper = await readPaper(deps.dataDir, slug)
   if (paper === null) throw new Error(`論文が読めない: ${slug}`)
-  await writePaper(deps.dataDir, paper.meta, `${parts.join('\n\n')}\n`)
-  await writeFile(paperFile(deps.dataDir, slug, 'verification'), buildReport(reports), 'utf8')
+  await writePaper(deps.dataDir, paper.meta, `${joined.markdown}\n`)
+  await writeFile(
+    paperFile(deps.dataDir, slug, 'verification'),
+    buildReport(reports, joined.joined),
+    'utf8',
+  )
 }
