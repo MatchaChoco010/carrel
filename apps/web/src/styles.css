@@ -1024,12 +1024,13 @@ body {
   gap: 10px;
 }
 
-.chat--empty {
-  align-items: flex-start;
-  gap: 12px;
+/* 画面が広いときは会話の列を中央へ置く。行が長くなりすぎると読みにくい。 */
+.chat > * {
+  width: 100%;
+  max-width: 52rem;
+  margin-inline: auto;
 }
 
-.chat--empty button,
 .chat__controls button {
   background: var(--surface-raised);
   border: 1px solid var(--border);

@@ -67,7 +67,15 @@ export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPanePro
   }, [])
 
   useEffect(() => {
-    if (path !== null) load(path)
+    // 新しい会話に切り替えたら、開いていた会話の表示を片付ける。
+    if (path === null) {
+      setMessages([])
+      setState('new')
+      setTurn(null)
+      setError(null)
+      return
+    }
+    load(path)
   }, [path, load])
 
   useEffect(
