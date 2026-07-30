@@ -777,13 +777,19 @@ body {
   padding: 1px 4px;
 }
 
-/* 表は幅を超えたら表の中だけを横に送る。本文全体は横に伸ばさない。 */
+/*
+ * 表は幅を超えたら表の中だけを横に送る。本文全体は横に伸ばさない。
+ *
+ * 幅を中身に合わせるのは、短い表を中央へ寄せるためである。display: block のまま
+ * 幅を指定しないと枠が親の幅いっぱいに広がり、左右の auto が効かない。
+ */
 .markdown table {
   display: block;
+  width: max-content;
+  max-width: 100%;
   overflow-x: auto;
   border-collapse: collapse;
   font-size: 13px;
-  max-width: 100%;
 }
 
 .markdown th,
@@ -791,7 +797,9 @@ body {
   border: 1px solid var(--border);
   padding: 4px 8px;
   text-align: left;
-  white-space: nowrap;
+  /* 長い升は折り返す。折り返さないと表が横へ伸び続けて読めなくなる。 */
+  max-width: 22ch;
+  overflow-wrap: anywhere;
 }
 
 .markdown blockquote {
@@ -1024,12 +1032,57 @@ body {
   gap: 10px;
 }
 
-.chat--empty {
-  align-items: flex-start;
-  gap: 12px;
+/*
+ * 会話の幅は 2 段で決める。
+ *
+ * 内側(--chat-text)は地の文の幅で、入力欄と自分の発言の枠もこれに合わせる。
+ * 外側(--chat-wide)は数式と表だけが使える幅で、枠を持たないエージェントの発言に
+ * だけかける。短い数式や表はその中で中央に来る。
+ *
+ * 記録の欄そのものには上限をかけない。スクロールバーを欄の端に置くためである。
+ */
+.chat {
+  --chat-wide: 52rem;
+  --chat-text: 38rem;
 }
 
-.chat--empty button,
+.chat__compose,
+.chat__reload,
+.chat > .error,
+.turn--user {
+  width: 100%;
+  max-width: var(--chat-text);
+  margin-inline: auto;
+}
+
+/* 枠を持たないので、広く取っても余白が広がるだけに見える。 */
+.turn--assistant {
+  width: 100%;
+  max-width: var(--chat-wide);
+  margin-inline: auto;
+}
+
+/* 地の文は内側の幅に収める。数式と表はこの制限を受けない。 */
+.turn .markdown > p,
+.turn .markdown > ul,
+.turn .markdown > ol,
+.turn .markdown > blockquote,
+.turn .markdown > h1,
+.turn .markdown > h2,
+.turn .markdown > h3,
+.turn .markdown > h4 {
+  max-width: var(--chat-text);
+  margin-inline: auto;
+}
+
+/* 数式と表は外側の幅まで使い、短いときは中央に来る。 */
+.turn .markdown > .katex-display,
+.turn .markdown > table,
+.turn .markdown > pre {
+  max-width: 100%;
+  margin-inline: auto;
+}
+
 .chat__controls button {
   background: var(--surface-raised);
   border: 1px solid var(--border);
@@ -1046,10 +1099,14 @@ body {
 .chat__log {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  /* スクロールバーは欄の端に置く。中の列だけを中央へ寄せる。 */
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  padding-right: 4px;
 }
 
 .turn {
@@ -1173,4 +1230,144 @@ body {
 .suggest__list button:hover {
   background: var(--surface);
   color: var(--accent);
+}
+
+/* --- チャットの一覧 --- */
+
+.chats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chat-row {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+/* アーカイブ済みは薄く出す。並びは後ろに来る(0006)。 */
+.chat-row--archived {
+  opacity: 0.55;
+}
+
+.chat-row--active {
+  border-color: var(--accent);
+}
+
+.chat-row header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-row__title {
+  flex: 1;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  padding: 0;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chat-row__title:hover {
+  color: var(--accent);
+}
+
+.chat-row header input {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 14px;
+}
+
+.chat-row header button.ghost {
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  padding: 2px 4px;
+  cursor: pointer;
+}
+
+.chat-row__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.chat-row__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chat-row__badge--warn {
+  color: var(--warn);
+}
+
+.chat-row__summary {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+/* 読み込み直しの案内。押すまで新しいスレッドは作らない(0006)。 */
+.chat__reload {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.chat__reload p {
+  margin: 0;
+  flex: 1;
+}
+
+.chat__reload button {
+  flex: 0 0 auto;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chats__new {
+  align-self: flex-start;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }

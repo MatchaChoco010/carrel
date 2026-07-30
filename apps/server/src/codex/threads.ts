@@ -46,6 +46,21 @@ export async function startConversationThread(
   return readThreadId(await client.request(METHODS.threadStart, params))
 }
 
+/**
+ * 既存のスレッドを読み込み直す。残っていなければ false を返す。
+ *
+ * Codex の保存領域はマシンの入れ替えや掃除で失われる(0006)。また app-server を
+ * 起動し直すとスレッドは記憶から降りるので、ターンを流す前に一度ここを通す。
+ */
+export async function resumeThread(client: CodexClient, threadId: string): Promise<boolean> {
+  try {
+    await client.request(METHODS.threadResume, { threadId })
+    return true
+  } catch {
+    return false
+  }
+}
+
 /** 1 つのジョブに対応する使い捨てのスレッド。指示と道具を最小にする。 */
 export async function startWorkThread(
   client: CodexClient,

@@ -1,10 +1,13 @@
-import { Loader2, Plus, Send } from 'lucide-react'
+import { Loader2, RotateCcw, Send } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { api, type ChatMessage, type CodexModel, type RateLimitView } from '../api.ts'
+import { api, type ChatMessage, type ChatState, type CodexModel, type RateLimitView } from '../api.ts'
 import { Markdown } from './Markdown.tsx'
 import { SlugSuggest } from './SlugSuggest.tsx'
 
 export type ChatPaneProps = {
+  /** 一覧で選ばれた会話。null なら新しく始める案内を出す。 */
+  path: string | null
+  onOpen: (path: string | null) => void
   /** 制限に達していると送れない。回復時刻を出す(0003)。 */
   limits: RateLimitView | null
   /** 補完に使う slug の一覧。 */
@@ -17,9 +20,13 @@ const ICON = 15
 
 type Turn = { path: string; delta: string }
 
-export function ChatPane({ limits, slugs, subscribe }: ChatPaneProps) {
-  const [path, setPath] = useState<string | null>(null)
+export function ChatPane({ path, onOpen, limits, slugs, subscribe }: ChatPaneProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  // いま出ている発言がどの会話のものか。場所が変わっても、届くまでは前の会話の
+  // 発言が出ているので、末尾へ送る判断はこちらで行う。
+  const [shown, setShown] = useState<string | null>(null)
+  const [state, setState] = useState<ChatState>('new')
+  const [reloading, setReloading] = useState(false)
   const [draft, setDraft] = useState('')
   const [models, setModels] = useState<CodexModel[]>([])
   const [model, setModel] = useState<string>('')
@@ -27,6 +34,9 @@ export function ChatPane({ limits, slugs, subscribe }: ChatPaneProps) {
   const [turn, setTurn] = useState<Turn | null>(null)
   const [error, setError] = useState<string | null>(null)
   const input = useRef<HTMLTextAreaElement>(null)
+  const log = useRef<HTMLDivElement>(null)
+  // 末尾へ送り終えた会話。開き直したときにもう一度送るための目印。
+  const scrolledFor = useRef<string | null>(null)
 
   const blocked = limits?.reached === true
 
@@ -49,6 +59,34 @@ export function ChatPane({ limits, slugs, subscribe }: ChatPaneProps) {
     if (path !== null) input.current?.focus()
   }, [path])
 
+  /**
+   * 末尾へ送る。
+   *
+   * 会話を開いた直後は必ず送る。続きを話す相手は直近のやりとりである。発言が
+   * 増えたときは末尾の近くにいるときだけ送り、過去を読んでいる途中で引き戻さない。
+   *
+   * 開いた直後かどうかは、いま出ている発言がどの会話のものかで判じる。場所が
+   * 変わった時点ではまだ前の会話の発言が出ているので、そこを起点にすると、
+   * 発言が届いたときには「もう送った」と見なされて末尾へ行かない。
+   */
+  useEffect(() => {
+    const node = log.current
+    if (node === null) return
+
+    if (shown !== null && scrolledFor.current !== shown) {
+      scrolledFor.current = shown
+      // 数式の組版と字体の読み込みで高さが後から変わるので、次の描画でもう一度送る。
+      node.scrollTop = node.scrollHeight
+      requestAnimationFrame(() => {
+        node.scrollTop = node.scrollHeight
+      })
+      return
+    }
+
+    const nearBottom = node.scrollHeight - node.scrollTop - node.clientHeight < 160
+    if (nearBottom) node.scrollTop = node.scrollHeight
+  }, [messages, turn, shown])
+
   const efforts = useMemo(() => models.find((m) => m.id === model)?.efforts ?? [], [models, model])
 
   const load = useCallback((target: string) => {
@@ -56,10 +94,25 @@ export function ChatPane({ limits, slugs, subscribe }: ChatPaneProps) {
       .chat(target)
       .then((r) => {
         setMessages(r.messages)
+        setShown(r.path)
+        setState(r.state)
         setError(null)
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
   }, [])
+
+  useEffect(() => {
+    // 新しい会話に切り替えたら、開いていた会話の表示を片付ける。
+    if (path === null) {
+      setMessages([])
+      setShown(null)
+      setState('new')
+      setTurn(null)
+      setError(null)
+      return
+    }
+    load(path)
+  }, [path, load])
 
   useEffect(
     () =>
@@ -89,42 +142,40 @@ export function ChatPane({ limits, slugs, subscribe }: ChatPaneProps) {
     [subscribe, path, load],
   )
 
-  const start = (): void => {
+  const reload = (): void => {
+    if (path === null) return
+    setReloading(true)
     void api
-      .createChat({ model, effort })
-      .then((r) => {
-        setPath(r.path)
-        setMessages([])
+      .reloadChat(path)
+      .then(() => {
+        setState('resumable')
         setError(null)
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setReloading(false))
   }
 
   const send = (): void => {
     const text = draft.trim()
-    if (text.length === 0 || path === null || blocked) return
+    if (text.length === 0 || blocked || state === 'needsReload') return
     setDraft('')
     // 送った発言はターンの完了で読み直すまで手元で見せる。
     setMessages((previous) => [...previous, { role: 'user', at: new Date().toISOString(), text }])
     void api
       .sendChatMessage(path, text, model, effort)
+      .then((r) => {
+        // 初めての発言では、ここで会話の場所が決まる。
+        if (path === null) onOpen(r.path)
+      })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
-  }
-
-  if (path === null) {
-    return (
-      <div className="chat chat--empty">
-        <p className="pane__empty">論文について議論する会話を始めます。</p>
-        <button type="button" onClick={start}>
-          <Plus size={ICON} aria-hidden /> 会話を始める
-        </button>
-      </div>
-    )
   }
 
   return (
     <div className="chat">
-      <div className="chat__log">
+      <div className="chat__log" ref={log}>
+        {path === null && messages.length === 0 && (
+          <p className="pane__empty">論文について議論します。@ で論文を指して尋ねると、その論文を読んで答えます。</p>
+        )}
         {messages.map((message, index) => (
           <article key={`${message.at}-${index}`} className={`turn turn--${message.role}`}>
             <Markdown text={message.text} />
@@ -145,6 +196,16 @@ export function ChatPane({ limits, slugs, subscribe }: ChatPaneProps) {
 
       {error !== null && <p className="error">{error}</p>}
 
+      {state === 'needsReload' && (
+        <div className="chat__reload">
+          <p>この会話の実行状態は残っていません。続けるには内容を読み込み直してください。</p>
+          <button type="button" onClick={reload} disabled={reloading}>
+            {reloading ? <Loader2 size={ICON} className="spin" aria-hidden /> : <RotateCcw size={ICON} aria-hidden />}
+            読み込み直す
+          </button>
+        </div>
+      )}
+
       <div className="chat__compose">
         {blocked && (
           <p className="status-item status-item--warn">
@@ -158,7 +219,11 @@ export function ChatPane({ limits, slugs, subscribe }: ChatPaneProps) {
         {/* 送るボタンを入力欄の次に置く。Escape のあと Tab を 1 回で届くようにする。
             見た目の並びは CSS の order で戻す。 */}
         <div className="chat__controls">
-          <button type="button" onClick={send} disabled={draft.trim().length === 0 || blocked}>
+          <button
+            type="button"
+            onClick={send}
+            disabled={draft.trim().length === 0 || blocked || state === 'needsReload'}
+          >
             <Send size={ICON} aria-hidden /> 送る
           </button>
           <select value={model} onChange={(e) => setModel(e.target.value)} aria-label="モデル">

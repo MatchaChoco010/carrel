@@ -1,11 +1,12 @@
 import 'katex/dist/katex.min.css'
-import { useMemo, type MouseEvent } from 'react'
+import { memo, useMemo, type MouseEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
 import rehypeRaw from 'rehype-raw'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import { linkCitations } from '../citations.ts'
+import { normalizeMathDelimiters } from '../mathDelimiters.ts'
 
 export type MarkdownProps = {
   text: string
@@ -27,8 +28,11 @@ function scrollToAnchor(event: MouseEvent<HTMLAnchorElement>, id: string): void 
   target.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
-export function Markdown({ text, slug, linkReferences = false }: MarkdownProps) {
-  const source = useMemo(() => (linkReferences ? linkCitations(text) : text), [text, linkReferences])
+function MarkdownView({ text, slug, linkReferences = false }: MarkdownProps) {
+  const source = useMemo(() => {
+    const normalized = normalizeMathDelimiters(text)
+    return linkReferences ? linkCitations(normalized) : normalized
+  }, [text, linkReferences])
 
   return (
     <div className="markdown">
@@ -65,3 +69,12 @@ export function Markdown({ text, slug, linkReferences = false }: MarkdownProps) 
     </div>
   )
 }
+
+/**
+ * 同じ markdown を二度組み立てない。
+ *
+ * 会話の欄は応答の途中で何度も描き直される。記憶化しないと、そのたびに過去の
+ * 発言まで解析と数式の組版をやり直すことになる。実測で 200 発言の会話では
+ * 1 回の描き直しに 1.2 秒かかっていた。
+ */
+export const Markdown = memo(MarkdownView)

@@ -105,6 +105,19 @@ const MIGRATIONS: Migration[] = [
   },
 ]
 
+/** 一覧に出す会話の要点。発言そのものは含まない。 */
+export type ChatSummary = {
+  id: string
+  path: string
+  created: string
+  updated: string
+  title: string
+  summary: string
+  archived: number
+  codex_thread_id: string | null
+  forked_from: string | null
+}
+
 export type IndexedPaper = {
   slug: string
   mtimeMs: number
@@ -197,6 +210,20 @@ export class IndexDb {
 
   deletePaper(slug: string): void {
     this.#db.prepare('delete from papers where slug = ?').run(slug)
+  }
+
+  /**
+   * 会話を一覧する。
+   *
+   * アーカイブしていないものを先に、それぞれの中では更新の新しい順に並べる(0006)。
+   */
+  listChats(): ChatSummary[] {
+    return this.#db
+      .prepare(
+        `select id, path, created, updated, title, summary, archived, codex_thread_id, forked_from
+         from chats order by archived asc, updated desc`,
+      )
+      .all() as ChatSummary[]
   }
 
   upsertChat(chat: Chat): void {

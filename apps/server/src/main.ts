@@ -22,6 +22,7 @@ import { enqueueFeedFetch, registerFeed } from './feed/job.ts'
 import { FeedStore } from './feed/store.ts'
 import { createChat } from './chat/create.ts'
 import { ChatSessions } from './chat/session.ts'
+import { reloadChat } from './chat/reload.ts'
 import { listModels } from './codex/models.ts'
 import { Hub } from './hub.ts'
 import { converterScript, indexDbFile, stateDbFile, stateDir, textLayerScript, webRoot } from './paths.ts'
@@ -135,6 +136,10 @@ async function main(): Promise<void> {
   const chats = new ChatSessions({
     dataDir: config.dataDir,
     codex: codex.client,
+    createChat: async (options) => {
+      const created = await createChat(config.dataDir, options)
+      return { absolutePath: created.absolutePath }
+    },
     knownSlug: (slug) => index.getPaper(slug) !== null,
     onEvent: (event) => hub.broadcast({ type: event.type, payload: event }),
   })
@@ -160,11 +165,16 @@ async function main(): Promise<void> {
     ingests,
     feed,
     chats,
-    createChat: async (options) => {
-      const created = await createChat(config.dataDir, options)
-      return { path: created.chat.path }
-    },
     models: () => listModels(codex.client),
+    reloadChat: async (absolutePath) => {
+      const threadId = await reloadChat(absolutePath, {
+        dataDir: config.dataDir,
+        codex: codex.client,
+        knownSlug: (slug) => index.getPaper(slug) !== null,
+      })
+      chats.markResumed(threadId)
+      return threadId
+    },
     refreshFeed: () => enqueueFeedFetch(jobs),
     webRoot: await webRoot(),
   })
