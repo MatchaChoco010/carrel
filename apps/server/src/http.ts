@@ -14,6 +14,7 @@ import { discardIngest, ingestFromUrl } from './ingest/pipeline.ts'
 import type { IngestStore } from './ingest/store.ts'
 import type { JobQueue } from './jobs/queue.ts'
 import type { SearchHit, SearchQuery } from './search/search.ts'
+import type { ChatSearchHit, ChatSearchQuery } from './search/chat-search.ts'
 import { readPaper, readPaperSideFile, writePaper } from './data/paper.ts'
 import { readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
@@ -22,6 +23,8 @@ import { paperAssetsDir } from './data/layout.ts'
 export type AppDeps = {
   /** 論文を検索する。埋め込みを使うので非同期になる。 */
   search: (query: SearchQuery) => Promise<SearchHit[]>
+  /** 会話を検索する。 */
+  searchChats: (query: ChatSearchQuery) => Promise<ChatSearchHit[]>
   /** 解決と取得が済んだ論文の、残りの段階を始める。 */
   onIngested: (slug: string) => void
   getConfig: () => Config
@@ -183,6 +186,23 @@ export function createApp(deps: AppDeps): Hono {
     return c.json({
       chats: rows.map((row, index) => ({ ...row, archived: row.archived !== 0, state: states[index] })),
     })
+  })
+
+  app.get('/api/chats/search', async (c) => {
+    const q = c.req.query()
+    const query: ChatSearchQuery = {}
+    if (q['q'] !== undefined && q['q'].length > 0) query.text = q['q']
+    if (q['archived'] === 'true') query.archived = true
+    if (q['archived'] === 'false') query.archived = false
+    for (const key of ['from', 'to'] as const) {
+      const value = q[key]
+      if (value !== undefined && value.length > 0) query[key] = value
+    }
+    try {
+      return c.json({ hits: await deps.searchChats(query) })
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 502)
+    }
   })
 
   app.post('/api/chats/reload', async (c) => {

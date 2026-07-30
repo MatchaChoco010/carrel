@@ -103,6 +103,41 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 3,
+    up: `
+      -- チャンクの単位は発言 1 つ(0006)。論文のチャンクと同じ 3 経路で引くが、
+      -- 見出し経路の代わりに役割と時刻を持つ。
+      create table chat_chunks (
+        id integer primary key autoincrement,
+        chat_id text not null references chats (id) on delete cascade,
+        position integer not null,
+        role text not null,
+        at text not null,
+        text text not null,
+        vector blob
+      );
+      create index chat_chunks_chat on chat_chunks (chat_id);
+      create unique index chat_chunks_place on chat_chunks (chat_id, position);
+
+      create virtual table chat_chunks_fts using fts5 (
+        text,
+        content = 'chat_chunks',
+        content_rowid = 'id',
+        tokenize = "trigram"
+      );
+      create trigger chat_chunks_ai after insert on chat_chunks begin
+        insert into chat_chunks_fts (rowid, text) values (new.id, new.text);
+      end;
+      create trigger chat_chunks_ad after delete on chat_chunks begin
+        insert into chat_chunks_fts (chat_chunks_fts, rowid, text) values ('delete', old.id, old.text);
+      end;
+      create trigger chat_chunks_au after update on chat_chunks begin
+        insert into chat_chunks_fts (chat_chunks_fts, rowid, text) values ('delete', old.id, old.text);
+        insert into chat_chunks_fts (rowid, text) values (new.id, new.text);
+      end;
+    `,
+  },
 ]
 
 /** 一覧に出す会話の要点。発言そのものは含まない。 */
@@ -371,6 +406,45 @@ export class IndexDb {
       .prepare(`select p.slug as slug from papers p where ${where.join(' and ')} order by p.slug`)
       .all(...params) as Array<{ slug: string }>
     return rows.map((r) => r.slug)
+  }
+
+  /**
+   * 会話を構造化条件で絞る。条件が無ければ null を返す(`filterSlugs` と同じ約束)。
+   *
+   * 絞れるのはアーカイブ状態と日付の範囲である(0006)。日付は更新の日時で見る。
+   */
+  filterChatIds(filter: { archived?: boolean; from?: string; to?: string }): string[] | null {
+    const where: string[] = []
+    const params: (string | number)[] = []
+
+    if (filter.archived !== undefined) {
+      where.push('archived = ?')
+      params.push(filter.archived ? 1 : 0)
+    }
+    if (filter.from !== undefined && filter.from.length > 0) {
+      where.push('updated >= ?')
+      params.push(filter.from)
+    }
+    if (filter.to !== undefined && filter.to.length > 0) {
+      where.push('updated <= ?')
+      params.push(filter.to)
+    }
+
+    if (where.length === 0) return null
+    const rows = this.#db
+      .prepare(`select id from chats where ${where.join(' and ')} order by updated desc`)
+      .all(...params) as Array<{ id: string }>
+    return rows.map((r) => r.id)
+  }
+
+  getChatById(id: string): ChatSummary | null {
+    const row = this.#db
+      .prepare(
+        `select id, path, created, updated, title, summary, archived, codex_thread_id, forked_from
+         from chats where id = ?`,
+      )
+      .get(id) as ChatSummary | undefined
+    return row ?? null
   }
 
   countPapers(): number {

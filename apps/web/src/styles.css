@@ -1383,6 +1383,28 @@ body {
   gap: 6px;
 }
 
+.chats__search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  color: var(--text-dim);
+}
+
+.chats__search input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
 .chats__new {
   align-self: flex-start;
   background: var(--surface-raised);

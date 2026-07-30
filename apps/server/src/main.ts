@@ -7,6 +7,8 @@ import { CodexService } from './codex/service.ts'
 import { enqueueConvert, registerConvert } from './convert/job.ts'
 import { createEmbedder } from './search/embed.ts'
 import { search } from './search/search.ts'
+import { searchChats } from './search/chat-search.ts'
+import { ChatChunkStore } from './search/chat-store.ts'
 import { enqueueRegister, registerRegister } from './search/job.ts'
 import { ChunkStore } from './search/store.ts'
 import { enqueueTranslate, registerTranslate } from './translate/job.ts'
@@ -22,7 +24,13 @@ import { IngestStore } from './ingest/store.ts'
 import { enqueueFeedFetch, registerFeed } from './feed/job.ts'
 import { FeedStore } from './feed/store.ts'
 import { createChat } from './chat/create.ts'
-import { ChatDigestScheduler, enqueueChatDigest, registerChatDigest } from './chat/job.ts'
+import {
+  ChatDigestScheduler,
+  enqueueChatDigest,
+  enqueueChatIndex,
+  registerChatDigest,
+  registerChatIndex,
+} from './chat/job.ts'
 import { ChatSessions } from './chat/session.ts'
 import { reloadChat } from './chat/reload.ts'
 import { deleteChat, setArchived } from './chat/lifecycle.ts'
@@ -39,10 +47,16 @@ async function main(): Promise<void> {
   const state = new StateDb(stateDbFile())
   const ingests = new IngestStore(state.db)
 
+  // 起動時の走査はキューを作る前に走るので、そのぶんは走査の後にまとめて積む。
+  let enqueueChatChunks: (path: string) => void = () => {}
+
   const collection = new Collection(config.dataDir, index, {
     onPaperChanged: (slug) => hub.broadcast({ type: 'paper.changed', payload: { slug } }),
     onPaperRemoved: (slug) => hub.broadcast({ type: 'paper.removed', payload: { slug } }),
-    onChatChanged: (path) => hub.broadcast({ type: 'chat.changed', payload: { path } }),
+    onChatChanged: (path) => {
+      hub.broadcast({ type: 'chat.changed', payload: { path } })
+      enqueueChatChunks(path)
+    },
     onChatRemoved: (path) => hub.broadcast({ type: 'chat.removed', payload: { path } }),
   },
   () => ingests.incompleteSlugs())
@@ -119,6 +133,12 @@ async function main(): Promise<void> {
     indexPaper: (paper) => index.upsertPaper(paper, true),
   })
 
+  const chatChunks = new ChatChunkStore(index.db)
+  registerChatIndex(jobs, { dataDir: config.dataDir, chunks: chatChunks, embed })
+  enqueueChatChunks = (path) => {
+    enqueueChatIndex(jobs, path)
+  }
+
   const feed = new FeedStore(state.db)
   registerFeed(jobs, {
     poll: () => ({
@@ -165,6 +185,7 @@ async function main(): Promise<void> {
 
   const app = createApp({
     search: (query) => search(query, { index, chunks, embed }),
+    searchChats: (query) => searchChats(query, { index, chunks: chatChunks, embed }),
     onIngested: (slug) => enqueueConvert(jobs, slug),
     getConfig: () => config,
     setConfig: (next) => {
@@ -228,6 +249,13 @@ async function main(): Promise<void> {
   console.log(`data dir: ${config.dataDir}`)
 
   jobs.start()
+
+  // まだ発言が検索の索引に載っていない会話を積む。初回と、pct を止めている間に
+  // 増えたぶんがここで入る。
+  const indexedChats = chatChunks.indexedChatIds()
+  for (const chat of index.listChats()) {
+    if (!indexedChats.has(chat.id)) enqueueChatIndex(jobs, chat.path)
+  }
 
   // 起動のたびに取りにいく。止めていた期間の投稿はここでまとめて入る(0004)。
   enqueueFeedFetch(jobs)
