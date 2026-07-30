@@ -1551,6 +1551,17 @@ body {
   color: var(--warn);
 }
 
+/* 引けない画像は、場所が分かる形で出す。黙って消すと参照が壊れたことに気づけない。 */
+.markdown__missing-image {
+  color: var(--warn);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.markdown__external-image {
+  overflow-wrap: anywhere;
+}
+
 .settings__row {
   display: flex;
   align-items: center;

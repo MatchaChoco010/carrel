@@ -289,7 +289,7 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
           const index = hidden + offset
           return (
           <article key={`${message.at}-${index}`} className={`turn turn--${message.role}`}>
-            <Markdown text={message.text} />
+            <Markdown text={message.text} chatId={shown ?? undefined} />
             {/* 最初の turn より後の発言から分岐できる(0012)。 */}
             {id !== null && index >= 2 && (
               <button
@@ -311,7 +311,7 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
                 <Loader2 size={ICON} className="spin" aria-hidden /> 考えています
               </p>
             ) : (
-              <Markdown text={turn.delta} />
+              <Markdown text={turn.delta} chatId={shown ?? undefined} />
             )}
           </article>
         )}

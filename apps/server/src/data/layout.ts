@@ -1,4 +1,4 @@
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
 export const PAPERS_DIR = 'papers'
 export const CHATS_DIR = 'chats'
@@ -65,4 +65,12 @@ export function chatDir(dataDir: string, createdAt: Date, id: string): string {
 
 export function chatFile(dataDir: string, createdAt: Date, id: string): string {
   return join(chatDir(dataDir, createdAt, id), CHAT_FILE)
+}
+
+/** 会話のディレクトリの中で、添付の実体を置く場所(0013)。 */
+export const CHAT_ASSETS_DIR = 'assets'
+
+/** 本文の場所から、その会話の添付のディレクトリを返す。 */
+export function chatAssetsDirOf(chatFilePath: string): string {
+  return join(dirname(chatFilePath), CHAT_ASSETS_DIR)
 }
