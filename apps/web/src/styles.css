@@ -1107,7 +1107,13 @@ body {
   font-size: 12px;
 }
 
+.chat__controls select {
+  order: 1;
+}
+
+/* 並びは選択欄の後ろだが、たどり着く順は入力欄の次にする(ChatPane)。 */
 .chat__controls button {
+  order: 2;
   margin-left: auto;
 }
 

@@ -155,7 +155,12 @@ export function ChatPane({ limits, slugs, subscribe }: ChatPaneProps) {
           </p>
         )}
         <SlugSuggest slugs={slugs} value={draft} onChange={setDraft} inputRef={input} />
+        {/* 送るボタンを入力欄の次に置く。Escape のあと Tab を 1 回で届くようにする。
+            見た目の並びは CSS の order で戻す。 */}
         <div className="chat__controls">
+          <button type="button" onClick={send} disabled={draft.trim().length === 0 || blocked}>
+            <Send size={ICON} aria-hidden /> 送る
+          </button>
           <select value={model} onChange={(e) => setModel(e.target.value)} aria-label="モデル">
             {models.map((m) => (
               <option key={m.id} value={m.id}>
@@ -170,9 +175,6 @@ export function ChatPane({ limits, slugs, subscribe }: ChatPaneProps) {
               </option>
             ))}
           </select>
-          <button type="button" onClick={send} disabled={draft.trim().length === 0 || blocked}>
-            <Send size={ICON} aria-hidden /> 送る
-          </button>
         </div>
       </div>
     </div>

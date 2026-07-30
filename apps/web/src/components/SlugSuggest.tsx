@@ -19,8 +19,9 @@ const TYPING = /@([a-z0-9-]*)$/
 
 export function SlugSuggest({ slugs, value, onChange, inputRef }: SlugSuggestProps) {
   const [at, setAt] = useState(0)
-  // Escape で候補を閉じる。閉じている間は Tab が隣の部品へ抜ける。
-  const [closed, setClosed] = useState(false)
+  // Escape を押したかどうか。押すまでは Tab を入力欄の中で受け、押した後は
+  // 隣の部品へ抜けさせる。文章を書いている間に焦点が飛ばないようにするため。
+  const [escaped, setEscaped] = useState(false)
 
   const typing = useMemo(() => {
     const match = TYPING.exec(value)
@@ -28,10 +29,10 @@ export function SlugSuggest({ slugs, value, onChange, inputRef }: SlugSuggestPro
   }, [value])
 
   const candidates = useMemo(() => {
-    if (typing === null || closed) return []
+    if (typing === null || escaped) return []
     // slug は人間が読める形なので、著者名や略称の断片から絞り込める(0006)。
     return slugs.filter((slug) => slug.includes(typing)).slice(0, LIMIT)
-  }, [slugs, typing, closed])
+  }, [slugs, typing, escaped])
 
   // 内容に合わせて縦に伸ばす。長文を書いている途中で入力欄が窓になるのを避ける。
   useEffect(() => {
@@ -47,13 +48,40 @@ export function SlugSuggest({ slugs, value, onChange, inputRef }: SlugSuggestPro
     inputRef.current?.focus()
   }
 
+  /** 打った位置にタブ文字を入れる。 */
+  const insertTab = (node: HTMLTextAreaElement): void => {
+    const start = node.selectionStart
+    const end = node.selectionEnd
+    onChange(`${value.slice(0, start)}\t${value.slice(end)}`)
+    // 値の反映は次の描画なので、位置の復元もそこへ回す。
+    requestAnimationFrame(() => {
+      node.selectionStart = start + 1
+      node.selectionEnd = start + 1
+    })
+  }
+
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
     if (event.key === 'Escape') {
-      setClosed(true)
+      setEscaped(true)
       return
     }
     // IME の変換中は、確定の Enter が候補の確定に取られないようにする。
     if (event.nativeEvent.isComposing) return
+
+    if (event.key === 'Tab') {
+      if (candidates.length > 0) {
+        event.preventDefault()
+        complete(candidates[at] as string)
+        return
+      }
+      // Escape を押すまでは、Tab は入力欄の中の字下げとして扱う。
+      if (!escaped) {
+        event.preventDefault()
+        insertTab(event.currentTarget)
+      }
+      return
+    }
+
     if (candidates.length === 0) return
 
     switch (event.key) {
@@ -65,7 +93,6 @@ export function SlugSuggest({ slugs, value, onChange, inputRef }: SlugSuggestPro
         event.preventDefault()
         setAt((previous) => (previous - 1 + candidates.length) % candidates.length)
         return
-      case 'Tab':
       case 'Enter':
         event.preventDefault()
         complete(candidates[at] as string)
@@ -92,11 +119,11 @@ export function SlugSuggest({ slugs, value, onChange, inputRef }: SlugSuggestPro
         ref={inputRef}
         value={value}
         onChange={(e) => {
-          setClosed(false)
+          setEscaped(false)
           onChange(e.target.value)
         }}
         onKeyDown={onKeyDown}
-        placeholder="@ で論文を指して質問する(送信は送るボタン)"
+        placeholder="@ で論文を指して質問する(送信は送るボタン。Escape で欄を離れる)"
       />
     </div>
   )
