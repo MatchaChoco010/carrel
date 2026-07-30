@@ -1,6 +1,6 @@
-import { Archive, ArchiveRestore, Check, MoreHorizontal, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react'
+import { Archive, ArchiveRestore, Check, MoreHorizontal, Pencil, Plus, RotateCcw, Search, Trash2, X } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { api, type ChatSummary } from '../api.ts'
+import { api, type ChatSearchHit, type ChatSummary } from '../api.ts'
 
 export type ChatsPaneProps = {
   /** いま開いている会話。 */
@@ -13,8 +13,16 @@ export type ChatsPaneProps = {
 
 const ICON = 14
 
+/** 打っている間に毎打鍵で引かない。埋め込みの生成を伴うため(0005)。 */
+const SEARCH_DELAY_MS = 300
+
 function day(at: string): string {
   return at.slice(0, 10)
+}
+
+function who(role: ChatSearchHit['role']): string {
+  if (role === 'user') return '自分の発言'
+  return role === 'assistant' ? 'エージェントの発言' : ''
 }
 
 export function ChatsPane({ active, onOpen, revision, onChanged }: ChatsPaneProps) {
@@ -24,6 +32,8 @@ export function ChatsPane({ active, onOpen, revision, onChanged }: ChatsPaneProp
   const [draft, setDraft] = useState('')
   const [menuOpen, setMenuOpen] = useState<string | null>(null)
   const [confirming, setConfirming] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
+  const [hits, setHits] = useState<ChatSearchHit[] | null>(null)
 
   const load = useCallback(() => {
     void api
@@ -36,6 +46,29 @@ export function ChatsPane({ active, onOpen, revision, onChanged }: ChatsPaneProp
   }, [])
 
   useEffect(load, [load, revision])
+
+  useEffect(() => {
+    const text = query.trim()
+    if (text.length === 0) {
+      setHits(null)
+      return
+    }
+    let live = true
+    const timer = setTimeout(() => {
+      void api
+        .searchChats(text)
+        .then((r) => {
+          if (live) setHits(r.hits)
+        })
+        .catch((e: unknown) => {
+          if (live) setError(e instanceof Error ? e.message : String(e))
+        })
+    }, SEARCH_DELAY_MS)
+    return () => {
+      live = false
+      clearTimeout(timer)
+    }
+  }, [query, revision])
 
   const rename = (path: string): void => {
     const title = draft.trim()
@@ -65,10 +98,57 @@ export function ChatsPane({ active, onOpen, revision, onChanged }: ChatsPaneProp
         <Plus size={ICON} aria-hidden /> 新しい会話
       </button>
 
-      {error !== null && <p className="error">{error}</p>}
-      {chats.length === 0 && error === null && <p className="empty">会話はまだありません</p>}
+      <div className="chats__search">
+        <Search size={ICON} aria-hidden />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setQuery('')
+          }}
+          placeholder="発言を検索"
+          aria-label="会話を検索"
+        />
+        {query.length > 0 && (
+          <button type="button" className="ghost" onClick={() => setQuery('')} aria-label="検索をやめる">
+            <X size={ICON} aria-hidden />
+          </button>
+        )}
+      </div>
 
-      {chats.map((chat) => (
+      {error !== null && <p className="error">{error}</p>}
+
+      {hits !== null ? (
+        <>
+          {hits.length === 0 && <p className="empty">当たる会話がありません</p>}
+          {hits.map((hit) => (
+            <article
+              key={hit.path}
+              className={`chat-row ${hit.archived ? 'chat-row--archived' : ''} ${hit.path === active ? 'chat-row--active' : ''}`}
+            >
+              <header>
+                <button type="button" className="chat-row__title" onClick={() => onOpen(hit.path)}>
+                  {hit.title}
+                </button>
+              </header>
+              <p className="chat-row__meta">
+                {day(hit.updated)}
+                {hit.role !== null && <span className="chat-row__badge">{who(hit.role)}</span>}
+                {hit.archived && (
+                  <span className="chat-row__badge">
+                    <Archive size={ICON} aria-hidden /> アーカイブ済み
+                  </span>
+                )}
+              </p>
+              <p className="chat-row__summary">{hit.excerpt}</p>
+            </article>
+          ))}
+        </>
+      ) : null}
+
+      {hits === null && chats.length === 0 && error === null && <p className="empty">会話はまだありません</p>}
+
+      {(hits === null ? chats : []).map((chat) => (
         <article
           key={chat.path}
           className={`chat-row ${chat.archived ? 'chat-row--archived' : ''} ${chat.path === active ? 'chat-row--active' : ''}`}

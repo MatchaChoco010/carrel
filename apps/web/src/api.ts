@@ -83,6 +83,19 @@ export type ChatSummary = {
   state: ChatState
 }
 
+export type ChatSearchHit = {
+  id: string
+  path: string
+  title: string
+  updated: string
+  archived: boolean
+  /** 当たった発言。語句を指定しなかったときは付かない。 */
+  role: 'user' | 'assistant' | null
+  at: string | null
+  excerpt: string
+  score: number
+}
+
 export type CodexModel = {
   id: string
   displayName: string
@@ -195,6 +208,12 @@ export const api = {
   slugs: () => getJson<{ slugs: string[] }>('/api/papers/slugs'),
   models: () => getJson<{ models: CodexModel[] }>('/api/codex/models'),
   chats: () => getJson<{ chats: ChatSummary[] }>('/api/chats'),
+  searchChats: (query: string, filter: { archived?: boolean } = {}) => {
+    const params = new URLSearchParams()
+    if (query.length > 0) params.set('q', query)
+    if (filter.archived !== undefined) params.set('archived', String(filter.archived))
+    return getJson<{ hits: ChatSearchHit[] }>(`/api/chats/search?${params.toString()}`)
+  },
   chat: (path: string) =>
     getJson<{ meta: ChatMeta; messages: ChatMessage[]; path: string; running: boolean; state: ChatState }>(
       `/api/chats/one?path=${encodeURIComponent(path)}`,
