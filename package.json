@@ -1,0 +1,21 @@
+{
+  "name": "pct",
+  "version": "0.1.0",
+  "private": true,
+  "description": "paper collection tool",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "dev": "apps/server/scripts/dev-server.sh",
+    "dev:web": "pnpm --filter @pct/web dev"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "packageManager": "pnpm@11.17.0"
+}

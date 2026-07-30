@@ -1,0 +1,10 @@
+packages:
+  - apps/*
+  - packages/*
+allowBuilds:
+  # vite の依存。ネイティブのバイナリを取り出すために必要。
+  esbuild: true
+  # 展開のときに Electron 本体を取り出す。
+  electron: true
+  # Windows 向けの梱包にしか使わない。
+  electron-winstaller: false

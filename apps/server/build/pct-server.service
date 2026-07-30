@@ -1,0 +1,25 @@
+[Unit]
+Description=pct (paper collection tool) server
+Documentation=https://github.com/MatchaChoco010/paper-collection-tool
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=@NODE@ --disable-warning=ExperimentalWarning @SERVER_ENTRY@
+Restart=on-failure
+RestartSec=5
+# ROCm は iGPU も 1 つのデバイスとして列挙するため、外すと変換や埋め込みの
+# 生成が iGPU に載ることがある。
+Environment=ROCR_VISIBLE_DEVICES=0
+Environment=NODE_ENV=production
+# 設定と状態の置き場所を明示して持つ。開発用のサーバーは同じ変数を別の場所へ向けて
+# 立ち上がるので、周りの環境変数を引き継ぐと本番の索引を開発用の場所に作りかねない。
+Environment=XDG_CONFIG_HOME=@XDG_CONFIG_HOME@
+Environment=XDG_STATE_HOME=@XDG_STATE_HOME@
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pct
+
+[Install]
+WantedBy=default.target

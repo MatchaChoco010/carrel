@@ -1,0 +1,15 @@
+# --- agent-harness sync: managed block, do not edit ---
+# bot (GitHub App) credentials
+.env
+# dependencies of harness/scripts
+harness/scripts/node_modules/
+# --- agent-harness sync: end of managed block ---
+
+# --- pct ---
+node_modules/
+dist/
+*.tsbuildinfo
+apps/converter/.venv/
+release/
+# 開発用のサーバーの設定・状態・コレクション
+.dev/
