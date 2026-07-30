@@ -3,7 +3,14 @@ import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { storeImages, unsupportedImageType, withAttachments } from './attachments.ts'
+import {
+  attachmentPaths,
+  copyAttachments,
+  referencedAttachments,
+  storeImages,
+  unsupportedImageType,
+  withAttachments,
+} from './attachments.ts'
 
 const png = (byte: number): Uint8Array => Uint8Array.from([0x89, 0x50, 0x4e, 0x47, byte])
 
@@ -83,4 +90,46 @@ test('参照は本文の先頭に並ぶ', () => {
   )
   assert.equal(withAttachments('', stored), '![図 1.png](assets/aaa.png)\n![](assets/bbb.png)')
   assert.equal(withAttachments('本文だけ', []), '本文だけ')
+})
+
+test('発言が参照している添付を、出てきた順に重複なく返す', () => {
+  const names = referencedAttachments([
+    { text: '![a](assets/aaa.png)\n\n見て。' },
+    { text: '外の画像 ![x](https://example.com/x.png) と ![b](./assets/bbb.jpg)' },
+    { text: 'もう一度 ![a](assets/aaa.png)' },
+    { text: '論文の図 ![図](@kerbl2023-3dgs/assets/fig.png)' },
+  ])
+
+  assert.deepEqual(names, ['aaa.png', 'bbb.jpg'])
+})
+
+test('実体のある添付だけを渡す', async () => {
+  const dir = await chatDir()
+  try {
+    const file = join(dir, 'chat.md')
+    const stored = await storeImages(file, [{ name: 'a.png', type: 'image/png', bytes: png(1) }])
+    const name = (stored[0]?.ref ?? '').replace('assets/', '')
+
+    assert.deepEqual(await attachmentPaths(file, [name, '無い.png']), [stored[0]?.file])
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('分岐先へ添付を複製する', async () => {
+  const from = await chatDir()
+  const to = join(from, '..', '20260731T130000-def456')
+  try {
+    const fromFile = join(from, 'chat.md')
+    const stored = await storeImages(fromFile, [{ name: 'a.png', type: 'image/png', bytes: png(3) }])
+    const name = (stored[0]?.ref ?? '').replace('assets/', '')
+
+    await copyAttachments(fromFile, join(to, 'chat.md'), [name])
+
+    assert.deepEqual(new Uint8Array(await readFile(join(to, 'assets', name))), png(3))
+    assert.deepEqual(new Uint8Array(await readFile(stored[0]?.file ?? '')), png(3), '分岐元は残る')
+  } finally {
+    await rm(from, { recursive: true, force: true })
+    await rm(to, { recursive: true, force: true })
+  }
 })
