@@ -1,7 +1,7 @@
 import type { CodexClient } from '../codex/client.ts'
 import { textInput } from '../codex/protocol.ts'
 import { runTurn, startConversationThread } from '../codex/threads.ts'
-import { readChat, writeChat, type Chat } from '../data/chat.ts'
+import { readChat, withoutTurnIds, writeChat, type Chat } from '../data/chat.ts'
 import { nowIsoDateTime } from '../data/datetime.ts'
 import { paperDir } from '../data/layout.ts'
 import { serializeMessages } from '../data/chat.ts'
@@ -24,7 +24,8 @@ export function buildReloadInput(chat: Chat, dataDir: string, knownSlug: (slug: 
     '',
     '## 会話の記録',
     '',
-    serializeMessages(chat.messages),
+    // turn の識別子は pct が分岐に使う値で、議論の中身ではない。
+    serializeMessages(withoutTurnIds(chat.messages)),
   ]
   if (papers.length > 0) {
     parts.push(
@@ -61,7 +62,7 @@ export async function reloadChat(absolutePath: string, deps: ReloadDeps): Promis
 
   await writeChat(deps.dataDir, {
     path: chat.path,
-    messages: chat.messages,
+    messages: withoutTurnIds(chat.messages),
     meta: { ...chat.meta, updated: nowIsoDateTime(), codexThreadId: threadId },
   })
   return threadId

@@ -166,6 +166,8 @@ export class ChatSessions {
       }
 
       const answered: ChatMessage = { role: 'assistant', at: nowIsoDateTime(), text: outcome.text }
+      // 完了した turn だけが分岐点になれる(0012)。
+      if (outcome.turnId !== null) answered.turnId = outcome.turnId
       const saved = await this.#append(absolutePath, withAsked, [answered], threadId, model, effort)
       this.#deps.onEvent({ type: 'chat.turn.completed', path: saved.path, message: answered })
     } catch (error) {
