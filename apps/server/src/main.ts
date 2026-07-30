@@ -211,6 +211,8 @@ async function main(): Promise<void> {
     getConfig: () => config,
     setConfig: (next) => {
       config = next
+      // 開いている画面が既定を追えるようにする。まだ始めていない会話の選び直しに要る。
+      hub.broadcast({ type: 'config.changed', payload: { chat: next.chat } })
     },
     clientCount: () => hub.size,
     index,

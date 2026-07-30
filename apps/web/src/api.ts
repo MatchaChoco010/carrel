@@ -120,6 +120,24 @@ export type FeedItem = {
   slug: string | null
 }
 
+/** サーバーが持つ設定。編集して書き戻す(0001)。 */
+export type Config = {
+  dataDir: string
+  server: { host: string; port: number }
+  arxiv: { categories: string[]; fetchIntervalMinutes: number; initialLookbackDays: number }
+  chat: { defaultModel: string; defaultEffort: string }
+  ingest: { model: string; effort: string; serviceTier: string | null }
+  embedding: { baseUrl: string; model: string; dimensions: number }
+  converter: { python: string; llamaServer: string; llamaLibDir: string; pageScale: number }
+}
+
+export type ScanResult = {
+  papersIndexed: number
+  papersRemoved: number
+  chatsIndexed: number
+  chatsRemoved: number
+}
+
 export type IndexStatus = {
   papers: number
   chats: number
@@ -204,6 +222,10 @@ export const api = {
   codexStatus: () => getJson<CodexStatus>('/api/codex/status'),
   jobs: () => getJson<JobsResponse>('/api/jobs'),
   indexStatus: () => getJson<IndexStatus>('/api/index/status'),
+  config: () => getJson<Config>('/api/config'),
+  /** 一部だけを送れる。サーバーが今の設定に重ねてから検証する。 */
+  saveConfig: (patch: Partial<Config>) => sendJson<Config>('PUT', '/api/config', patch),
+  rebuildIndex: () => sendJson<ScanResult>('POST', '/api/index/rebuild', {}),
   ingests: () => getJson<{ ingests: Ingest[] }>('/api/ingests'),
   slugs: () => getJson<{ slugs: string[] }>('/api/papers/slugs'),
   models: () => getJson<{ models: CodexModel[] }>('/api/codex/models'),

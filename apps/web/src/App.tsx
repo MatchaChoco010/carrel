@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, type CodexStatus, type IndexStatus, type Ingest, type JobsResponse } from './api.ts'
 import { ChatPane } from './components/ChatPane.tsx'
 import { ChatsPane } from './components/ChatsPane.tsx'
+import { SettingsPane } from './components/SettingsPane.tsx'
 import { FeedPane } from './components/FeedPane.tsx'
 import { IngestsPane } from './components/IngestsPane.tsx'
 import { JobsPane } from './components/JobsPane.tsx'
@@ -205,7 +206,7 @@ export function App() {
                 onChanged={() => setRevision((n) => n + 1)}
               />
             ) : (
-              <p className="pane__empty">設定の編集は後続の作業で足す。</p>
+              <SettingsPane onChanged={() => setRevision((n) => n + 1)} />
             )}
           </div>
         </section>
