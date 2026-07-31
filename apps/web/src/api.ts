@@ -272,6 +272,15 @@ export const api = {
   /** 一部だけを送れる。サーバーが今の設定に重ねてから検証する。 */
   saveConfig: (patch: Partial<Config>) => sendJson<Config>('PUT', '/api/config', patch),
   rebuildIndex: () => sendJson<ScanResult>('POST', '/api/index/rebuild', {}),
+  /** 済んだ取り込みの記録を消す。論文は残る(#223)。 */
+  clearIngests: () => sendJson<{ cleared: number }>('POST', '/api/ingests/clear', {}),
+  /** 失敗した取り込みを捨てる。半端な成果物も消える(#223)。 */
+  discardIngest: (slug: string) =>
+    sendJson<{ discarded: string; cancelledJobs: number }>(
+      'DELETE',
+      `/api/ingests/${encodeURIComponent(slug)}`,
+      {},
+    ),
   ingests: () => getJson<{ ingests: Ingest[] }>('/api/ingests'),
   slugs: () => getJson<{ slugs: string[] }>('/api/papers/slugs'),
   models: () => getJson<{ models: CodexModel[] }>('/api/codex/models'),

@@ -477,6 +477,19 @@ export function createApp(deps: AppDeps): Hono {
     return c.json({ queued: true })
   })
 
+  // 済んだ取り込みの記録を消す。論文は残る(#223)。
+  app.post('/api/ingests/clear', (c) => c.json({ cleared: deps.ingests.clearDone() }))
+
+  // 失敗した取り込みを捨てる。半端な成果物も一緒に消す(#223)。
+  app.delete('/api/ingests/:slug', async (c) => {
+    const slug = c.req.param('slug')
+    const record = deps.ingests.get(slug)
+    if (record === null) return c.json({ error: `取り込みの記録が無い: ${slug}` }, 404)
+    const jobs = deps.jobs.cancelPending(slug)
+    await discardIngest(deps.dataDir, slug, deps.ingests)
+    return c.json({ discarded: slug, cancelledJobs: jobs.cancelled })
+  })
+
   app.get('/api/ingests', (c) =>
     c.json({
       ingests: deps.ingests.list().map((record) => ({ ...record, stages: deps.ingests.stages(record.slug) })),

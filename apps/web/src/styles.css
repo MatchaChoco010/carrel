@@ -1058,9 +1058,25 @@ body {
   opacity: 0.7;
 }
 
-.jobs__actions {
+.jobs__actions,
+.ingests__actions {
   display: flex;
   justify-content: flex-end;
+}
+
+/* 失敗した取り込みを捨てるボタン。題の行に小さく置く。 */
+.ingest__discard {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  padding: 0 2px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+
+.ingest__discard:hover {
+  color: var(--text);
 }
 
 /* --- arXiv フィード --- */
