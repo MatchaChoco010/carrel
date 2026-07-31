@@ -180,7 +180,7 @@ export function App() {
             {tab === 'jobs' ? (
               <div className="jobs-tab">
                 <IngestsPane ingests={ingests} />
-                <JobsPane jobs={jobs} />
+                <JobsPane jobs={jobs} onCleared={reloadJobs} />
               </div>
             ) : tab === 'papers' ? (
               <PapersPane

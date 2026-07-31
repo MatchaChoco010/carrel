@@ -250,7 +250,7 @@ test('再起動をまたいで未完了の仕事が残り、実行中のもの�
   }
 })
 
-test('完了した古い仕事を捨てられる', async () => {
+test('終わった古い仕事を捨てられる', async () => {
   const h = makeHarness()
   try {
     const queue = new JobQueue(h.store)
@@ -262,7 +262,7 @@ test('完了した古い仕事を捨てられる', async () => {
     assert.equal(h.store.counts().done, 5)
     // 直近 2 件を残し、それより古いものを捨てる。時刻は同じ秒に並ぶので、判定の
     // 起点を少し先に置く。
-    assert.equal(h.store.pruneDone(2, 0, Date.now() + 1000), 3)
+    assert.equal(h.store.pruneFinished(2, 0, Date.now() + 1000), 3)
     assert.equal(h.store.counts().done, 2)
   } finally {
     h.close()
@@ -278,8 +278,46 @@ test('新しい仕事は、時間が経っていなければ捨てない', async
     for (let i = 0; i < 5; i += 1) queue.enqueue({ kind: 'work', target: `t${i}`, resource: 'gpu' })
     await queue.drain()
 
-    assert.equal(h.store.pruneDone(2, 60_000), 0, '直近 2 件の外でも、1 分を過ぎていなければ残る')
+    assert.equal(h.store.pruneFinished(2, 60_000), 0, '直近 2 件の外でも、1 分を過ぎていなければ残る')
     assert.equal(h.store.counts().done, 5)
+  } finally {
+    h.close()
+  }
+})
+
+test('失敗した古い仕事も捨てる', async () => {
+  const h = makeHarness()
+  try {
+    const queue = new JobQueue(h.store, { maxAttempts: 1 })
+    queue.register('work', async () => {
+      throw new Error('失敗')
+    })
+    queue.start()
+    for (let i = 0; i < 3; i += 1) queue.enqueue({ kind: 'work', target: `t${i}`, resource: 'gpu' })
+    await queue.drain()
+
+    assert.equal(h.store.counts().failed, 3)
+    assert.equal(h.store.pruneFinished(1, 0, Date.now() + 1000), 2)
+    assert.equal(h.store.counts().failed, 1)
+  } finally {
+    h.close()
+  }
+})
+
+test('終わった仕事だけを消せる', async () => {
+  const h = makeHarness()
+  try {
+    const queue = new JobQueue(h.store)
+    queue.register('work', async () => {})
+    queue.start()
+    for (let i = 0; i < 3; i += 1) queue.enqueue({ kind: 'work', target: `t${i}`, resource: 'gpu' })
+    await queue.drain()
+    // 走らせない仕事を 1 つ足しておく。
+    h.store.enqueue({ kind: 'other', target: 'keep', resource: 'gpu', priority: 'background' })
+
+    assert.equal(h.store.clearFinished(), 3)
+    assert.equal(h.store.counts().done, 0)
+    assert.equal(h.store.counts().pending, 1)
   } finally {
     h.close()
   }

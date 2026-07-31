@@ -1,4 +1,6 @@
-import type { Job, JobsResponse, JobState } from '../api.ts'
+import { Eraser, Loader2 } from 'lucide-react'
+import { useState } from 'react'
+import { api, type Job, type JobsResponse, type JobState } from '../api.ts'
 
 const STATE_LABEL: Record<JobState, string> = {
   pending: '待機中',
@@ -10,10 +12,29 @@ const STATE_LABEL: Record<JobState, string> = {
 
 const ORDER: JobState[] = ['running', 'waitingForQuota', 'pending', 'failed', 'done']
 
-export function JobsPane({ jobs }: { jobs: JobsResponse | null }) {
+export type JobsPaneProps = {
+  jobs: JobsResponse | null
+  /** 履歴を消したら、一覧を読み直させる。 */
+  onCleared: () => void
+}
+
+const ICON = 14
+
+export function JobsPane({ jobs, onCleared }: JobsPaneProps) {
+  const [clearing, setClearing] = useState(false)
+
+  const clear = (): void => {
+    setClearing(true)
+    void api
+      .clearJobs()
+      .then(onCleared)
+      .finally(() => setClearing(false))
+  }
+
   if (jobs === null) return <p className="pane__empty">読み込み中</p>
   if (jobs.jobs.length === 0) return <p className="pane__empty">実行中の処理はありません</p>
 
+  const finished = jobs.counts.done + jobs.counts.failed
   const byState = new Map<JobState, Job[]>()
   for (const job of jobs.jobs) {
     const list = byState.get(job.state) ?? []
@@ -23,6 +44,14 @@ export function JobsPane({ jobs }: { jobs: JobsResponse | null }) {
 
   return (
     <div className="jobs">
+      {finished > 0 && (
+        <div className="jobs__actions">
+          <button type="button" onClick={clear} disabled={clearing}>
+            {clearing ? <Loader2 size={ICON} className="spin" aria-hidden /> : <Eraser size={ICON} aria-hidden />}
+            終わった {finished} 件の記録を消す
+          </button>
+        </div>
+      )}
       {ORDER.filter((state) => (byState.get(state)?.length ?? 0) > 0).map((state) => (
         <section key={state} className="jobs__group">
           <h3 className="jobs__heading">
