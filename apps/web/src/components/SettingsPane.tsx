@@ -1,7 +1,14 @@
 import { Check, Loader2, Plus, RotateCcw, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api, type CodexModel, type Config } from '../api.ts'
-import { FONT_SIZE_RANGE, LINE_HEIGHT_RANGE, READING_DEFAULT, type Reading } from '../useReading.ts'
+import {
+  FONT_SIZE_RANGE,
+  FONT_SIZE_STEPS,
+  LINE_HEIGHT_RANGE,
+  LINE_HEIGHT_STEPS,
+  READING_DEFAULT,
+  type Reading,
+} from '../useReading.ts'
 
 export type SettingsPaneProps = {
   /** 索引を作り直したら、一覧を読み直させる。 */
@@ -28,6 +35,9 @@ export function SettingsPane({ onChanged, reading, onReadingChange }: SettingsPa
   const [dataDir, setDataDir] = useState<string | null>(null)
   const [fetchInterval, setFetchInterval] = useState<number | null>(null)
   const [instructions, setInstructions] = useState<string | null>(null)
+  // 目安の値から外れているときは、開いた時点でカスタムとして扱う。
+  const [fontCustom, setFontCustom] = useState(() => !FONT_SIZE_STEPS.some((s) => s.value === reading.fontSize))
+  const [lineCustom, setLineCustom] = useState(() => !LINE_HEIGHT_STEPS.some((s) => s.value === reading.lineHeight))
 
   useEffect(() => {
     void api
@@ -196,32 +206,65 @@ export function SettingsPane({ onChanged, reading, onReadingChange }: SettingsPa
 
       <section className="settings__group">
         <h3>本文の読みやすさ(この端末だけ)</h3>
-        <label className="settings__slider">
-          文字の大きさ
-          <input
-            type="range"
-            min={FONT_SIZE_RANGE.min}
-            max={FONT_SIZE_RANGE.max}
-            step={1}
-            value={reading.fontSize}
-            onChange={(e) => onReadingChange({ ...reading, fontSize: Number(e.target.value) })}
-          />
-          <span className="settings__value">{reading.fontSize}px</span>
-        </label>
-        <label className="settings__slider">
-          行の高さ
-          <input
-            type="range"
-            min={LINE_HEIGHT_RANGE.min}
-            max={LINE_HEIGHT_RANGE.max}
-            step={0.1}
-            value={reading.lineHeight}
-            onChange={(e) => onReadingChange({ ...reading, lineHeight: Number(e.target.value) })}
-          />
-          <span className="settings__value">{reading.lineHeight.toFixed(1)}</span>
-        </label>
+        <div className="settings__steps">
+          <span className="settings__steps-label">文字の大きさ</span>
+          {FONT_SIZE_STEPS.map((step) => (
+            <button
+              key={step.label}
+              type="button"
+              className={!fontCustom && reading.fontSize === step.value ? 'on' : ''}
+              onClick={() => (setFontCustom(false), onReadingChange({ ...reading, fontSize: step.value }))}
+            >
+              {step.label}
+            </button>
+          ))}
+          <button type="button" className={fontCustom ? 'on' : ''} onClick={() => setFontCustom(true)}>
+            カスタム
+          </button>
+          {fontCustom && (
+            <input
+              type="number"
+              min={FONT_SIZE_RANGE.min}
+              max={FONT_SIZE_RANGE.max}
+              step={1}
+              value={reading.fontSize}
+              onChange={(e) => onReadingChange({ ...reading, fontSize: Number(e.target.value) })}
+              aria-label="文字の大きさ(px)"
+            />
+          )}
+        </div>
+        <div className="settings__steps">
+          <span className="settings__steps-label">行の高さ</span>
+          {LINE_HEIGHT_STEPS.map((step) => (
+            <button
+              key={step.label}
+              type="button"
+              className={!lineCustom && reading.lineHeight === step.value ? 'on' : ''}
+              onClick={() => (setLineCustom(false), onReadingChange({ ...reading, lineHeight: step.value }))}
+            >
+              {step.label}
+            </button>
+          ))}
+          <button type="button" className={lineCustom ? 'on' : ''} onClick={() => setLineCustom(true)}>
+            カスタム
+          </button>
+          {lineCustom && (
+            <input
+              type="number"
+              min={LINE_HEIGHT_RANGE.min}
+              max={LINE_HEIGHT_RANGE.max}
+              step={0.1}
+              value={reading.lineHeight}
+              onChange={(e) => onReadingChange({ ...reading, lineHeight: Number(e.target.value) })}
+              aria-label="行の高さ"
+            />
+          )}
+        </div>
         <div className="settings__row">
-          <button type="button" onClick={() => onReadingChange(READING_DEFAULT)}>
+          <button
+            type="button"
+            onClick={() => (setFontCustom(false), setLineCustom(false), onReadingChange(READING_DEFAULT))}
+          >
             <RotateCcw size={ICON} aria-hidden /> 既定に戻す
           </button>
         </div>

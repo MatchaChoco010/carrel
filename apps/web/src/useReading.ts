@@ -14,6 +14,19 @@ export const READING_DEFAULT: Reading = { fontSize: 14, lineHeight: 1.8 }
 export const FONT_SIZE_RANGE = { min: 12, max: 24 }
 export const LINE_HEIGHT_RANGE = { min: 1.4, max: 2.4 }
 
+/** 3 段階の目安。これ以外の値はカスタムとして数値で受ける。 */
+export const FONT_SIZE_STEPS = [
+  { label: '小', value: 13 },
+  { label: '中', value: 14 },
+  { label: '大', value: 18 },
+]
+
+export const LINE_HEIGHT_STEPS = [
+  { label: '小', value: 1.6 },
+  { label: '中', value: 1.8 },
+  { label: '大', value: 2.1 },
+]
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max)
 }
