@@ -4,6 +4,12 @@ import { homedir } from 'node:os'
 import { dirname, isAbsolute, join } from 'node:path'
 import { configDir, configFile, converterPython } from './paths.ts'
 
+/** 呼び出して入力欄へ差し込む定型の文。 */
+export type SavedPrompt = {
+  name: string
+  body: string
+}
+
 export type Config = {
   dataDir: string
   server: {
@@ -21,6 +27,8 @@ export type Config = {
     defaultEffort: string
     /** ユーザーが決める、応答の仕方への指示(0014)。 */
     instructions: string
+    /** 入力欄へ差し込める、名前を付けた定型のプロンプト。 */
+    prompts: SavedPrompt[]
     /** 入力欄で Enter を押したときに送るか。 */
     sendOnEnter: boolean
     /** 入力欄で Ctrl+Enter を押したときに送るか。 */
@@ -66,6 +74,7 @@ export const defaultConfig: Config = {
     defaultModel: 'gpt-5.6-sol',
     defaultEffort: 'high',
     instructions: '',
+    prompts: [],
     // 既定では送らない。書いている途中の改行で送ってしまわないようにする。
     sendOnEnter: false,
     sendOnCtrlEnter: false,
@@ -97,6 +106,15 @@ export const defaultConfig: Config = {
  * 欠けているキーと範囲外の値は既定値で埋め、未知のキーは捨てる。
  * 設定ファイルを手で編集して一部だけを書いた場合でも起動できる。
  */
+/** 名前も本文も持つものだけを受ける。片方だけの項目は呼び出せないので落とす。 */
+function asSavedPrompt(raw: unknown): SavedPrompt[] {
+  if (typeof raw !== 'object' || raw === null) return []
+  const r = raw as Record<string, unknown>
+  const name = typeof r['name'] === 'string' ? r['name'].trim() : ''
+  const body = typeof r['body'] === 'string' ? r['body'] : ''
+  return name.length > 0 && body.trim().length > 0 ? [{ name, body }] : []
+}
+
 export function mergeConfig(stored: unknown): Config {
   if (typeof stored !== 'object' || stored === null) return structuredClone(defaultConfig)
   const raw = stored as Record<string, unknown>
@@ -143,6 +161,7 @@ export function mergeConfig(stored: unknown): Config {
     }
     // 空にできる値なので、長さでは判じない。
     if (typeof c['instructions'] === 'string') merged.chat.instructions = c['instructions']
+    if (Array.isArray(c['prompts'])) merged.chat.prompts = c['prompts'].flatMap(asSavedPrompt)
     for (const key of ['sendOnEnter', 'sendOnCtrlEnter'] as const) {
       if (typeof c[key] === 'boolean') merged.chat[key] = c[key]
     }

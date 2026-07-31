@@ -1,6 +1,23 @@
-import { ArchiveRestore, GitBranch, ImagePlus, Loader2, RotateCcw, Send, Undo2, X } from 'lucide-react'
+import {
+  ArchiveRestore,
+  GitBranch,
+  ImagePlus,
+  Loader2,
+  MessageSquarePlus,
+  RotateCcw,
+  Send,
+  Undo2,
+  X,
+} from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { api, type ChatMessage, type ChatState, type CodexModel, type RateLimitView } from '../api.ts'
+import {
+  api,
+  type ChatMessage,
+  type ChatState,
+  type CodexModel,
+  type RateLimitView,
+  type SavedPrompt,
+} from '../api.ts'
 import { Markdown } from './Markdown.tsx'
 import { SlugSuggest } from './SlugSuggest.tsx'
 
@@ -57,6 +74,9 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
   const [effort, setEffort] = useState<string>('')
   /** 設定の既定。会話が自分の値を持たないときに使う。 */
   const [defaults, setDefaults] = useState<{ model: string; effort: string } | null>(null)
+  /** 設定に登録した定型のプロンプト。 */
+  const [prompts, setPrompts] = useState<SavedPrompt[]>([])
+  const [promptsOpen, setPromptsOpen] = useState(false)
   /** Enter 系のキーで送るかどうか。設定で選ぶ。 */
   const [sendKeys, setSendKeys] = useState({ enter: false, ctrlEnter: false })
   /** 開いている会話が記録している値。まだ話していない会話は持たない。 */
@@ -95,6 +115,7 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
         .config()
         .then((c) => {
           setDefaults({ model: c.chat.defaultModel, effort: c.chat.defaultEffort })
+          setPrompts(c.chat.prompts)
           setSendKeys({ enter: c.chat.sendOnEnter, ctrlEnter: c.chat.sendOnCtrlEnter })
         })
         .catch(() => setDefaults(null))
@@ -278,6 +299,18 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setReloading(false))
+  }
+
+  /**
+   * 定型のプロンプトを入力欄へ差し込む。
+   *
+   * 送らずに入れるのは、`@slug` で論文を指してから使うためである。差し込んだ後に
+   * 手を入れて送れる。
+   */
+  const insertPrompt = (prompt: SavedPrompt): void => {
+    setPromptsOpen(false)
+    setDraft((previous) => (previous.trim().length === 0 ? prompt.body : `${previous.trimEnd()}\n\n${prompt.body}`))
+    input.current?.focus()
   }
 
   // 画像だけでも送れる。本文が空でも、画像があれば尋ねる形になる(0013)。
@@ -498,6 +531,28 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
           >
             <ImagePlus size={ICON} aria-hidden />
           </button>
+          {prompts.length > 0 && (
+            <div className="menu">
+              <button
+                type="button"
+                className="chat__attach"
+                onClick={() => setPromptsOpen(!promptsOpen)}
+                aria-label="登録したプロンプトを差し込む"
+                title="登録したプロンプトを差し込む"
+              >
+                <MessageSquarePlus size={ICON} aria-hidden />
+              </button>
+              {promptsOpen && (
+                <div className="menu-items menu-items--up" role="menu">
+                  {prompts.map((prompt, at) => (
+                    <button key={at} type="button" role="menuitem" onClick={() => insertPrompt(prompt)}>
+                      {prompt.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           {messages.some((message) => message.role === 'user') && (
             <button
               type="button"

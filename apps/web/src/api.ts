@@ -121,6 +121,12 @@ export type FeedItem = {
 }
 
 /** サーバーが持つ設定。編集して書き戻す(0001)。 */
+/** 入力欄へ差し込める定型の文。 */
+export type SavedPrompt = {
+  name: string
+  body: string
+}
+
 export type Config = {
   dataDir: string
   server: { host: string; port: number }
@@ -129,6 +135,7 @@ export type Config = {
     defaultModel: string
     defaultEffort: string
     instructions: string
+    prompts: SavedPrompt[]
     sendOnEnter: boolean
     sendOnCtrlEnter: boolean
   }
