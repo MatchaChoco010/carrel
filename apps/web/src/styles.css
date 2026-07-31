@@ -1253,16 +1253,47 @@ body {
   border: 1px solid transparent;
 }
 
-.turn--running {
-  border-color: var(--border);
-}
-
-.turn__waiting {
+.turn__working {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: 0;
+  margin: 8px 0 0;
+  max-width: var(--chat-text);
+  margin-inline: auto;
   color: var(--text-muted);
+  font-size: 12px;
+}
+
+.turn__dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.turn__dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: dot 1.2s infinite ease-in-out;
+}
+
+.turn__dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.turn__dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.25;
+  }
+  30% {
+    opacity: 1;
+  }
 }
 
 .turn .markdown {

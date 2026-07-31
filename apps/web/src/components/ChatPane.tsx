@@ -353,14 +353,18 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
           )
         })}
         {turn !== null && (
-          <article className="turn turn--assistant turn--running">
-            {turn.delta.length === 0 ? (
-              <p className="turn__waiting">
-                <Loader2 size={ICON} className="spin" aria-hidden /> 考えています
-              </p>
-            ) : (
-              <Markdown text={turn.delta} chatId={shown ?? undefined} />
-            )}
+          <article className="turn turn--assistant">
+            {turn.delta.length === 0 ? null : <Markdown text={turn.delta} chatId={shown ?? undefined} />}
+            {/* 応答が伸びている間も、伸びが止まって見える間も、作っていることを示し続ける。 */}
+            <p className="turn__working">
+              <Loader2 size={ICON} className="spin" aria-hidden />
+              応答を作っています
+              <span className="turn__dots" aria-hidden>
+                <i />
+                <i />
+                <i />
+              </span>
+            </p>
           </article>
         )}
       </div>
