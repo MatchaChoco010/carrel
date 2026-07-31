@@ -69,6 +69,19 @@ export class IngestStore {
     return toRecord(row)
   }
 
+  /**
+   * 失敗した取り込みを、指定の段階から動かし直す(#220)。
+   *
+   * 済んだ段階の記録は残したまま、状態を実行中に戻す。
+   */
+  resume(slug: string, stage: IngestStage): void {
+    const now = this.#now()
+    this.#db
+      .prepare(`update ingests set stage = ?, status = 'inProgress', updated_at = ?, last_error = null where slug = ?`)
+      .run(stage, now, slug)
+    this.startStage(slug, stage, now)
+  }
+
   advance(slug: string, stage: IngestStage): void {
     const now = this.#now()
     const current = this.get(slug)?.stage
@@ -143,6 +156,17 @@ export class IngestStore {
 
   list(): IngestRecord[] {
     return (this.#db.prepare('select * from ingests order by started_at desc').all() as Row[]).map(toRecord)
+  }
+
+  /**
+   * 済んだ取り込みの記録を消す(#223)。
+   *
+   * 消すのは記録だけで、論文はコレクションに残る。失敗した取り込みは、消すと成果物も
+   * 一緒に捨てることになるので、ここでは触らない。
+   */
+  clearDone(): number {
+    const result = this.#db.prepare(`delete from ingests where status = 'done'`).run()
+    return Number(result.changes)
   }
 
   takenSlugs(): Set<string> {

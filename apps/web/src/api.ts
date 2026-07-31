@@ -247,9 +247,10 @@ async function sendJson<T>(method: string, path: string, body: unknown): Promise
   return json
 }
 
-function searchParams(query: string, filter: SearchFilter): string {
+function searchParams(query: string, filter: SearchFilter, limit?: number): string {
   const params = new URLSearchParams()
   if (query.length > 0) params.set('q', query)
+  if (limit !== undefined) params.set('limit', String(limit))
   for (const key of ['title', 'author', 'venue'] as const) {
     const value = filter[key]
     if (value !== undefined && value.length > 0) params.set(key, value)
@@ -271,6 +272,15 @@ export const api = {
   /** 一部だけを送れる。サーバーが今の設定に重ねてから検証する。 */
   saveConfig: (patch: Partial<Config>) => sendJson<Config>('PUT', '/api/config', patch),
   rebuildIndex: () => sendJson<ScanResult>('POST', '/api/index/rebuild', {}),
+  /** 済んだ取り込みの記録を消す。論文は残る(#223)。 */
+  clearIngests: () => sendJson<{ cleared: number }>('POST', '/api/ingests/clear', {}),
+  /** 失敗した取り込みを捨てる。半端な成果物も消える(#223)。 */
+  discardIngest: (slug: string) =>
+    sendJson<{ discarded: string; cancelledJobs: number }>(
+      'DELETE',
+      `/api/ingests/${encodeURIComponent(slug)}`,
+      {},
+    ),
   ingests: () => getJson<{ ingests: Ingest[] }>('/api/ingests'),
   slugs: () => getJson<{ slugs: string[] }>('/api/papers/slugs'),
   models: () => getJson<{ models: CodexModel[] }>('/api/codex/models'),
@@ -315,16 +325,23 @@ export const api = {
     sendJson<{ read: number; unread: number }>('POST', '/api/feed/read', { arxivIds }),
   clearJobs: () => sendJson<{ cleared: number; counts: Record<JobState, number> }>('POST', '/api/jobs/clear', {}),
   refreshFeed: () => sendJson<{ queued: boolean }>('POST', '/api/feed/refresh', {}),
-  search: (query: string, filter: SearchFilter = {}) =>
-    getJson<{ hits: SearchHit[] }>(`/api/search?${searchParams(query, filter)}`),
+  /** limit を渡すと、その件数まで返る。一覧の続きを読むときに増やす(#222)。 */
+  search: (query: string, filter: SearchFilter = {}, limit?: number) =>
+    getJson<{ hits: SearchHit[] }>(`/api/search?${searchParams(query, filter, limit)}`),
   paper: (slug: string) => getJson<PaperDetail>(`/api/papers/${encodeURIComponent(slug)}`),
   /** references が null なら、参考文献の段階がまだ走っていない。 */
   paperReferences: (slug: string) =>
     getJson<{ references: Reference[] | null }>(`/api/papers/${encodeURIComponent(slug)}/references`),
   setTags: (slug: string, tags: string[]) =>
     sendJson<{ slug: string; tags: string[] }>('PUT', `/api/papers/${encodeURIComponent(slug)}/tags`, { tags }),
+  /** `resumed` と `restarted` は、失敗した取り込みを押し直したときに返る(#220)。 */
   importPaper: (url: string) =>
-    sendJson<{ kind?: 'queued' | 'duplicate'; slug?: string; state?: string; error?: string }>(
+    sendJson<{
+      kind?: 'queued' | 'duplicate' | 'resumed' | 'restarted'
+      slug?: string
+      state?: string
+      error?: string
+    }>(
       'POST',
       '/api/papers/import',
       { url },

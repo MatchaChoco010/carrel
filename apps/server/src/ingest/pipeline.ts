@@ -7,9 +7,9 @@ import { buildSlug } from '../data/slug.ts'
 import type { IndexDb } from '../db/index-db.ts'
 import { fetchOriginal, looksLikePdf } from './fetch.ts'
 import { readOriginalHead, type HeadPaths } from './head.ts'
-import { resolveFromOriginal, resolveSource } from './resolve.ts'
+import { findMoreSources, resolveFromOriginal, resolveSource } from './resolve.ts'
 import type { StagedOriginal } from './staging.ts'
-import type { IngestStore } from './store.ts'
+import type { IngestRecord, IngestStore } from './store.ts'
 import type { IngestStage, ResolvedSource } from './types.ts'
 
 export type IngestDeps = {
@@ -53,6 +53,7 @@ export async function completedStages(dataDir: string, slug: string): Promise<Se
   if (await exists(paperFile(dataDir, slug, 'raw'))) done.add('convert')
   if (await exists(paperFile(dataDir, slug, 'verification'))) done.add('verify')
   if (await exists(paperFile(dataDir, slug, 'bodyJa'))) done.add('translate')
+  if (await exists(paperFile(dataDir, slug, 'references'))) done.add('references')
   return done
 }
 
@@ -103,6 +104,9 @@ async function fetchFirst(
       if (kind === 'pdf') {
         const head = await readFile(fetched.path, { encoding: null })
         if (!looksLikePdf(head.subarray(0, 8))) {
+          // 断った中身を残すと、原本があるように見えてしまう。次の段階も再開の判定も
+          // 成果物の存在を見ているためである(0004)。
+          await rm(fetched.path, { force: true })
           failures.push(`${url}: PDF ではない (content-type=${fetched.contentType})`)
           continue
         }
@@ -112,7 +116,54 @@ async function fetchFirst(
       failures.push(`${url}: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
-  throw new Error(`原本を取得できなかった。試した所在:\n${failures.join('\n')}`)
+  throw new FetchAllFailed(failures)
+}
+
+/** すべての所在で取れなかったときの失敗。別の所在を探し直すために、内訳を持たせる。 */
+export class FetchAllFailed extends Error {
+  readonly failures: string[]
+
+  constructor(failures: string[]) {
+    super(
+      `PDF の原本を取得できなかった。手元に PDF があれば、取り込みの欄から選んで入れられる(0021)。試した所在:\n${failures.join('\n')}`,
+    )
+    this.name = 'FetchAllFailed'
+    this.failures = failures
+  }
+}
+
+/**
+ * 挙がった所在で取れなければ、別の所在を探してもう一度試す(#221)。
+ *
+ * 1 度目に挙がる所在は少なく、通信で落ちたり弾かれたりするとそこで終わってしまう。
+ * 何が駄目だったかを渡して探し直すと、閲覧ページの奥にある PDF や別の置き場に届く。
+ */
+async function fetchWithRetry(
+  slug: string,
+  source: ResolvedSource,
+  deps: IngestDeps,
+): Promise<{ url: string; path: string }> {
+  const tried = candidates(source)
+  try {
+    return await fetchFirst(deps.dataDir, slug, tried, 'pdf')
+  } catch (error) {
+    if (!(error instanceof FetchAllFailed)) throw error
+
+    const more = await findMoreSources(
+      { title: source.title, authors: source.authors, year: source.year },
+      error.failures.join('\n'),
+      { codex: deps.codex, model: deps.model },
+    )
+    const fresh = more.filter((url) => !tried.includes(url))
+    if (fresh.length === 0) throw error
+
+    try {
+      return await fetchFirst(deps.dataDir, slug, fresh, 'pdf')
+    } catch (second) {
+      if (!(second instanceof FetchAllFailed)) throw second
+      throw new FetchAllFailed([...error.failures, ...second.failures])
+    }
+  }
 }
 
 /** 解決と取得までを行う。 */
@@ -164,7 +215,7 @@ export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<Inge
     }
     deps.ingests.advance(slug, 'fetch')
 
-    const taken = await fetchFirst(deps.dataDir, slug, candidates(source), source.kind)
+    const taken = await fetchWithRetry(slug, source, deps)
     // 別の所在から取れたときは、原本の場所をそこへ直す。
     if (taken.url !== source.originalUrl) {
       await writePaper(deps.dataDir, { ...toMeta(slug, source, sourceUrl), pdfUrl: taken.url }, '')
@@ -281,6 +332,43 @@ async function moveFile(from: string, to: string): Promise<void> {
     await copyFile(from, to)
     await rm(from, { force: true })
   }
+}
+
+/**
+ * 失敗した取り込みを、どこから動かし直すかを決める(#220)。
+ *
+ * 段階は成果物の存在から判定できる(0004)。原本を持たない取り込みは、所在を探すところから
+ * やり直すしかないので、成果物を捨てて解決から積み直す。原本があるものは、済んだ段階を
+ * 飛ばして続きから積む。
+ */
+export type ResumePlan =
+  | { kind: 'restart'; target: string }
+  | { kind: 'continue'; slug: string; stage: IngestStage }
+  | { kind: 'unavailable'; reason: string }
+
+export async function planResume(dataDir: string, record: IngestRecord): Promise<ResumePlan> {
+  const done = await completedStages(dataDir, record.slug)
+
+  if (!done.has('fetch')) {
+    // 手元から入れた原本は置き場から消えているので、もう一度選んでもらうしかない。
+    if (record.sourceUrl.startsWith('upload:')) {
+      return { kind: 'unavailable', reason: '手元から入れた原本は残っていない。もう一度 PDF を選ぶこと' }
+    }
+    return { kind: 'restart', target: record.sourceUrl }
+  }
+
+  // 書誌は成果物を持たないので、翻訳が済んでいるかで済んだかを判じる。どちらも同じ場所へ
+  // 上書きするだけなので、もう一度走っても副作用が無い。
+  const stage: IngestStage = !done.has('convert')
+    ? 'convert'
+    : !done.has('verify')
+      ? 'verify'
+      : !done.has('translate')
+        ? 'bibliography'
+        : !done.has('references')
+          ? 'references'
+          : 'register'
+  return { kind: 'continue', slug: record.slug, stage }
 }
 
 /** 取り込みを取り消す。成果物と記録の両方を消す。 */
