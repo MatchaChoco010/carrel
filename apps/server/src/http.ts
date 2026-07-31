@@ -37,7 +37,7 @@ export type AppDeps = {
   /** 取り込みを積む。解決も取得も仕事の中で行うので、押した時点では待たせない(0004)。 */
   enqueueResolve: (url: string) => Job
   /** 失敗した取り込みを、済んだ段階の続きから積む(#220)。 */
-  resumeIngest: (slug: string, stage: IngestStage) => Job
+  resumeIngest: (slug: string, stage: IngestStage) => Promise<Job>
   /** 参考文献の段階を積む。取り込みより前に入れた論文と、失敗した論文の積み直しに使う(0015)。 */
   enqueueReferences: (slug: string) => Job
   /**
@@ -277,7 +277,8 @@ export function createApp(deps: AppDeps): Hono {
         if (plan.kind === 'unavailable') return c.json({ error: plan.reason }, 409)
         if (plan.kind === 'continue') {
           deps.ingests.resume(plan.slug, plan.stage)
-          return c.json({ kind: 'resumed', slug: plan.slug, stage: plan.stage, job: deps.resumeIngest(plan.slug, plan.stage) })
+          const job = await deps.resumeIngest(plan.slug, plan.stage)
+          return c.json({ kind: 'resumed', slug: plan.slug, stage: plan.stage, job })
         }
         // 原本を持たない取り込みは、成果物を捨てて所在を探すところからやり直す。
         await discardIngest(deps.dataDir, known.slug, deps.ingests)
