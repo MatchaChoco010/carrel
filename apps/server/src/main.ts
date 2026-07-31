@@ -46,7 +46,15 @@ import { reloadChat } from './chat/reload.ts'
 import { deleteChat, setArchived } from './chat/lifecycle.ts'
 import { listModels } from './codex/models.ts'
 import { Hub } from './hub.ts'
-import { converterScript, indexDbFile, stateDbFile, stateDir, textLayerScript, webRoot } from './paths.ts'
+import {
+  converterScript,
+  indexDbFile,
+  pagesScript,
+  stateDbFile,
+  stateDir,
+  textLayerScript,
+  webRoot,
+} from './paths.ts'
 
 async function main(): Promise<void> {
   let config: Config = await loadConfig()
@@ -106,6 +114,12 @@ async function main(): Promise<void> {
 
   registerResolve(jobs, {
     dataDir,
+    stateDir: stateDir(),
+    head: {
+      python: config.converter.python,
+      textLayer: textLayerScript(),
+      pages: pagesScript(),
+    },
     index,
     ingests,
     codex: codex.client,
