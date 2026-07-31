@@ -1,9 +1,11 @@
-import { Check, CircleDashed, Loader2, X } from 'lucide-react'
+import { Check, CircleDashed, Eraser, Loader2, Trash2, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import type { Ingest, IngestStage } from '../api.ts'
+import { api, type Ingest, type IngestStage } from '../api.ts'
 
 export type IngestsPaneProps = {
   ingests: Ingest[]
+  /** 記録を消した後に一覧を読み直す。 */
+  onChanged: () => void
 }
 
 const ICON = 14
@@ -54,12 +56,39 @@ function useNow(active: boolean): number {
   return active ? now : Date.now()
 }
 
-export function IngestsPane({ ingests }: IngestsPaneProps) {
+export function IngestsPane({ ingests, onChanged }: IngestsPaneProps) {
   const now = useNow(ingests.some((i) => i.status === 'inProgress'))
+  const [busy, setBusy] = useState(false)
+  const done = ingests.filter((i) => i.status === 'done').length
+
+  const clear = (): void => {
+    setBusy(true)
+    void api
+      .clearIngests()
+      .then(onChanged)
+      .finally(() => setBusy(false))
+  }
+
+  const discard = (slug: string): void => {
+    setBusy(true)
+    void api
+      .discardIngest(slug)
+      .then(onChanged)
+      .finally(() => setBusy(false))
+  }
+
   if (ingests.length === 0) return <p className="empty">取り込み中の論文はありません</p>
 
   return (
     <div className="ingests">
+      {done > 0 && (
+        <div className="ingests__actions">
+          <button type="button" onClick={clear} disabled={busy}>
+            {busy ? <Loader2 size={ICON} className="spin" aria-hidden /> : <Eraser size={ICON} aria-hidden />}
+            済んだ {done} 件の記録を消す
+          </button>
+        </div>
+      )}
       {ingests.map((ingest) => {
         const byStage = new Map(ingest.stages.map((s) => [s.stage, s]))
         const at = STAGES.indexOf(ingest.stage)
@@ -70,6 +99,19 @@ export function IngestsPane({ ingests }: IngestsPaneProps) {
             <header>
               <code>{ingest.slug}</code>
               <span className="ingest__total">{duration(total)}</span>
+              {/* 失敗した取り込みは、捨てると半端な成果物も消える(#223)。 */}
+              {ingest.status === 'failed' && (
+                <button
+                  type="button"
+                  className="ingest__discard"
+                  onClick={() => discard(ingest.slug)}
+                  disabled={busy}
+                  title="この取り込みを捨てる"
+                  aria-label={`${ingest.slug} の取り込みを捨てる`}
+                >
+                  <Trash2 size={ICON} aria-hidden />
+                </button>
+              )}
             </header>
 
             <ol className="ingest__stages">

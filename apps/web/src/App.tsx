@@ -186,7 +186,7 @@ export function App() {
             {opened.has('jobs') && (
               <div className="pane__slot" hidden={tab !== 'jobs'}>
                 <div className="jobs-tab">
-                  <IngestsPane ingests={ingests} />
+                  <IngestsPane ingests={ingests} onChanged={reloadJobs} />
                   <JobsPane jobs={jobs} onCleared={reloadJobs} />
                 </div>
               </div>

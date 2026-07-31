@@ -145,6 +145,17 @@ export class IngestStore {
     return (this.#db.prepare('select * from ingests order by started_at desc').all() as Row[]).map(toRecord)
   }
 
+  /**
+   * 済んだ取り込みの記録を消す(#223)。
+   *
+   * 消すのは記録だけで、論文はコレクションに残る。失敗した取り込みは、消すと成果物も
+   * 一緒に捨てることになるので、ここでは触らない。
+   */
+  clearDone(): number {
+    const result = this.#db.prepare(`delete from ingests where status = 'done'`).run()
+    return Number(result.changes)
+  }
+
   takenSlugs(): Set<string> {
     const rows = this.#db.prepare('select slug from ingests').all() as Array<{ slug: string }>
     return new Set(rows.map((r) => r.slug))
