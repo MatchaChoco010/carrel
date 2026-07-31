@@ -67,6 +67,8 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
   const [turn, setTurn] = useState<Turn | null>(null)
   // 末尾から数えて描く発言の外にある、古い発言の数。
   const [hidden, setHidden] = useState(0)
+  // 選んでいる発言。マウスの無い端末で、分岐のボタンを出すために使う。
+  const [selected, setSelected] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const input = useRef<HTMLTextAreaElement>(null)
   const log = useRef<HTMLDivElement>(null)
@@ -341,7 +343,15 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
         {messages.slice(hidden).map((message, offset) => {
           const index = hidden + offset
           return (
-          <article key={`${message.at}-${index}`} className={`turn turn--${message.role}`}>
+          <article
+            key={`${message.at}-${index}`}
+            className={`turn turn--${message.role} ${selected === index ? 'turn--selected' : ''}`}
+            // マウスを重ねられない端末では、発言を選ぶと操作が出る。
+            onClick={(event) => {
+              if ((event.target as HTMLElement).closest('a, button') !== null) return
+              setSelected((previous) => (previous === index ? null : index))
+            }}
+          >
             <Markdown text={message.text} chatId={shown ?? undefined} />
             {/* 最初の turn より後の発言から分岐できる(0012)。 */}
             {id !== null && index >= 2 && (
