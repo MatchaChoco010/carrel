@@ -1,7 +1,7 @@
 # 書誌を本文が出てから確かめる
 
 - created: 2026-07-31
-- status: reviewing
+- status: approved
 - implementation: not-started
 
 ## 解決したい問題
