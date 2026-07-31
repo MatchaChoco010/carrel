@@ -62,8 +62,14 @@ export function PapersPane({ lang, onLangChange, tags, revision, onChanged }: Pa
     setError(null)
     try {
       const result = await api.importPaper(target)
-      if (result.error !== undefined) setError(result.error)
-      else setUrl('')
+      if (result.error !== undefined) {
+        setError(result.error)
+      } else if (result.kind === 'duplicate') {
+        setError(`既に取り込んでいる: ${result.slug ?? ''}`)
+      } else {
+        // 解決も取得も仕事の中で行うので、ここでは積んだところまでしか分からない。
+        setUrl('')
+      }
       onChanged()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))

@@ -10,9 +10,10 @@ import { ChatSessions } from './chat/session.ts'
 import type { CodexModel } from './codex/models.ts'
 import { readChat, writeChat, type Chat } from './data/chat.ts'
 import { FeedStore } from './feed/store.ts'
-import { discardIngest, ingestFromUrl } from './ingest/pipeline.ts'
+import { discardIngest } from './ingest/pipeline.ts'
 import type { IngestStore } from './ingest/store.ts'
 import type { JobQueue } from './jobs/queue.ts'
+import type { Job } from './jobs/types.ts'
 import type { SearchHit, SearchQuery } from './search/search.ts'
 import type { ChatSearchHit, ChatSearchQuery } from './search/chat-search.ts'
 import { readPaper, readPaperSideFile, writePaper } from './data/paper.ts'
@@ -27,8 +28,8 @@ export type AppDeps = {
   search: (query: SearchQuery) => Promise<SearchHit[]>
   /** 会話を検索する。 */
   searchChats: (query: ChatSearchQuery) => Promise<ChatSearchHit[]>
-  /** 解決と取得が済んだ論文の、残りの段階を始める。 */
-  onIngested: (slug: string) => void
+  /** 取り込みを積む。解決も取得も仕事の中で行うので、押した時点では待たせない(0004)。 */
+  enqueueResolve: (url: string) => Job
   /**
    * コレクションの置き場所。
    *
@@ -244,23 +245,21 @@ export function createApp(deps: AppDeps): Hono {
     if (typeof url !== 'string' || url.trim().length === 0) {
       return c.json({ error: 'url を指定すること' }, 400)
     }
+    const target = url.trim()
 
-    try {
-      const result = await ingestFromUrl(url.trim(), {
-        dataDir: deps.dataDir,
-        index: deps.index,
-        ingests: deps.ingests,
-        codex: deps.codex.client,
-        model: deps.getConfig().ingest.model,
-      })
-      if (result.kind === 'imported') deps.onIngested(result.slug)
-      // フィードから取り込んだ論文を結びつける。同じ論文を二度取り込ませないため。
-      const arxivId = extractArxivId(url)
-      if (arxivId !== null) deps.feed.setSlug(arxivId, result.slug)
-      return c.json(result)
-    } catch (error) {
-      return c.json({ error: error instanceof Error ? error.message : String(error) }, 502)
+    // 解決を待たずに分かる重複だけ、ここで断る。それ以外は解決の仕事が見つける。
+    const arxivId = extractArxivId(target)
+    const known =
+      deps.index.findBySourceUrl(target) ??
+      deps.ingests.bySourceUrl(target)?.slug ??
+      (arxivId === null ? null : (deps.index.findByArxivId(arxivId) ?? deps.ingests.byArxivId(arxivId)?.slug ?? null))
+    if (known !== null) {
+      const record = deps.ingests.get(known)
+      const state = record === null ? 'imported' : record.status === 'done' ? 'imported' : record.status
+      return c.json({ kind: 'duplicate', slug: known, state })
     }
+
+    return c.json({ kind: 'queued', job: deps.enqueueResolve(target) })
   })
 
   // `@` の補完に使う。本文は要らないので slug だけを返す。
