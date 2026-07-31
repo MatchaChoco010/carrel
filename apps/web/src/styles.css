@@ -1727,6 +1727,31 @@ body {
 
 .prompts__item input {
   flex: 1 1 auto;
+}
+
+/* 目安のボタンと、カスタムのときの数値の欄。 */
+.settings__steps {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.settings__steps-label {
+  min-width: 7em;
+}
+
+.settings__steps input[type='number'] {
+  width: 6em;
+}
+
+.settings__steps button.on {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--surface-raised);
+}
+
 .settings__check {
   display: flex;
   align-items: center;
