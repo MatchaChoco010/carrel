@@ -1,7 +1,7 @@
 # 全文検索の索引を語の単位にする
 
 - created: 2026-07-31
-- status: ready for review
+- status: reviewing
 - implementation: not-started
 
 ## 解決したい問題
