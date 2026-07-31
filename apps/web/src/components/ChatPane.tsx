@@ -200,6 +200,9 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
         setHidden(Math.max(0, r.messages.length - BATCH))
         setShown(r.id)
         setState(r.state)
+        // 応答を作っているかは会話ごとに違う。開いた会話のそれに合わせる。
+        // 書いている途中の応答を持っているときは、その中身を落とさずに残す。
+        setTurn((previous) => (r.running ? (previous ?? { id: r.id, delta: '' }) : null))
         setArchived(r.meta.archived)
         setRecorded({ model: r.meta.model, effort: r.meta.effort })
         setError(null)
@@ -208,13 +211,14 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
   }, [])
 
   useEffect(() => {
+    // 開いていた会話の応答は、そちらの会話のものである。読み直すまで出さない。
+    setTurn(null)
     // 新しい会話に切り替えたら、開いていた会話の表示を片付ける。
     if (id === null) {
       setMessages([])
       setHidden(0)
       setShown(null)
       setState('new')
-      setTurn(null)
       setArchived(false)
       setRecorded({ model: null, effort: null })
       setError(null)
