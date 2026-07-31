@@ -97,7 +97,7 @@ export async function search(query: SearchQuery, deps: SearchDeps): Promise<Sear
 
 /** 語句が無いときは、構造化条件に当たった論文をそのまま並べる。 */
 function titlesOnly(slugs: string[] | null, limit: number, deps: SearchDeps): SearchHit[] {
-  const list = slugs ?? [...deps.index.allSlugs()]
+  const list = slugs ?? deps.index.slugsByAdded()
   const out: SearchHit[] = []
   for (const slug of list.slice(0, limit)) {
     const paper = deps.index.getPaper(slug)
