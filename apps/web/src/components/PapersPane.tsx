@@ -129,6 +129,7 @@ export function PapersPane({ lang, onLangChange, tags, revision, onChanged }: Pa
         onLangChange={onLangChange}
         onBack={() => setTrail(trail.slice(0, -1))}
         backToPaper={trail.length > 1}
+        onClose={() => setTrail([])}
         onOpenPaper={(slug) => setTrail([...trail, slug])}
         onTagsChange={(next) => void setTags(opened.meta.slug, next)}
       />

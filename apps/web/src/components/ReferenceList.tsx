@@ -1,11 +1,12 @@
-import { BookOpen, ExternalLink, Loader2, Plus } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { BookOpen, ExternalLink, Plus } from 'lucide-react'
+import { useState } from 'react'
 import { api, type Reference } from '../api.ts'
 
-export type ReferencesPaneProps = {
-  slug: string
+export type ReferenceListProps = {
+  /** 本文の参考文献の節の位置に並べる参考文献。 */
+  references: Reference[]
   /** 参考文献から別の論文へ移る。 */
-  onOpenPaper: (slug: string) => void
+  onOpenPaper: (target: string) => void
 }
 
 const ICON = 14
@@ -13,36 +14,10 @@ const ICON = 14
 /** 取り込みを押した後の状態。結果は仕事の一覧で進む(0004)。 */
 type Queued = 'queued' | 'duplicate' | string
 
-export function ReferencesPane({ slug, onOpenPaper }: ReferencesPaneProps) {
-  const [references, setReferences] = useState<Reference[] | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+/** 本文の参考文献の節に差し込む一覧(0017)。 */
+export function ReferenceList({ references, onOpenPaper }: ReferenceListProps) {
   const [queued, setQueued] = useState<Map<number, Queued>>(new Map())
-  const [building, setBuilding] = useState(false)
-  const [built, setBuilt] = useState(false)
-
-  useEffect(() => {
-    setLoading(true)
-    setQueued(new Map())
-    api
-      .paperReferences(slug)
-      .then((r) => setReferences(r.references))
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
-      .finally(() => setLoading(false))
-  }, [slug])
-
-  const build = async (): Promise<void> => {
-    setBuilding(true)
-    setError(null)
-    try {
-      await api.buildReferences(slug)
-      setBuilt(true)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setBuilding(false)
-    }
-  }
+  const [error, setError] = useState<string | null>(null)
 
   const importPaper = async (at: number, reference: Reference): Promise<void> => {
     setQueued(new Map(queued).set(at, 'queued'))
@@ -54,31 +29,6 @@ export function ReferencesPane({ slug, onOpenPaper }: ReferencesPaneProps) {
       setQueued(new Map(queued).set(at, e instanceof Error ? e.message : String(e)))
     }
   }
-
-  if (loading) return <p className="empty">読み込み中</p>
-
-  if (references === null) {
-    return (
-      <div className="references">
-        {error === null ? null : <p className="error">{error}</p>}
-        <p className="empty">
-          {built ? (
-            '参考文献の整理を積んだ。仕上がったらこの画面を開き直す。'
-          ) : (
-            <>
-              参考文献はまだ整理していない。
-              {/* 取り込みより前に入れた論文と、段階が失敗した論文はここから積み直す(0015)。 */}
-              <button type="button" onClick={() => void build()} disabled={building}>
-                {building ? <Loader2 size={ICON} className="spin" aria-hidden /> : null} 参考文献を整理する
-              </button>
-            </>
-          )}
-        </p>
-      </div>
-    )
-  }
-
-  if (references.length === 0) return <p className="empty">参考文献は無い</p>
 
   return (
     <div className="references">

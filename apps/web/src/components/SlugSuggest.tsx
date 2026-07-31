@@ -5,6 +5,11 @@ export type SlugSuggestProps = {
   value: string
   onChange: (value: string) => void
   inputRef: RefObject<HTMLTextAreaElement | null>
+  /** Enter で送るか。設定で選ぶ。 */
+  sendOnEnter: boolean
+  /** Ctrl+Enter(macOS では Cmd+Enter)で送るか。設定で選ぶ。 */
+  sendOnCtrlEnter: boolean
+  onSend: () => void
 }
 
 const LIMIT = 8
@@ -16,7 +21,15 @@ const MAX_HEIGHT = 320
 /** 入力中の `@` から後ろの、まだ空白に達していない部分。 */
 const TYPING = /@([a-z0-9-]*)$/
 
-export function SlugSuggest({ slugs, value, onChange, inputRef }: SlugSuggestProps) {
+export function SlugSuggest({
+  slugs,
+  value,
+  onChange,
+  inputRef,
+  sendOnEnter,
+  sendOnCtrlEnter,
+  onSend,
+}: SlugSuggestProps) {
   const [at, setAt] = useState(0)
   // Escape を押したかどうか。押すまでは Tab を入力欄の中で受け、押した後は
   // 隣の部品へ抜けさせる。文章を書いている間に焦点が飛ばないようにするため。
@@ -81,6 +94,17 @@ export function SlugSuggest({ slugs, value, onChange, inputRef }: SlugSuggestPro
         insertTab(event.currentTarget)
       }
       return
+    }
+
+    if (event.key === 'Enter') {
+      const withCtrl = event.ctrlKey || event.metaKey
+      // 候補が出ている間の素の Enter は候補の確定に使う。送るのはそれ以外のとき。
+      const completing = candidates.length > 0 && !withCtrl
+      if (!completing && (withCtrl ? sendOnCtrlEnter : sendOnEnter)) {
+        event.preventDefault()
+        onSend()
+        return
+      }
     }
 
     if (candidates.length === 0) return
