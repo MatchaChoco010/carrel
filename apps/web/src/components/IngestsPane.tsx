@@ -6,7 +6,7 @@ export type IngestsPaneProps = {
   ingests: Ingest[]
 }
 
-const ICON = 13
+const ICON = 14
 
 /** 取り込みが進む順。 */
 const STAGES: IngestStage[] = ['resolve', 'fetch', 'convert', 'verify', 'translate', 'register', 'references']
@@ -57,55 +57,44 @@ export function IngestsPane({ ingests }: IngestsPaneProps) {
 
         return (
           <article key={ingest.slug} className={`ingest ingest--${ingest.status}`}>
-            <div className="ingest__row">
-              <code className="ingest__slug">{ingest.slug}</code>
-
-              <ol className="ingest__stages">
-                {STAGES.map((stage, index) => {
-                  const record = byStage.get(stage)
-                  const done = record !== undefined && record.finishedAt !== null
-                  const running = ingest.status === 'inProgress' && index === at
-                  const failed = ingest.status === 'failed' && index === at
-                  const elapsed = record === undefined ? null : (record.finishedAt ?? now) - record.startedAt
-
-                  return (
-                    <li
-                      key={stage}
-                      className={`ingest__stage ${done ? 'done' : ''} ${running ? 'running' : ''} ${failed ? 'failed' : ''}`}
-                      // 印だけの段階では、名前と経過時間をここから読む。
-                      title={`${STAGE_LABEL[stage]}${elapsed === null ? '' : ` ${duration(elapsed)}`}`}
-                    >
-                      <span className="ingest__mark">
-                        {failed ? (
-                          <X size={ICON} aria-hidden />
-                        ) : running ? (
-                          <Loader2 size={ICON} className="spin" aria-hidden />
-                        ) : done ? (
-                          <Check size={ICON} aria-hidden />
-                        ) : (
-                          <CircleDashed size={ICON} aria-hidden />
-                        )}
-                      </span>
-                      {/* 1 行に収めるため、名前と経過時間はいま止まっている段階にだけ出す。 */}
-                      {running || failed ? (
-                        <>
-                          <span className="ingest__label">{STAGE_LABEL[stage]}</span>
-                          {elapsed === null ? null : <span className="ingest__time">{duration(elapsed)}</span>}
-                        </>
-                      ) : null}
-                    </li>
-                  )
-                })}
-              </ol>
-
+            <header>
+              <code>{ingest.slug}</code>
               <span className="ingest__total">{duration(total)}</span>
-            </div>
+            </header>
 
-            {ingest.lastError === null ? null : (
-              <p className="error ingest__error" title={ingest.lastError}>
-                {ingest.lastError}
-              </p>
-            )}
+            <ol className="ingest__stages">
+              {STAGES.map((stage, index) => {
+                const record = byStage.get(stage)
+                const done = record !== undefined && record.finishedAt !== null
+                const running = ingest.status === 'inProgress' && index === at
+                const failed = ingest.status === 'failed' && index === at
+                const elapsed =
+                  record === undefined ? null : (record.finishedAt ?? now) - record.startedAt
+
+                return (
+                  <li
+                    key={stage}
+                    className={`ingest__stage ${done ? 'done' : ''} ${running ? 'running' : ''} ${failed ? 'failed' : ''}`}
+                  >
+                    <span className="ingest__mark">
+                      {failed ? (
+                        <X size={ICON} aria-hidden />
+                      ) : running ? (
+                        <Loader2 size={ICON} className="spin" aria-hidden />
+                      ) : done ? (
+                        <Check size={ICON} aria-hidden />
+                      ) : (
+                        <CircleDashed size={ICON} aria-hidden />
+                      )}
+                    </span>
+                    <span className="ingest__label">{STAGE_LABEL[stage]}</span>
+                    <span className="ingest__time">{elapsed === null ? '' : duration(elapsed)}</span>
+                  </li>
+                )
+              })}
+            </ol>
+
+            {ingest.lastError === null ? null : <p className="error">{ingest.lastError}</p>}
           </article>
         )
       })}

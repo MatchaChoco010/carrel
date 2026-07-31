@@ -5,6 +5,8 @@
 :root {
   --surface: #12161c;
   --surface-raised: #1a1f27;
+  /* 重ねて出すもの(メニュー・候補)の背景。透過モードでも透けない値にする。 */
+  --overlay: #171c24;
   --border: #2a313c;
   --text: #e6e9ee;
   --text-muted: #93a0b4;
@@ -525,7 +527,7 @@ body {
   position: absolute;
   right: 0;
   top: 100%;
-  background: var(--surface);
+  background: var(--overlay);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 4px;
@@ -946,78 +948,71 @@ body {
   background: var(--surface-raised);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 8px 12px;
+  padding: 10px 12px;
 }
 
 .ingest--failed {
   border-color: var(--warn);
 }
 
-/* 1 本の取り込みは 1 行に収める。失敗の理由だけがその下に続く。 */
-.ingest__row {
+.ingest header {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.ingest__total {
+  color: var(--text-muted);
   font-size: 12px;
 }
 
-.ingest__slug {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
+/* 1 段階ぶんの幅は等しくする。実時間には対応させない。
+   列は段階の数だけ作る。数を書くと、段階が増えたときに折り返す。 */
 .ingest__stages {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 2px;
   list-style: none;
-  margin: 0;
+  margin: 10px 0 0;
   padding: 0;
 }
 
 .ingest__stage {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 3px;
+  gap: 2px;
+  padding: 6px 2px;
+  border-top: 2px solid var(--border);
   color: var(--text-muted);
   font-size: 11px;
-  white-space: nowrap;
-}
-
-.ingest__mark {
-  display: flex;
 }
 
 .ingest__stage.done {
-  color: #5ad19b;
+  border-top-color: #5ad19b;
+  color: var(--text);
 }
 
 .ingest__stage.running {
+  border-top-color: var(--accent);
   color: var(--accent);
 }
 
 .ingest__stage.failed {
+  border-top-color: var(--warn);
   color: var(--warn);
 }
 
-.ingest__total {
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
+.ingest__label {
+  white-space: nowrap;
 }
 
 .ingest__time {
   font-variant-numeric: tabular-nums;
   opacity: 0.7;
-}
-
-.ingest__error {
-  margin: 6px 0 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* --- arXiv フィード --- */
@@ -1252,6 +1247,7 @@ body {
 }
 
 .turn:hover .turn__branch,
+.turn--selected .turn__branch,
 .turn__branch:focus-visible {
   opacity: 1;
 }
@@ -1266,16 +1262,47 @@ body {
   border: 1px solid transparent;
 }
 
-.turn--running {
-  border-color: var(--border);
-}
-
-.turn__waiting {
+.turn__working {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: 0;
+  margin: 8px 0 0;
+  max-width: var(--chat-text);
+  margin-inline: auto;
   color: var(--text-muted);
+  font-size: 12px;
+}
+
+.turn__dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.turn__dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: dot 1.2s infinite ease-in-out;
+}
+
+.turn__dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.turn__dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.25;
+  }
+  30% {
+    opacity: 1;
+  }
 }
 
 .turn .markdown {
@@ -1403,7 +1430,7 @@ body {
   margin: 0;
   padding: 4px;
   list-style: none;
-  background: var(--surface-raised);
+  background: var(--overlay);
   border: 1px solid var(--border);
   border-radius: 6px;
   max-height: 200px;
@@ -1666,6 +1693,13 @@ body {
 .settings__notice {
   margin: 0;
   color: var(--text-dim);
+}
+
+.settings__check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
 }
 
 .settings__hint {
