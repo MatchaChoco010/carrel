@@ -164,7 +164,7 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
   const efforts = useMemo(() => models.find((m) => m.id === model)?.efforts ?? [], [models, model])
 
   const load = useCallback((target: string) => {
-    void api
+    return api
       .chat(target)
       .then((r) => {
         setMessages(r.messages)
@@ -191,7 +191,7 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
       setError(null)
       return
     }
-    load(id)
+    void load(id)
   }, [id, load])
 
   useEffect(
@@ -206,18 +206,18 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
           case 'chat.turn.delta':
             setTurn((previous) => ({ id, delta: (previous?.delta ?? '') + (payload.delta ?? '') }))
             return
+          // 描いている途中の応答は、記録を読み終えてから外す。先に外すと本文が
+          // いったん縮み、末尾を見ていたはずの位置が自分の発言の下へ落ちる。
           case 'chat.turn.completed':
-            setTurn(null)
-            load(id)
+            void load(id).then(() => setTurn(null))
             return
           case 'chat.turn.failed':
-            setTurn(null)
             setError(payload.message ?? '応答が返らなかった')
-            load(id)
+            void load(id).then(() => setTurn(null))
             return
           // アーカイブや題の書き換えは一覧からも起きる。
           case 'chat.changed':
-            load(id)
+            void load(id)
             return
           case 'chat.removed':
             onOpen(null)
