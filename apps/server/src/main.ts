@@ -37,6 +37,7 @@ import {
 } from './chat/job.ts'
 import { ChatSessions } from './chat/session.ts'
 import { branchChat } from './chat/branch.ts'
+import { undoLastExchange } from './chat/undo.ts'
 import { InstructionStore } from './chat/instruction-store.ts'
 import { reloadChat } from './chat/reload.ts'
 import { deleteChat, setArchived } from './chat/lifecycle.ts'
@@ -137,7 +138,7 @@ async function main(): Promise<void> {
     model: config.ingest.model,
     effort: config.ingest.effort,
     serviceTier: config.ingest.serviceTier,
-    onDone: (slug) => enqueueRegister(jobs, slug),
+    onDone: (slug) => enqueueReferences(jobs, slug),
   })
 
   const chunks = new ChunkStore(index.db)
@@ -154,7 +155,7 @@ async function main(): Promise<void> {
     indexPaper: (paper: Paper) => index.upsertPaper(paper, true),
     markEmbedded: (slug: string) => index.markEmbeddingFresh(slug),
   }
-  registerRegister(jobs, { ...registerDeps, ingests, onDone: (slug) => enqueueReferences(jobs, slug) })
+  registerRegister(jobs, { ...registerDeps, ingests })
   registerEmbed(jobs, registerDeps)
 
   registerReferences(jobs, {
@@ -164,6 +165,7 @@ async function main(): Promise<void> {
     model: config.ingest.model,
     effort: config.ingest.effort,
     serviceTier: config.ingest.serviceTier,
+    onDone: (slug) => enqueueRegister(jobs, slug),
   })
 
   /** 埋め込みを持たない論文を積み直す。索引を作り直した後と、起動のときに呼ぶ。 */
@@ -237,7 +239,7 @@ async function main(): Promise<void> {
     search: (query) => search(query, { index, chunks, embed }),
     searchChats: (query) => searchChats(query, { index, chunks: chatChunks, embed }),
     enqueueResolve: (url) => enqueueResolve(jobs, url),
-    enqueueReferences: (slug) => enqueueReferences(jobs, slug),
+    enqueueReferences: (slug) => enqueueReferences(jobs, slug, 'background'),
     dataDir,
     getConfig: () => config,
     setConfig: (next) => {
@@ -279,6 +281,20 @@ async function main(): Promise<void> {
         reindex: (target) => collection.reloadChat(target),
       })
     },
+    undoChat: (absolutePath) =>
+      undoLastExchange(absolutePath, {
+        dataDir,
+        codex: codex.client,
+        knownSlug: (slug) => index.getPaper(slug) !== null,
+        isResumable: async (threadId) => (await chats.stateOfThread(threadId)) === 'resumable',
+        markResumed: (threadId) => chats.markResumed(threadId),
+        stop: (target) => chats.stop(target),
+        defaults: () => ({ model: config.chat.defaultModel, effort: config.chat.defaultEffort }),
+        mcpUrl,
+        instructions: () => config.chat.instructions,
+        inForce,
+        reindex: (target) => collection.reloadChat(target),
+      }),
     branchChat: (absolutePath, selected) =>
       branchChat(absolutePath, selected, {
         dataDir,

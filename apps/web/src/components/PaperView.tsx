@@ -1,9 +1,10 @@
-import { ArrowLeft, Check, Copy, FileDiff } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { api, type PaperDetail } from '../api.ts'
+import { ArrowLeft, Check, Copy, List } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { api, type PaperDetail, type Reference } from '../api.ts'
 import { Markdown } from './Markdown.tsx'
 import { PaperMetaTable } from './PaperMetaTable.tsx'
-import { ReferencesPane } from './ReferencesPane.tsx'
+import { ReferenceList } from './ReferenceList.tsx'
+import { splitAtReferences } from '../references.ts'
 import { stripFrontMatterBlock } from '../frontMatterBlock.ts'
 import { copyText } from '../clipboard.ts'
 
@@ -11,8 +12,10 @@ export type PaperViewProps = {
   detail: PaperDetail
   lang: 'en' | 'ja'
   onLangChange: (lang: 'en' | 'ja') => void
-  /** 一覧へ戻るか、1 つ前に開いていた論文へ戻る。 */
+  /** 1 つ前に開いていた論文へ戻る。 */
   onBack: () => void
+  /** 開いている論文を閉じて一覧へ戻る。 */
+  onClose: () => void
   /** 戻り先が論文かどうか。参考文献から移ってきたときに立つ。 */
   backToPaper: boolean
   /** 参考文献から別の論文へ移る(0015)。 */
@@ -22,39 +25,45 @@ export type PaperViewProps = {
 
 const ICON = 16
 
-type Pane = 'body' | 'verification' | 'raw' | 'references'
-
-export function PaperView({ detail, lang, onLangChange, onBack, backToPaper, onOpenPaper, onTagsChange }: PaperViewProps) {
+export function PaperView({
+  detail,
+  lang,
+  onLangChange,
+  onBack,
+  backToPaper,
+  onClose,
+  onOpenPaper,
+  onTagsChange,
+}: PaperViewProps) {
   const { meta } = detail
-  const [pane, setPane] = useState<Pane>('body')
-  const [raw, setRaw] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
-
+  const [references, setReferences] = useState<Reference[] | null>(null)
 
   useEffect(() => {
-    if (pane !== 'raw' || raw !== null) return
+    setReferences(null)
     void api
-      .paperRaw(meta.slug)
-      .then((r) => setRaw(r.raw))
-      .catch(() => setRaw('照合前の本文を読めなかった'))
-  }, [pane, raw, meta.slug])
+      .paperReferences(meta.slug)
+      .then((r) => setReferences(r.references))
+      .catch(() => setReferences(null))
+  }, [meta.slug])
 
-  const text =
-    pane === 'verification'
-      ? (detail.verification ?? '照合の記録は無い')
-      : pane === 'raw'
-        ? (raw ?? '読み込み中')
-        : lang === 'ja'
-          ? (detail.bodyJa ?? '和訳はまだ無い')
-          : detail.body
+  const text = lang === 'ja' ? (detail.bodyJa ?? '和訳はまだ無い') : detail.body
+  const body = useMemo(() => stripFrontMatterBlock(text), [text])
+  const split = useMemo(() => splitAtReferences(body), [body])
 
   return (
     <div className="paper-view">
       {/* 上部は固定する。長い本文を読んでいる間も戻れるようにするため(#17)。 */}
       <nav className="paper-nav">
-        <button type="button" onClick={onBack}>
-          <ArrowLeft size={ICON} aria-hidden /> {backToPaper ? '戻る' : '一覧'}
+        <button type="button" onClick={onClose}>
+          <List size={ICON} aria-hidden /> 一覧
         </button>
+        {/* 参考文献から移ってきたときだけ、1 つ前の論文へ戻れる。 */}
+        {backToPaper ? (
+          <button type="button" onClick={onBack}>
+            <ArrowLeft size={ICON} aria-hidden /> 戻る
+          </button>
+        ) : null}
 
         {/* 言語は一覧と共通だが、本文を読んでいる途中でも切り替えられるようにする。 */}
         <div className="lang">
@@ -73,45 +82,22 @@ export function PaperView({ detail, lang, onLangChange, onBack, backToPaper, onO
         >
           {copied ? <Check size={ICON} aria-hidden /> : <Copy size={ICON} aria-hidden />} {meta.slug}
         </button>
-
-        <div className="panes">
-          <button type="button" className={pane === 'body' ? 'on' : ''} onClick={() => setPane('body')}>
-            本文
-          </button>
-          {detail.verification === null ? null : (
-            <button
-              type="button"
-              className={pane === 'verification' ? 'on' : ''}
-              onClick={() => setPane('verification')}
-            >
-              <FileDiff size={ICON} aria-hidden /> 照合の記録
-            </button>
-          )}
-          {detail.hasRaw ? (
-            <button type="button" className={pane === 'raw' ? 'on' : ''} onClick={() => setPane('raw')}>
-              照合前
-            </button>
-          ) : null}
-          <button type="button" className={pane === 'references' ? 'on' : ''} onClick={() => setPane('references')}>
-            参考文献
-          </button>
-        </div>
       </nav>
 
       <article className="paper-body">
         <h1>{meta.title}</h1>
         {/* frontmatter が論文の正の情報なので、全項目を読めるようにする(0002)。 */}
         <PaperMetaTable meta={meta} onTagsChange={onTagsChange} />
-        {pane === 'references' ? (
-          <ReferencesPane slug={meta.slug} onOpenPaper={onOpenPaper} />
+        {/* 題と著者欄は frontmatter が担当するので、本文の側では隠す。 */}
+        {/* 参考文献を持たない論文では差し替えず、本文の節をそのまま出す。 */}
+        {split === null || references === null || references.length === 0 ? (
+          <Markdown text={body} slug={meta.slug} linkReferences />
         ) : (
-          // 照合の記録と照合前の本文も markdown なので、同じ描き方でよい。
-          // 題と著者欄は frontmatter が担当するので、本文の側では隠す。
-          <Markdown
-            text={pane === 'body' ? stripFrontMatterBlock(text) : text}
-            slug={meta.slug}
-            linkReferences={pane === 'body'}
-          />
+          <>
+            <Markdown text={split.before} slug={meta.slug} linkReferences />
+            <ReferenceList references={references} onOpenPaper={onOpenPaper} />
+            {split.after.length === 0 ? null : <Markdown text={split.after} slug={meta.slug} />}
+          </>
         )}
       </article>
     </div>

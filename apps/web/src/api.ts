@@ -38,7 +38,7 @@ export type JobsResponse = {
   jobs: Job[]
 }
 
-export type IngestStage = 'resolve' | 'fetch' | 'convert' | 'verify' | 'translate' | 'register' | 'references'
+export type IngestStage = 'resolve' | 'fetch' | 'convert' | 'verify' | 'translate' | 'references' | 'register'
 
 export type Ingest = {
   slug: string
@@ -136,6 +136,8 @@ export type Config = {
     defaultEffort: string
     instructions: string
     prompts: SavedPrompt[]
+    sendOnEnter: boolean
+    sendOnCtrlEnter: boolean
   }
   ingest: { model: string; effort: string; serviceTier: string | null }
   embedding: { baseUrl: string; model: string; dimensions: number }
@@ -276,6 +278,8 @@ export const api = {
       `/api/chats/one?id=${encodeURIComponent(id)}`,
     ),
   reloadChat: (id: string) => sendJson<{ codexThreadId: string }>('POST', '/api/chats/reload', { id }),
+  /** 直前のやりとりを取り消す。落とした発言の本文が返る(0018)。 */
+  undoChat: (id: string) => sendJson<{ text: string }>('POST', '/api/chats/undo', { id }),
   branchChat: (id: string, index: number) =>
     sendJson<{ id: string; forked: boolean }>('POST', '/api/chats/branch', { id, index }),
   renameChat: (id: string, title: string) => sendJson<{ title: string }>('PUT', '/api/chats/title', { id, title }),
@@ -305,12 +309,9 @@ export const api = {
   search: (query: string, filter: SearchFilter = {}) =>
     getJson<{ hits: SearchHit[] }>(`/api/search?${searchParams(query, filter)}`),
   paper: (slug: string) => getJson<PaperDetail>(`/api/papers/${encodeURIComponent(slug)}`),
-  paperRaw: (slug: string) => getJson<{ raw: string }>(`/api/papers/${encodeURIComponent(slug)}/raw`),
   /** references が null なら、参考文献の段階がまだ走っていない。 */
   paperReferences: (slug: string) =>
     getJson<{ references: Reference[] | null }>(`/api/papers/${encodeURIComponent(slug)}/references`),
-  buildReferences: (slug: string) =>
-    sendJson<{ job: Job }>('POST', `/api/papers/${encodeURIComponent(slug)}/references`, {}),
   setTags: (slug: string, tags: string[]) =>
     sendJson<{ slug: string; tags: string[] }>('PUT', `/api/papers/${encodeURIComponent(slug)}/tags`, { tags }),
   importPaper: (url: string) =>

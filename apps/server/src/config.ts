@@ -29,6 +29,10 @@ export type Config = {
     instructions: string
     /** 入力欄へ差し込める、名前を付けた定型のプロンプト。 */
     prompts: SavedPrompt[]
+    /** 入力欄で Enter を押したときに送るか。 */
+    sendOnEnter: boolean
+    /** 入力欄で Ctrl+Enter を押したときに送るか。 */
+    sendOnCtrlEnter: boolean
   }
   ingest: {
     /** 取り込みの段階が使う Codex のモデル。 */
@@ -71,6 +75,9 @@ export const defaultConfig: Config = {
     defaultEffort: 'high',
     instructions: '',
     prompts: [],
+    // 既定では送らない。書いている途中の改行で送ってしまわないようにする。
+    sendOnEnter: false,
+    sendOnCtrlEnter: false,
   },
   ingest: {
     model: 'gpt-5.6-sol',
@@ -155,6 +162,9 @@ export function mergeConfig(stored: unknown): Config {
     // 空にできる値なので、長さでは判じない。
     if (typeof c['instructions'] === 'string') merged.chat.instructions = c['instructions']
     if (Array.isArray(c['prompts'])) merged.chat.prompts = c['prompts'].flatMap(asSavedPrompt)
+    for (const key of ['sendOnEnter', 'sendOnCtrlEnter'] as const) {
+      if (typeof c[key] === 'boolean') merged.chat[key] = c[key]
+    }
   }
 
   const ingest = raw['ingest']
