@@ -11,7 +11,7 @@ export type PaperViewProps = {
   detail: PaperDetail
   lang: 'en' | 'ja'
   onLangChange: (lang: 'en' | 'ja') => void
-  /** 1 つ前に開いていた論文へ戻る。履歴が無ければ一覧へ戻る。 */
+  /** 1 つ前に開いていた論文へ戻る。 */
   onBack: () => void
   /** 開いている論文を閉じて一覧へ戻る。 */
   onClose: () => void
@@ -46,13 +46,13 @@ export function PaperView({
     <div className="paper-view">
       {/* 上部は固定する。長い本文を読んでいる間も戻れるようにするため(#17)。 */}
       <nav className="paper-nav">
-        <button type="button" onClick={onBack}>
-          <ArrowLeft size={ICON} aria-hidden /> {backToPaper ? '戻る' : '一覧'}
+        <button type="button" onClick={onClose}>
+          <List size={ICON} aria-hidden /> 一覧
         </button>
-        {/* 参考文献をいくつも辿った後に、1 つずつ戻らずに一覧へ帰れるようにする。 */}
+        {/* 参考文献から移ってきたときだけ、1 つ前の論文へ戻れる。 */}
         {backToPaper ? (
-          <button type="button" onClick={onClose}>
-            <List size={ICON} aria-hidden /> 一覧
+          <button type="button" onClick={onBack}>
+            <ArrowLeft size={ICON} aria-hidden /> 戻る
           </button>
         ) : null}
 
