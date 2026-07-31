@@ -203,14 +203,14 @@ export function SettingsPane({ onChanged }: SettingsPaneProps) {
         <div className="settings__row">
           <button
             type="button"
-            onClick={() => save({ chat: { ...config.chat, instructions: nextInstructions } }, '保存した。新しい会話から効く。')}
+            onClick={() => save({ chat: { ...config.chat, instructions: nextInstructions } }, '保存した。次の発言から効く。')}
             disabled={!instructionsChanged}
           >
             <Check size={ICON} aria-hidden /> 保存
           </button>
         </div>
         <p className="settings__hint">
-          口調や答え方をここで決める。効くのは新しい会話と、読み込み直しや分岐で立て直した会話からである。
+          口調や答え方をここで決める。新しい会話にも、続いている会話にも、次の発言から効く。
         </p>
       </section>
 

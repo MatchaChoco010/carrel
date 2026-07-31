@@ -5,6 +5,7 @@ import { readChat, withoutTurnIds, writeChat, type Chat } from '../data/chat.ts'
 import { nowIsoDateTime } from '../data/datetime.ts'
 import { paperDir } from '../data/layout.ts'
 import { attachmentPaths, referencedAttachments } from './attachments.ts'
+import type { InstructionStore } from './instruction-store.ts'
 import { chatInstructions } from './instructions.ts'
 import { serializeMessages } from '../data/chat.ts'
 
@@ -16,6 +17,8 @@ export type ReloadDeps = {
   mcpUrl: string
   /** ユーザーが決めた応答の仕方への指示(0014)。 */
   instructions: () => string
+  /** スレッドに効いている指示の覚え(0014)。 */
+  inForce: InstructionStore
 }
 
 /**
@@ -60,12 +63,14 @@ export async function reloadChat(absolutePath: string, deps: ReloadDeps): Promis
   const chat = await readChat(deps.dataDir, absolutePath)
   if (chat === null) throw new Error(`会話が読めない: ${absolutePath}`)
 
+  const instructions = deps.instructions()
   const threadId = await startConversationThread(deps.codex, {
     dataDir: deps.dataDir,
     model: chat.meta.model ?? '',
     mcpUrl: deps.mcpUrl,
-    instructions: chatInstructions(deps.instructions()),
+    instructions: chatInstructions(instructions),
   })
+  deps.inForce.remember(threadId, instructions)
   // 画像は文字で場所を示しても見えないので、実体を載せる(0013)。
   const images = await attachmentPaths(absolutePath, referencedAttachments(chat.messages))
   await runTurn(deps.codex, {

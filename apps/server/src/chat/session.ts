@@ -4,7 +4,8 @@ import { resumeThread, runTurn, startConversationThread } from '../codex/threads
 import { nowIsoDateTime } from '../data/datetime.ts'
 import { readChat, writeChat, type Chat, type ChatMessage } from '../data/chat.ts'
 import { storeImages, withAttachments, type IncomingImage } from './attachments.ts'
-import { chatInstructions } from './instructions.ts'
+import { chatInstructions, instructionChangeNotice } from './instructions.ts'
+import type { InstructionStore } from './instruction-store.ts'
 import { expandMentions, findMentions } from './mentions.ts'
 
 export type SessionDeps = {
@@ -24,6 +25,8 @@ export type SessionDeps = {
   defaults: () => { model: string; effort: string }
   /** ユーザーが決めた応答の仕方への指示(0014)。 */
   instructions: () => string
+  /** スレッドに効いている指示の覚え(0014)。 */
+  inForce: InstructionStore
   /** ターンの進みを画面へ流す。 */
   onEvent: (event: ChatTurnEvent) => void
   /** 会話を索引へ載せ直す。一覧が追随するのに要る。 */
@@ -177,18 +180,28 @@ export class ChatSessions {
     this.#deps.onEvent({ type: 'chat.turn.started', id: chat.meta.id })
 
     try {
+      // 設定の指示が変わっていたら、この発言の前に差し込む(0014)。記録には残さない。
+      const instructions = this.#deps.instructions()
+      const changed = this.#deps.inForce.inForce(threadId) !== instructions
+      const notice = changed ? instructionChangeNotice(instructions) : ''
+
       const outcome = await runTurn(
         this.#deps.codex,
         {
           threadId,
           input: imagesAndTextInput(
             pending.imagePaths,
-            expandMentions(pending.text, this.#deps.dataDir, this.#deps.knownSlug),
+            notice + expandMentions(pending.text, this.#deps.dataDir, this.#deps.knownSlug),
           ),
           effort,
         },
         { onDelta: (delta) => this.#deps.onEvent({ type: 'chat.turn.delta', id: chat.meta.id, delta }) },
       )
+
+      // 差し込みは会話の一部なので、コンパクションで落ちうる。落ちたら覚えを捨て、
+      // 次の発言で差し込み直す(0014)。
+      if (outcome.compacted) this.#deps.inForce.forget(threadId)
+      else if (changed) this.#deps.inForce.remember(threadId, instructions)
 
       // 応答が無いまま終わったターンは失敗として扱う。空の発言を残すと、記録の上で
       // 「何も返らなかった」と「ターンが途中で終わった」を区別できなくなる。
@@ -222,12 +235,14 @@ export class ChatSessions {
     }
     // 空のモデルでもスレッドは立つが、ターンは何も返さずに終わる。
     if (model.length === 0) throw new Error('モデルが決まっていない。設定の chat.defaultModel を確かめること')
+    const instructions = this.#deps.instructions()
     const created = await startConversationThread(this.#deps.codex, {
       dataDir: this.#deps.dataDir,
       model,
       mcpUrl: this.#deps.mcpUrl,
-      instructions: chatInstructions(this.#deps.instructions()),
+      instructions: chatInstructions(instructions),
     })
+    this.#deps.inForce.remember(created, instructions)
     this.#alive.set(created, true)
     return created
   }

@@ -13,6 +13,7 @@ import {
 } from '../data/chat.ts'
 import { nowIsoDateTime, toIsoDateTime } from '../data/datetime.ts'
 import { attachmentPaths, copyAttachments, referencedAttachments } from './attachments.ts'
+import type { InstructionStore } from './instruction-store.ts'
 import { chatInstructions } from './instructions.ts'
 import { buildReloadInput } from './reload.ts'
 
@@ -30,6 +31,8 @@ export type BranchDeps = {
   mcpUrl: string
   /** ユーザーが決めた応答の仕方への指示(0014)。 */
   instructions: () => string
+  /** スレッドに効いている指示の覚え(0014)。 */
+  inForce: InstructionStore
   reindex: (absolutePath: string) => Promise<void>
 }
 
@@ -85,6 +88,8 @@ export async function branchChat(absolutePath: string, selected: number, deps: B
   const threadId = canFork
     ? await forkThread(deps.codex, source.meta.codexThreadId as string, turnId as string)
     : await primeThread(source, absolutePath, messages, model, deps)
+  // 写したスレッドは元の指示をそのまま持つ(0014)。
+  if (canFork) deps.inForce.copy(source.meta.codexThreadId as string, threadId)
   deps.markResumed(threadId)
 
   const now = new Date()
@@ -131,12 +136,14 @@ async function primeThread(
   model: string,
   deps: BranchDeps,
 ): Promise<string> {
+  const instructions = deps.instructions()
   const threadId = await startConversationThread(deps.codex, {
     dataDir: deps.dataDir,
     model,
     mcpUrl: deps.mcpUrl,
-    instructions: chatInstructions(deps.instructions()),
+    instructions: chatInstructions(instructions),
   })
+  deps.inForce.remember(threadId, instructions)
   const images = await attachmentPaths(sourcePath, referencedAttachments(messages))
   await runTurn(deps.codex, {
     threadId,
