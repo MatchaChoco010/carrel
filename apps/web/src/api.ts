@@ -125,7 +125,7 @@ export type Config = {
   dataDir: string
   server: { host: string; port: number }
   arxiv: { categories: string[]; fetchIntervalMinutes: number; initialLookbackDays: number }
-  chat: { defaultModel: string; defaultEffort: string }
+  chat: { defaultModel: string; defaultEffort: string; instructions: string }
   ingest: { model: string; effort: string; serviceTier: string | null }
   embedding: { baseUrl: string; model: string; dimensions: number }
   converter: { python: string; llamaServer: string; llamaLibDir: string; pageScale: number }

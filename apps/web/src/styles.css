@@ -1609,6 +1609,18 @@ body {
   color: var(--warn);
 }
 
+.settings__instructions {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+
 /* 引けない画像は、場所が分かる形で出す。黙って消すと参照が壊れたことに気づけない。 */
 .markdown__missing-image {
   color: var(--warn);

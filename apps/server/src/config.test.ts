@@ -116,3 +116,9 @@ test('置き場所に書き込めなければ断る', async () => {
     rmSync(root, { recursive: true, force: true })
   }
 })
+
+test('エージェントへの指示は空にできる', () => {
+  assert.equal(mergeConfig({ chat: { instructions: '常体で答える。' } }).chat.instructions, '常体で答える。')
+  assert.equal(mergeConfig({ chat: { instructions: '' } }).chat.instructions, '')
+  assert.equal(mergeConfig({}).chat.instructions, '')
+})

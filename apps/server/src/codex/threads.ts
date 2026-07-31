@@ -34,13 +34,14 @@ function readThreadId(result: unknown): string {
 /** 議論に使うスレッド。コレクションを読め、モデルと effort は呼び出し側が選ぶ。 */
 export async function startConversationThread(
   client: CodexClient,
-  options: { dataDir: string; model: string; mcpUrl?: string },
+  options: { dataDir: string; model: string; mcpUrl?: string; instructions?: string },
 ): Promise<string> {
   const params: ThreadStartParams = {
     cwd: options.dataDir,
     sandbox: 'read-only',
     model: options.model,
   }
+  if (options.instructions !== undefined) params.baseInstructions = options.instructions
   if (options.mcpUrl !== undefined) {
     params.config = { mcp_servers: { [MCP_SERVER_NAME]: { url: options.mcpUrl } } }
   }
