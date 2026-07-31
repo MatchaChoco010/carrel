@@ -10,8 +10,6 @@ const NEXT_HEADING = /^#{1,6}\s+/m
 export type BodySplit = {
   /** 参考文献の見出しまで(見出しを含む)。 */
   before: string
-  /** 見出しの下に書かれている参考文献。 */
-  section: string
   /** 次の見出しから後ろ。無ければ空。 */
   after: string
 }
@@ -27,7 +25,6 @@ export function splitAtReferences(markdown: string): BodySplit | null {
 
   return {
     before: markdown.slice(0, headingEnd),
-    section: (next === null ? rest : rest.slice(0, next.index)).trim(),
     after: next === null ? '' : rest.slice(next.index),
   }
 }

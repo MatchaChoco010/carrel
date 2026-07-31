@@ -1,11 +1,10 @@
-import { BookOpen, ExternalLink, Loader2, Plus } from 'lucide-react'
+import { BookOpen, ExternalLink, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { api, type Reference } from '../api.ts'
 
 export type ReferenceListProps = {
-  slug: string
-  /** 整理済みの参考文献。まだ整理していない論文では null。 */
-  references: Reference[] | null
+  /** 本文の参考文献の節の位置に並べる参考文献。 */
+  references: Reference[]
   /** 参考文献から別の論文へ移る。 */
   onOpenPaper: (target: string) => void
 }
@@ -16,24 +15,9 @@ const ICON = 14
 type Queued = 'queued' | 'duplicate' | string
 
 /** 本文の参考文献の節に差し込む一覧(0017)。 */
-export function ReferenceList({ slug, references, onOpenPaper }: ReferenceListProps) {
+export function ReferenceList({ references, onOpenPaper }: ReferenceListProps) {
   const [queued, setQueued] = useState<Map<number, Queued>>(new Map())
   const [error, setError] = useState<string | null>(null)
-  const [building, setBuilding] = useState(false)
-  const [built, setBuilt] = useState(false)
-
-  const build = async (): Promise<void> => {
-    setBuilding(true)
-    setError(null)
-    try {
-      await api.buildReferences(slug)
-      setBuilt(true)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setBuilding(false)
-    }
-  }
 
   const importPaper = async (at: number, reference: Reference): Promise<void> => {
     setQueued(new Map(queued).set(at, 'queued'))
@@ -44,24 +28,6 @@ export function ReferenceList({ slug, references, onOpenPaper }: ReferenceListPr
     } catch (e) {
       setQueued(new Map(queued).set(at, e instanceof Error ? e.message : String(e)))
     }
-  }
-
-  // 取り込みより前に入れた論文と、段階が失敗した論文はここから積み直す。
-  if (references === null || references.length === 0) {
-    return (
-      <div className="references">
-        {error === null ? null : <p className="error">{error}</p>}
-        <p className="references__build">
-          {built ? (
-            '整理を積んだ。仕上がったらこの画面を開き直す。'
-          ) : (
-            <button type="button" onClick={() => void build()} disabled={building}>
-              {building ? <Loader2 size={ICON} className="spin" aria-hidden /> : null} 参考文献を整理する
-            </button>
-          )}
-        </p>
-      </div>
-    )
   }
 
   return (

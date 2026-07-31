@@ -38,17 +38,13 @@ export function PaperView({
   const { meta } = detail
   const [copied, setCopied] = useState(false)
   const [references, setReferences] = useState<Reference[] | null>(null)
-  // 読み終わるまでは、整理していない論文と見分けが付かない。
-  const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
     setReferences(null)
-    setLoaded(false)
     void api
       .paperReferences(meta.slug)
       .then((r) => setReferences(r.references))
       .catch(() => setReferences(null))
-      .finally(() => setLoaded(true))
   }, [meta.slug])
 
   const text = lang === 'ja' ? (detail.bodyJa ?? '和訳はまだ無い') : detail.body
@@ -93,20 +89,14 @@ export function PaperView({
         {/* frontmatter が論文の正の情報なので、全項目を読めるようにする(0002)。 */}
         <PaperMetaTable meta={meta} onTagsChange={onTagsChange} />
         {/* 題と著者欄は frontmatter が担当するので、本文の側では隠す。 */}
-        {split === null ? (
+        {/* 参考文献を持たない論文では差し替えず、本文の節をそのまま出す。 */}
+        {split === null || references === null || references.length === 0 ? (
           <Markdown text={body} slug={meta.slug} linkReferences />
-        ) : references !== null && references.length > 0 ? (
-          <>
-            <Markdown text={split.before} slug={meta.slug} linkReferences />
-            <ReferenceList slug={meta.slug} references={references} onOpenPaper={onOpenPaper} />
-            {split.after.length === 0 ? null : <Markdown text={split.after} slug={meta.slug} />}
-          </>
         ) : (
-          // まだ整理していない論文では、本文の節をそのまま出して整理を積めるようにする。
           <>
             <Markdown text={split.before} slug={meta.slug} linkReferences />
-            {loaded ? <ReferenceList slug={meta.slug} references={null} onOpenPaper={onOpenPaper} /> : null}
-            <Markdown text={`${split.section}\n\n${split.after}`} slug={meta.slug} />
+            <ReferenceList references={references} onOpenPaper={onOpenPaper} />
+            {split.after.length === 0 ? null : <Markdown text={split.after} slug={meta.slug} />}
           </>
         )}
       </article>
