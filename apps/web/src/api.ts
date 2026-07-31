@@ -38,7 +38,7 @@ export type JobsResponse = {
   jobs: Job[]
 }
 
-export type IngestStage = 'resolve' | 'fetch' | 'convert' | 'verify' | 'translate' | 'register'
+export type IngestStage = 'resolve' | 'fetch' | 'convert' | 'verify' | 'translate' | 'register' | 'references'
 
 export type Ingest = {
   slug: string

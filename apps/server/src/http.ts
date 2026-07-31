@@ -30,6 +30,8 @@ export type AppDeps = {
   searchChats: (query: ChatSearchQuery) => Promise<ChatSearchHit[]>
   /** 取り込みを積む。解決も取得も仕事の中で行うので、押した時点では待たせない(0004)。 */
   enqueueResolve: (url: string) => Job
+  /** 参考文献の段階を積む。取り込みより前に入れた論文と、失敗した論文の積み直しに使う(0015)。 */
+  enqueueReferences: (slug: string) => Job
   /**
    * コレクションの置き場所。
    *
@@ -441,6 +443,13 @@ export function createApp(deps: AppDeps): Hono {
       hasRaw: (await side('raw')) !== null,
       verification: await side('verification'),
     })
+  })
+
+  app.post('/api/papers/:slug/references', async (c) => {
+    const slug = c.req.param('slug')
+    const paper = await readPaper(deps.dataDir, slug)
+    if (paper === null) return c.json({ error: `論文が見つからない: ${slug}` }, 404)
+    return c.json({ job: deps.enqueueReferences(slug) })
   })
 
   app.put('/api/papers/:slug/tags', async (c) => {
