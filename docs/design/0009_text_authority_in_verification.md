@@ -2,7 +2,7 @@
 
 - created: 2026-07-28
 - status: approved
-- implementation: not-started
+- implementation: done (2026-07-29)
 
 ## 解決したい問題
 
