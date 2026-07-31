@@ -63,6 +63,12 @@ export function isAgentMessageItem(value: unknown): value is AgentMessageItem {
   return item['type'] === 'agentMessage' && typeof item['text'] === 'string'
 }
 
+/** 文脈が詰まって古い発言が落ちたことを示す項目。 */
+export function isContextCompactionItem(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false
+  return (value as Record<string, unknown>)['type'] === 'contextCompaction'
+}
+
 /** 承認を求めるサーバ要求かどうか。 */
 /** pct が立てる MCP のサーバーの名前。会話スレッドの設定に載る。 */
 export const MCP_SERVER_NAME = 'pct'

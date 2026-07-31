@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { chatInstructions } from './instructions.ts'
+import { chatInstructions, instructionChangeNotice } from './instructions.ts'
 
 test('ユーザーの指示は pct の指示の後ろに置く', () => {
   const built = chatInstructions('常体で答える。')
@@ -19,4 +19,20 @@ test('図の指し方を渡す', () => {
 
   assert.match(built, /@<slug>\/assets\/<画像のファイル名>/)
   assert.match(built, /!\[説明\]\(assets\/<画像のファイル名>\)/)
+})
+
+test('差し込みは、入れ替わったことと応答しないことを書く', () => {
+  const notice = instructionChangeNotice('常体で答える。')
+
+  assert.match(notice, /pct からの連絡/)
+  assert.match(notice, /常体で答える。/)
+  assert.match(notice, /応答しない/)
+  assert.ok(notice.endsWith('---\n'), '続く発言と区切る')
+})
+
+test('指示を空にしたときは、取り消されたことを書く', () => {
+  const notice = instructionChangeNotice('')
+
+  assert.match(notice, /取り消された/)
+  assert.match(notice, /pct の指示だけに従う/)
 })
