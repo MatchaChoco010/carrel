@@ -5,7 +5,7 @@ import type { Collection, ScanResult } from './data/collection.ts'
 import type { Config } from './config.ts'
 import { mergeConfig, saveConfig, unusableDataDir } from './config.ts'
 import type { IndexDb } from './db/index-db.ts'
-import { extractArxivId } from './ingest/arxiv.ts'
+import { knownPaper } from './ingest/known.ts'
 import { ChatSessions } from './chat/session.ts'
 import type { CodexModel } from './codex/models.ts'
 import { readChat, writeChat, type Chat } from './data/chat.ts'
@@ -19,6 +19,7 @@ import type { ChatSearchHit, ChatSearchQuery } from './search/chat-search.ts'
 import { readPaper, readPaperSideFile, writePaper } from './data/paper.ts'
 import { readReferences } from './data/references.ts'
 import { matchReferences } from './references/match.ts'
+import { findPaper, titleIndex } from './search/find-paper.ts'
 import { readFile } from 'node:fs/promises'
 import { extname, join, relative } from 'node:path'
 import { chatAssetsDirOf, paperAssetsDir } from './data/layout.ts'
@@ -252,16 +253,8 @@ export function createApp(deps: AppDeps): Hono {
     const target = url.trim()
 
     // 解決を待たずに分かる重複だけ、ここで断る。それ以外は解決の仕事が見つける。
-    const arxivId = extractArxivId(target)
-    const known =
-      deps.index.findBySourceUrl(target) ??
-      deps.ingests.bySourceUrl(target)?.slug ??
-      (arxivId === null ? null : (deps.index.findByArxivId(arxivId) ?? deps.ingests.byArxivId(arxivId)?.slug ?? null))
-    if (known !== null) {
-      const record = deps.ingests.get(known)
-      const state = record === null ? 'imported' : record.status === 'done' ? 'imported' : record.status
-      return c.json({ kind: 'duplicate', slug: known, state })
-    }
+    const known = knownPaper(target, { index: deps.index, ingests: deps.ingests })
+    if (known !== null) return c.json({ kind: 'duplicate', slug: known.slug, state: known.state })
 
     return c.json({ kind: 'queued', job: deps.enqueueResolve(target) })
   })
@@ -529,6 +522,18 @@ export function createApp(deps: AppDeps): Hono {
       dataDir: deps.dataDir,
       search: deps.search,
       tags: () => deps.index.tagCounts(),
+      findPaper: (key) =>
+        findPaper(key, {
+          byArxivId: (id) => deps.index.findByArxivId(id),
+          byDoi: (doi) => deps.index.findByDoi(doi),
+          byTitle: titleIndex(deps.index.titles()),
+        }),
+      importPaper: (target) => {
+        const known = knownPaper(target, { index: deps.index, ingests: deps.ingests })
+        if (known !== null) return { kind: 'duplicate', known }
+        deps.enqueueResolve(target)
+        return { kind: 'queued' }
+      },
     }),
   )
 

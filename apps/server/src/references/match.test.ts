@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { Reference } from '../data/references.ts'
-import { matchReferences, normalizeTitle } from './match.ts'
+import { matchReferences } from './match.ts'
 
 const NONE = { byArxivId: () => null, byDoi: () => null, titles: [] }
 
@@ -18,10 +18,6 @@ function reference(over: Partial<Reference> = {}): Reference {
     ...over,
   }
 }
-
-test('題は記号と大文字小文字の違いを落として比べる', () => {
-  assert.equal(normalizeTitle('Mip-NeRF 360: Unbounded Anti-Aliased Fields'), normalizeTitle('mip nerf 360 unbounded antialiased fields'))
-})
 
 test('arXiv の識別子で当たる', () => {
   const matched = matchReferences([reference({ arxivId: 'arXiv:2003.08934v2' })], {
