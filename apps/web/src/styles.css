@@ -968,10 +968,12 @@ body {
   font-size: 12px;
 }
 
-/* 1 段階ぶんの幅は等しくする。実時間には対応させない。 */
+/* 1 段階ぶんの幅は等しくする。実時間には対応させない。
+   列は段階の数だけ作る。数を書くと、段階が増えたときに折り返す。 */
 .ingest__stages {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   gap: 2px;
   list-style: none;
   margin: 10px 0 0;
@@ -1002,6 +1004,10 @@ body {
 .ingest__stage.failed {
   border-top-color: var(--warn);
   color: var(--warn);
+}
+
+.ingest__label {
+  white-space: nowrap;
 }
 
 .ingest__time {
