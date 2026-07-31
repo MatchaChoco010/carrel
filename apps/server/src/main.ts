@@ -12,6 +12,7 @@ import { ChatChunkStore } from './search/chat-store.ts'
 import { enqueueEmbed, enqueueRegister, registerEmbed, registerRegister } from './search/job.ts'
 import { buildSegmenter } from './search/segment.ts'
 import { ChunkStore } from './search/store.ts'
+import { enqueueBibliography, registerBibliography } from './bibliography/job.ts'
 import { enqueueReferences, registerReferences } from './references/job.ts'
 import { enqueueTranslate, registerTranslate } from './translate/job.ts'
 import { enqueueVerify, registerVerify } from './verify/job.ts'
@@ -129,6 +130,16 @@ async function main(): Promise<void> {
     effort: config.ingest.effort,
     serviceTier: config.ingest.serviceTier,
     textLayer: { python: config.converter.python, script: textLayerScript() },
+    onDone: (slug) => enqueueBibliography(jobs, slug),
+  })
+
+  registerBibliography(jobs, {
+    dataDir,
+    ingests,
+    codex: codex.client,
+    model: config.ingest.model,
+    effort: config.ingest.effort,
+    serviceTier: config.ingest.serviceTier,
     onDone: (slug) => enqueueTranslate(jobs, slug),
   })
 

@@ -1,11 +1,20 @@
 /** 取り込みの段階。 */
-export type IngestStage = 'resolve' | 'fetch' | 'convert' | 'verify' | 'translate' | 'references' | 'register'
+export type IngestStage =
+  | 'resolve'
+  | 'fetch'
+  | 'convert'
+  | 'verify'
+  | 'bibliography'
+  | 'translate'
+  | 'references'
+  | 'register'
 
 export const INGEST_STAGES: IngestStage[] = [
   'resolve',
   'fetch',
   'convert',
   'verify',
+  'bibliography',
   'translate',
   'references',
   'register',
