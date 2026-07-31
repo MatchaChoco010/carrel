@@ -15,6 +15,9 @@ export type PapersPaneProps = {
 }
 
 const ICON = 16
+
+/** 一覧を 1 度に読む件数。末尾まで送るたびにこの分だけ増やす(#222)。 */
+const PAGE = 20
 const DEBOUNCE = 250
 
 export function PapersPane({ lang, onLangChange, tags, revision, onChanged }: PapersPaneProps) {
@@ -27,14 +30,17 @@ export function PapersPane({ lang, onLangChange, tags, revision, onChanged }: Pa
   /** 開いている論文の履歴。末尾が今の論文で、参考文献から移るたびに伸びる(0015)。 */
   const [trail, setTrail] = useState<string[]>([])
   const [importing, setImporting] = useState(false)
+  /** いま求めている件数。一覧の末尾まで送るたびに増える(#222)。 */
+  const [limit, setLimit] = useState(PAGE)
   const picker = useRef<HTMLInputElement>(null)
+  const tail = useRef<HTMLDivElement>(null)
   const [url, setUrl] = useState('')
 
   const load = useCallback(async (): Promise<void> => {
     setLoading(true)
     setError(null)
     try {
-      const { hits: found } = await api.search(query, filter)
+      const { hits: found } = await api.search(query, filter, limit)
       setHits(found)
       const loaded = await Promise.all(
         found.map((h) =>
@@ -50,12 +56,33 @@ export function PapersPane({ lang, onLangChange, tags, revision, onChanged }: Pa
     } finally {
       setLoading(false)
     }
-  }, [query, filter])
+  }, [query, filter, limit])
 
   useEffect(() => {
     const timer = setTimeout(() => void load(), DEBOUNCE)
     return () => clearTimeout(timer)
   }, [load, revision])
+
+  // 条件を変えたら最初の分量から出し直す。前の条件で伸ばした件数を持ち越さない。
+  useEffect(() => {
+    setLimit(PAGE)
+  }, [query, filter])
+
+  /**
+   * 一覧の末尾が見えたら続きを求める(#222)。
+   *
+   * 送る欄はタブごとに違うので、どの欄が送られているかを知らずに済む見張りを使う。
+   * 返った件数が求めた件数に満たなければ、それ以上は無い。
+   */
+  useEffect(() => {
+    const node = tail.current
+    if (node === null || hits.length < limit) return
+    const watcher = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) setLimit((previous) => previous + PAGE)
+    })
+    watcher.observe(node)
+    return () => watcher.disconnect()
+  }, [hits.length, limit])
 
   const open = trail.at(-1) ?? null
 
@@ -235,6 +262,8 @@ export function PapersPane({ lang, onLangChange, tags, revision, onChanged }: Pa
               />
             )
           })}
+          {/* 末尾の見張り。ここが見えたら続きを読む(#222)。 */}
+          <div ref={tail} className="paper-list__tail" aria-hidden />
         </div>
       )}
     </div>

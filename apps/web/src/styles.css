@@ -431,6 +431,11 @@ body {
   margin-left: 4px;
 }
 
+/* 続きを読む合図に使う見張り。少し高さを持たせて、末尾に届く前に読み始める。 */
+.paper-list__tail {
+  height: 120px;
+}
+
 .paper-list {
   display: flex;
   flex-direction: column;
