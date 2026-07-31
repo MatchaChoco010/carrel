@@ -46,7 +46,7 @@ export function FeedPane({ lang, onLangChange, visible, revision, onUnread, onCh
     load()
   }, [load, visible, revision])
 
-  // 画面に出た時点で既読にする(0004)。他のタブに移っている間は出ていないので数えない。
+  // 画面に出た時点で既読にする(0004)。他のタブに移っている間は出ていないので既読にしない。
   useEffect(() => {
     if (!visible) return
     const unread = items.filter((i) => !i.read && !marked.current.has(i.arxivId)).map((i) => i.arxivId)

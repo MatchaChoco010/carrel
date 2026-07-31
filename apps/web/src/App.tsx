@@ -182,7 +182,6 @@ export function App() {
               </button>
             )}
           </header>
-          {/* 一度開いたタブは中身を残したまま隠す。戻ったときに離れたときの続きから始まる。 */}
           <div className="pane__body pane__body--tabs">
             {opened.has('jobs') && (
               <div className="pane__slot" hidden={tab !== 'jobs'}>

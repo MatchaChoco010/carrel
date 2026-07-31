@@ -152,7 +152,7 @@ body {
   padding: 12px 14px;
 }
 
-/* タブを並べる欄。送りはタブごとに持つので、この欄自体は送らない。 */
+/* タブを並べる欄。スクロールはタブごとに持つので、この欄自体はスクロールしない。 */
 .pane__body--tabs {
   display: flex;
   overflow: hidden;
