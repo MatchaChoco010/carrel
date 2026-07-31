@@ -1035,6 +1035,11 @@ body {
   opacity: 0.7;
 }
 
+.jobs__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 /* --- arXiv フィード --- */
 
 .feed {
