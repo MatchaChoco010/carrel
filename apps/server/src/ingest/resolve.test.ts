@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { CodexClient } from '../codex/client.ts'
-import { resolveSource, type KnownPapers } from './resolve.ts'
+import { looksLikeUrl, resolveSource, type KnownPapers } from './resolve.ts'
 
 const NONE: KnownPapers = { byArxivId: () => null, bySourceUrl: () => null }
 
@@ -109,4 +109,11 @@ test('必須の項目が欠けた応答は失敗にする', async () => {
     }),
     /URL を解決できなかった/,
   )
+})
+
+test('URL かどうかで、探し方を分ける', () => {
+  assert.equal(looksLikeUrl('https://arxiv.org/abs/2003.08934'), true)
+  assert.equal(looksLikeUrl('  http://example.com/a.pdf '), true)
+  assert.equal(looksLikeUrl('3D Gaussian Splatting for Real-Time Radiance Field Rendering'), false)
+  assert.equal(looksLikeUrl('10.1145/3592433'), false)
 })

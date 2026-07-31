@@ -243,7 +243,7 @@ export function createApp(deps: AppDeps): Hono {
     }
     const url = (body as { url?: unknown }).url
     if (typeof url !== 'string' || url.trim().length === 0) {
-      return c.json({ error: 'url を指定すること' }, 400)
+      return c.json({ error: 'URL か題名を指定すること' }, 400)
     }
     const target = url.trim()
 
