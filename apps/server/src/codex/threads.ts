@@ -75,6 +75,8 @@ export async function startWorkThread(
     cwd?: string
     approvalPolicy?: AskForApproval
     serviceTier?: string | null
+    /** web を検索させる。既定では道具を渡さない。 */
+    webSearch?: boolean
   },
 ): Promise<string> {
   const params: ThreadStartParams = {
@@ -84,6 +86,7 @@ export async function startWorkThread(
     model: options.model,
     baseInstructions: options.instructions,
   }
+  if (options.webSearch === true) params.config = { tools: { web_search: {} } }
   if (options.approvalPolicy !== undefined) params.approvalPolicy = options.approvalPolicy
   if (options.serviceTier !== undefined && options.serviceTier !== null) params.serviceTier = options.serviceTier
   return readThreadId(await client.request(METHODS.threadStart, params))

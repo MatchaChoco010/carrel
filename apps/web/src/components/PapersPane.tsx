@@ -130,8 +130,8 @@ export function PapersPane({ lang, onLangChange, tags, revision, onChanged }: Pa
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && void importPaper()}
-          placeholder="論文の URL を貼って取り込む"
-          aria-label="取り込む論文の URL"
+          placeholder="論文の URL か題名を入れて取り込む"
+          aria-label="取り込む論文の URL か題名"
         />
         {/* 取り込み中は実行中の表示にして二度押しを防ぐ(#17)。 */}
         <button type="button" onClick={() => void importPaper()} disabled={importing || url.trim().length === 0}>
