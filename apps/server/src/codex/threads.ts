@@ -101,7 +101,7 @@ export async function startWorkThread(
 export function runTurn(
   client: CodexClient,
   params: TurnStartParams,
-  hooks: { onDelta?: (delta: string) => void } = {},
+  hooks: { onDelta?: (delta: string) => void; onStarted?: (turnId: string) => void } = {},
 ): Promise<TurnOutcome> {
   return new Promise<TurnOutcome>((resolve, reject) => {
     let text = ''
@@ -122,7 +122,10 @@ export function runTurn(
           const turn = payload['turn']
           if (typeof turn === 'object' && turn !== null) {
             const id = (turn as Record<string, unknown>)['id']
-            if (typeof id === 'string') turnId = id
+            if (typeof id === 'string') {
+              turnId = id
+              hooks.onStarted?.(id)
+            }
           }
           return
         }

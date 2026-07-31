@@ -119,7 +119,8 @@ export async function branchChat(absolutePath: string, selected: number, deps: B
   return { id: next.meta.id, forked: canFork }
 }
 
-async function forkThread(codex: CodexClient, threadId: string, lastTurn: string): Promise<string> {
+/** 指定した turn までを写した新しいスレッドを立てる(0012、0018)。 */
+export async function forkThread(codex: CodexClient, threadId: string, lastTurn: string): Promise<string> {
   const result = (await codex.request(METHODS.threadFork, { threadId, lastTurnId: lastTurn })) as {
     thread?: { id?: unknown }
   }

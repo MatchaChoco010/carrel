@@ -58,6 +58,8 @@ export type AppDeps = {
   models: () => Promise<CodexModel[]>
   /** 会話を新しいスレッドへ載せ直す。 */
   reloadChat: (absolutePath: string) => Promise<string>
+  /** 直前のやりとりを取り消す。落とした発言の本文を返す(0018)。 */
+  undoChat: (absolutePath: string) => Promise<{ text: string }>
   /** 会話を分岐する。選んだ発言が属する turn の 1 つ前までを引き継ぐ(0012)。 */
   branchChat: (absolutePath: string, selected: number) => Promise<{ id: string; forked: boolean }>
   /** 会話を索引へ載せ直す。 */
@@ -298,6 +300,17 @@ export function createApp(deps: AppDeps): Hono {
     try {
       const branch = await deps.branchChat(file, body.index)
       return c.json(branch)
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 400)
+    }
+  })
+
+  app.post('/api/chats/undo', async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as { id?: unknown }
+    const file = chatFile(body.id)
+    if (file === null) return c.json({ error: `会話が見つからない: ${String(body.id)}` }, 404)
+    try {
+      return c.json(await deps.undoChat(file))
     } catch (error) {
       return c.json({ error: error instanceof Error ? error.message : String(error) }, 400)
     }
