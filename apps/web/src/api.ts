@@ -300,7 +300,6 @@ export const api = {
   search: (query: string, filter: SearchFilter = {}) =>
     getJson<{ hits: SearchHit[] }>(`/api/search?${searchParams(query, filter)}`),
   paper: (slug: string) => getJson<PaperDetail>(`/api/papers/${encodeURIComponent(slug)}`),
-  paperRaw: (slug: string) => getJson<{ raw: string }>(`/api/papers/${encodeURIComponent(slug)}/raw`),
   /** references が null なら、参考文献の段階がまだ走っていない。 */
   paperReferences: (slug: string) =>
     getJson<{ references: Reference[] | null }>(`/api/papers/${encodeURIComponent(slug)}/references`),
