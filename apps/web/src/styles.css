@@ -1006,7 +1006,18 @@ body {
   font-size: 13px;
 }
 
+/* 解決を待っている取り込みは、slug の代わりに送った URL か題名を出す(#230)。 */
+.ingest__target {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .ingest__total {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
   color: var(--text-muted);
   font-size: 12px;
 }

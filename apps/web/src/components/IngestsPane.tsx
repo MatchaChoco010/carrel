@@ -4,6 +4,13 @@ import { api, type Ingest, type IngestStage } from '../api.ts'
 
 export type IngestsPaneProps = {
   ingests: Ingest[]
+  /**
+   * まだ記録になっていない取り込み(#230)。
+   *
+   * 記録ができるのは解決が終わって slug が決まってからなので、それまでの数十秒は
+   * 押した相手が画面に出ない。積んである解決の仕事をそのまま出す。
+   */
+  waiting: Array<{ id: number; target: string }>
   /** 記録を消した後に一覧を読み直す。 */
   onChanged: () => void
 }
@@ -56,8 +63,8 @@ function useNow(active: boolean): number {
   return active ? now : Date.now()
 }
 
-export function IngestsPane({ ingests, onChanged }: IngestsPaneProps) {
-  const now = useNow(ingests.some((i) => i.status === 'inProgress'))
+export function IngestsPane({ ingests, waiting, onChanged }: IngestsPaneProps) {
+  const now = useNow(ingests.some((i) => i.status === 'inProgress') || waiting.length > 0)
   const [busy, setBusy] = useState(false)
   const done = ingests.filter((i) => i.status === 'done').length
 
@@ -77,7 +84,9 @@ export function IngestsPane({ ingests, onChanged }: IngestsPaneProps) {
       .finally(() => setBusy(false))
   }
 
-  if (ingests.length === 0) return <p className="empty">取り込み中の論文はありません</p>
+  if (ingests.length === 0 && waiting.length === 0) {
+    return <p className="empty">取り込み中の論文はありません</p>
+  }
 
   return (
     <div className="ingests">
@@ -89,6 +98,16 @@ export function IngestsPane({ ingests, onChanged }: IngestsPaneProps) {
           </button>
         </div>
       )}
+      {waiting.map((job) => (
+        <article key={`waiting-${job.id}`} className="ingest ingest--inProgress">
+          <header>
+            <code className="ingest__target">{job.target}</code>
+            <span className="ingest__total">
+              <Loader2 size={ICON} className="spin" aria-hidden /> 解決を待っている
+            </span>
+          </header>
+        </article>
+      ))}
       {ingests.map((ingest) => {
         const byStage = new Map(ingest.stages.map((s) => [s.stage, s]))
         const at = STAGES.indexOf(ingest.stage)
