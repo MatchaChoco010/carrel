@@ -373,6 +373,15 @@ export class IndexDb {
     return rows.map((r) => r.slug)
   }
 
+  /** 題での突き合わせに使う一覧(0015)。件数はコレクションの論文の数で、1 回の問い合わせで読む。 */
+  titles(): Array<{ slug: string; title: string; year: number | null }> {
+    return this.#db.prepare('select slug, title, year from papers').all() as Array<{
+      slug: string
+      title: string
+      year: number | null
+    }>
+  }
+
   allSlugs(): Set<string> {
     const rows = this.#db.prepare('select slug from papers').all() as Array<{ slug: string }>
     return new Set(rows.map((r) => r.slug))

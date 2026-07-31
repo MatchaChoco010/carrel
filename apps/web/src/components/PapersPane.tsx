@@ -24,7 +24,8 @@ export function PapersPane({ lang, onLangChange, tags, revision, onChanged }: Pa
   const [details, setDetails] = useState<Map<string, PaperDetail>>(new Map())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [open, setOpen] = useState<string | null>(null)
+  /** 開いている論文の履歴。末尾が今の論文で、参考文献から移るたびに伸びる(0015)。 */
+  const [trail, setTrail] = useState<string[]>([])
   const [importing, setImporting] = useState(false)
   const [url, setUrl] = useState('')
 
@@ -54,6 +55,23 @@ export function PapersPane({ lang, onLangChange, tags, revision, onChanged }: Pa
     const timer = setTimeout(() => void load(), DEBOUNCE)
     return () => clearTimeout(timer)
   }, [load, revision])
+
+  const open = trail.at(-1) ?? null
+
+  // 参考文献から移った論文は検索の結果に無いことがあるので、その場で読む。
+  useEffect(() => {
+    if (open === null || details.has(open)) return
+    let cancelled = false
+    void api
+      .paper(open)
+      .then((detail) => {
+        if (!cancelled) setDetails((prev) => new Map(prev).set(open, detail))
+      })
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+    return () => {
+      cancelled = true
+    }
+  }, [open, details])
 
   const importPaper = async (): Promise<void> => {
     const target = url.trim()
@@ -101,14 +119,17 @@ export function PapersPane({ lang, onLangChange, tags, revision, onChanged }: Pa
     }
   }
 
-  const opened = open === null ? undefined : details.get(open)
-  if (opened !== undefined) {
+  if (open !== null) {
+    const opened = details.get(open)
+    if (opened === undefined) return <p className="empty">読み込み中</p>
     return (
       <PaperView
         detail={opened}
         lang={lang}
         onLangChange={onLangChange}
-        onBack={() => setOpen(null)}
+        onBack={() => setTrail(trail.slice(0, -1))}
+        backToPaper={trail.length > 1}
+        onOpenPaper={(slug) => setTrail([...trail, slug])}
         onTagsChange={(next) => void setTags(opened.meta.slug, next)}
       />
     )
@@ -159,7 +180,7 @@ export function PapersPane({ lang, onLangChange, tags, revision, onChanged }: Pa
                 detail={detail}
                 lang={lang}
                 hit={hit.path.length > 0 ? { path: hit.path, excerpt: hit.excerpt } : undefined}
-                onOpen={setOpen}
+                onOpen={(slug) => setTrail([slug])}
                 onTagsChange={(slug, next) => void setTags(slug, next)}
                 onDelete={(slug) => void remove(slug)}
               />

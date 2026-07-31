@@ -731,6 +731,62 @@ body {
   letter-spacing: 0.04em;
 }
 
+/* --- 参考文献 --- */
+
+.references {
+  max-width: 46rem;
+  width: 100%;
+  margin-top: 18px;
+}
+
+.reference-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.reference {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+}
+
+.reference__text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.reference__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.reference__actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.reference__actions a {
+  color: var(--accent);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.reference__queued {
+  color: var(--text-muted);
+}
+
 /* --- markdown --- */
 
 .markdown {
