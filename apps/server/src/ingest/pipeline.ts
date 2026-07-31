@@ -60,6 +60,49 @@ function toMeta(slug: string, source: ResolvedSource, sourceUrl: string): PaperM
   }
 }
 
+/**
+ * 試す所在を順に並べる。
+ *
+ * arXiv の識別子が分かっていれば、その PDF を最後に足す。出版社の閲覧ページしか
+ * 挙がらなかったときの受け皿になる。
+ */
+function candidates(source: ResolvedSource): string[] {
+  const urls = [source.originalUrl, ...source.alternateUrls]
+  if (source.arxivId !== null) urls.push(`https://arxiv.org/pdf/${source.arxivId}`)
+  return [...new Set(urls)]
+}
+
+/**
+ * 取れるところまで順に試す。
+ *
+ * 出版社の閲覧ページは HTTP としては成功しながら HTML を返すので、PDF の印まで見て
+ * 初めて取れたと判じる。
+ */
+async function fetchFirst(
+  dataDir: string,
+  slug: string,
+  urls: string[],
+  kind: ResolvedSource['kind'],
+): Promise<{ url: string; path: string }> {
+  const failures: string[] = []
+  for (const url of urls) {
+    try {
+      const fetched = await fetchOriginal(dataDir, slug, url, kind)
+      if (kind === 'pdf') {
+        const head = await readFile(fetched.path, { encoding: null })
+        if (!looksLikePdf(head.subarray(0, 8))) {
+          failures.push(`${url}: PDF ではない (content-type=${fetched.contentType})`)
+          continue
+        }
+      }
+      return { url, path: fetched.path }
+    } catch (error) {
+      failures.push(`${url}: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+  throw new Error(`原本を取得できなかった。試した所在:\n${failures.join('\n')}`)
+}
+
 /** 解決と取得までを行う。 */
 export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<IngestResult> {
   const outcome = await resolveSource(url, {
@@ -106,12 +149,10 @@ export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<Inge
     }
     deps.ingests.advance(slug, 'fetch')
 
-    const fetched = await fetchOriginal(deps.dataDir, slug, source.originalUrl, source.kind)
-    if (source.kind === 'pdf') {
-      const head = await readFile(fetched.path, { encoding: null })
-      if (!looksLikePdf(head.subarray(0, 8))) {
-        throw new Error(`PDF として取得できなかった (content-type=${fetched.contentType}): ${source.originalUrl}`)
-      }
+    const taken = await fetchFirst(deps.dataDir, slug, candidates(source), source.kind)
+    // 別の所在から取れたときは、原本の場所をそこへ直す。
+    if (taken.url !== source.originalUrl) {
+      await writePaper(deps.dataDir, { ...toMeta(slug, source, sourceUrl), pdfUrl: taken.url }, '')
     }
     deps.ingests.advance(slug, 'convert')
   } catch (error) {
