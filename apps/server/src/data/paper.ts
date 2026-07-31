@@ -13,6 +13,8 @@ export type PaperMeta = {
   venue: string | null
   year: number | null
   arxivId: string | null
+  /** 出版元が付けた識別子。参考文献との突き合わせに使う(0015)。 */
+  doi: string | null
   sourceUrl: string | null
   pdfUrl: string | null
   tags: string[]
@@ -35,6 +37,7 @@ const FRONTMATTER_KEYS = {
   venue: 'venue',
   year: 'year',
   arxivId: 'arxiv_id',
+  doi: 'doi',
   sourceUrl: 'source_url',
   pdfUrl: 'pdf_url',
   tags: 'tags',
@@ -68,6 +71,7 @@ export function parsePaperMeta(raw: Record<string, unknown>, fallbackSlug: strin
     venue: asString(raw[FRONTMATTER_KEYS.venue]),
     year: asYear(raw[FRONTMATTER_KEYS.year]),
     arxivId: asString(raw[FRONTMATTER_KEYS.arxivId]),
+    doi: asString(raw[FRONTMATTER_KEYS.doi]),
     sourceUrl: asString(raw[FRONTMATTER_KEYS.sourceUrl]),
     pdfUrl: asString(raw[FRONTMATTER_KEYS.pdfUrl]),
     tags: asStringArray(raw[FRONTMATTER_KEYS.tags]),
@@ -83,6 +87,7 @@ export function serializePaperMeta(meta: PaperMeta): Record<string, unknown> {
     [FRONTMATTER_KEYS.venue]: meta.venue,
     [FRONTMATTER_KEYS.year]: meta.year,
     [FRONTMATTER_KEYS.arxivId]: meta.arxivId,
+    [FRONTMATTER_KEYS.doi]: meta.doi,
     [FRONTMATTER_KEYS.sourceUrl]: meta.sourceUrl,
     [FRONTMATTER_KEYS.pdfUrl]: meta.pdfUrl,
     [FRONTMATTER_KEYS.tags]: meta.tags,

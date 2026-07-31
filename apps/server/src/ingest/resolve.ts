@@ -29,17 +29,25 @@ const OUTPUT_SCHEMA = {
     venue: { type: ['string', 'null'] },
     abstract: { type: ['string', 'null'] },
     arxivId: { type: ['string', 'null'] },
+    doi: { type: ['string', 'null'], description: '出版元の DOI。10. で始まる形。無ければ null。' },
     slugKeyword: {
       type: ['string', 'null'],
       description: '論文に定着した略称。無ければタイトルの内容語を 1〜3 語。',
     },
   },
-  required: ['originalUrl', 'kind', 'title', 'authors', 'year', 'venue', 'abstract', 'arxivId', 'slugKeyword'],
+  required: ['originalUrl', 'kind', 'title', 'authors', 'year', 'venue', 'abstract', 'arxivId', 'doi', 'slugKeyword'],
   additionalProperties: false,
 }
 
 function asString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
+}
+
+/** DOI の書き方は揺れる。https://doi.org/ や doi: の前置きを落として 10. から始まる形に揃える。 */
+function normalizeDoi(value: string | null): string | null {
+  if (value === null) return null
+  const stripped = value.replace(/^\s*(?:https?:\/\/(?:dx\.)?doi\.org\/|doi:\s*)/i, '').trim()
+  return /^10\.\S+\/\S+$/.test(stripped) ? stripped : null
 }
 
 function parseAgentResult(text: string): ResolvedSource | null {
@@ -70,6 +78,7 @@ function parseAgentResult(text: string): ResolvedSource | null {
     venue: asString(r['venue']),
     abstract: asString(r['abstract']),
     arxivId: asString(r['arxivId']),
+    doi: normalizeDoi(asString(r['doi'])),
     slugKeyword: asString(r['slugKeyword']),
     via: 'agent',
   }

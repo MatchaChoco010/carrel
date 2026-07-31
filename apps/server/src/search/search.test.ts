@@ -34,6 +34,7 @@ const meta = (slug: string, over: Partial<PaperMeta> = {}): PaperMeta => ({
   venue: 'ACM TOG',
   year: 2023,
   arxivId: null,
+  doi: null,
   sourceUrl: `https://example.com/${slug}`,
   pdfUrl: null,
   tags: [],
