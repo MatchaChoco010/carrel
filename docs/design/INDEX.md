@@ -24,5 +24,7 @@ pct(paper collection tool)の設計判断の記録。
 | [0017](0017_references_in_body.md) | 参考文献を本文の中で辿る | approved | done (2026-07-31) |
 | [0018](0018_undo_last_exchange.md) | 直前のやりとりの取り消し | approved | done (2026-07-31) |
 | [0019](0019_word_index.md) | 全文検索の索引を語の単位にする | approved | done (2026-07-31) |
+| [0020](0020_bibliography_lookup.md) | 書誌を本文が出てから確かめる | ready for review | not-started |
+| [0021](0021_local_original.md) | 手元の PDF を原本として取り込む | ready for review | not-started |
 
-件数: 19
+件数: 21
