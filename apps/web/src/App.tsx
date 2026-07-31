@@ -46,6 +46,12 @@ function useIsNarrow(): boolean {
 
 export function App() {
   const [tab, setTab] = useState<Tab>('papers')
+  // 一度でも開いたタブ。開くまでは中身を作らず、開いた後は隠すだけにして状態を残す。
+  const [opened, setOpened] = useState<Set<Tab>>(() => new Set<Tab>(['papers']))
+  const openTab = useCallback((id: Tab): void => {
+    setTab(id)
+    setOpened((previous) => (previous.has(id) ? previous : new Set(previous).add(id)))
+  }, [])
   const [codex, setCodex] = useState<CodexStatus | null>(null)
   const [jobs, setJobs] = useState<JobsResponse | null>(null)
   const [index, setIndex] = useState<IndexStatus | null>(null)
@@ -138,7 +144,7 @@ export function App() {
               key={entry.id}
               type="button"
               className={`rail__button ${tab === entry.id ? 'rail__button--active' : ''}`}
-              onClick={() => setTab(entry.id)}
+              onClick={() => openTab(entry.id)}
               title={entry.label}
               aria-label={entry.label}
               aria-current={tab === entry.id}
@@ -153,7 +159,7 @@ export function App() {
           <button
             type="button"
             className={`rail__button ${tab === SETTINGS_TAB.id ? 'rail__button--active' : ''}`}
-            onClick={() => setTab(SETTINGS_TAB.id)}
+            onClick={() => openTab(SETTINGS_TAB.id)}
             title={SETTINGS_TAB.label}
             aria-label={SETTINGS_TAB.label}
           >
@@ -176,44 +182,59 @@ export function App() {
               </button>
             )}
           </header>
-          <div className="pane__body">
-            {tab === 'jobs' ? (
-              <div className="jobs-tab">
-                <IngestsPane ingests={ingests} />
-                <JobsPane jobs={jobs} onCleared={reloadJobs} />
+          <div className="pane__body pane__body--tabs">
+            {opened.has('jobs') && (
+              <div className="pane__slot" hidden={tab !== 'jobs'}>
+                <div className="jobs-tab">
+                  <IngestsPane ingests={ingests} />
+                  <JobsPane jobs={jobs} onCleared={reloadJobs} />
+                </div>
               </div>
-            ) : tab === 'papers' ? (
-              <PapersPane
-                lang={lang}
-                onLangChange={setLang}
-                tags={index?.tags ?? []}
-                revision={revision}
-                onChanged={() => setRevision((n) => n + 1)}
-              />
-            ) : tab === 'chats' ? (
-              <ChatsPane
-                active={activeChat}
-                onOpen={(path) => {
-                  setActiveChat(path)
-                  if (narrow) setChatOpen(true)
-                }}
-                revision={revision}
-                onChanged={() => setRevision((n) => n + 1)}
-              />
-            ) : tab === 'feed' ? (
-              <FeedPane
-                lang={lang}
-                onLangChange={setLang}
-                revision={revision}
-                onUnread={setUnread}
-                onChanged={() => setRevision((n) => n + 1)}
-              />
-            ) : (
-              <SettingsPane
-                onChanged={() => setRevision((n) => n + 1)}
-                reading={reading}
-                onReadingChange={setReading}
-              />
+            )}
+            {opened.has('papers') && (
+              <div className="pane__slot" hidden={tab !== 'papers'}>
+                <PapersPane
+                  lang={lang}
+                  onLangChange={setLang}
+                  tags={index?.tags ?? []}
+                  revision={revision}
+                  onChanged={() => setRevision((n) => n + 1)}
+                />
+              </div>
+            )}
+            {opened.has('chats') && (
+              <div className="pane__slot" hidden={tab !== 'chats'}>
+                <ChatsPane
+                  active={activeChat}
+                  onOpen={(path) => {
+                    setActiveChat(path)
+                    if (narrow) setChatOpen(true)
+                  }}
+                  revision={revision}
+                  onChanged={() => setRevision((n) => n + 1)}
+                />
+              </div>
+            )}
+            {opened.has('feed') && (
+              <div className="pane__slot" hidden={tab !== 'feed'}>
+                <FeedPane
+                  lang={lang}
+                  onLangChange={setLang}
+                  visible={tab === 'feed'}
+                  revision={revision}
+                  onUnread={setUnread}
+                  onChanged={() => setRevision((n) => n + 1)}
+                />
+              </div>
+            )}
+            {opened.has('settings') && (
+              <div className="pane__slot" hidden={tab !== 'settings'}>
+                <SettingsPane
+                  onChanged={() => setRevision((n) => n + 1)}
+                  reading={reading}
+                  onReadingChange={setReading}
+                />
+              </div>
             )}
           </div>
         </section>
