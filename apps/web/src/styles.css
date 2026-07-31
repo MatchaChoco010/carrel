@@ -1688,6 +1688,13 @@ body {
   color: var(--text-dim);
 }
 
+.settings__check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
 .settings__hint {
   margin: 0;
   color: var(--text-dim);

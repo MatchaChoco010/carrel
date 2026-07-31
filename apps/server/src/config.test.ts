@@ -18,6 +18,13 @@ test('書かれたキーだけを既定値の上に重ねる', () => {
   assert.equal(merged.server.port, defaultConfig.server.port)
 })
 
+test('送信のキーは書かれたものだけを受ける', () => {
+  assert.equal(mergeConfig({ chat: { sendOnEnter: true } }).chat.sendOnEnter, true)
+  assert.equal(mergeConfig({ chat: { sendOnEnter: true } }).chat.sendOnCtrlEnter, false)
+  assert.equal(mergeConfig({ chat: { sendOnCtrlEnter: 'はい' } }).chat.sendOnCtrlEnter, false)
+  assert.equal(mergeConfig({}).chat.sendOnEnter, false)
+})
+
 test('待ち受けるアドレスを設定で変えられる', () => {
   assert.equal(mergeConfig({ server: { host: '127.0.0.1' } }).server.host, '127.0.0.1')
   assert.equal(mergeConfig({}).server.host, '0.0.0.0')
