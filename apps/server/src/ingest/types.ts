@@ -1,5 +1,5 @@
 /** 取り込みの段階。 */
-export type IngestStage = 'resolve' | 'fetch' | 'convert' | 'verify' | 'translate' | 'register' | 'references'
+export type IngestStage = 'resolve' | 'fetch' | 'convert' | 'verify' | 'translate' | 'references' | 'register'
 
 export const INGEST_STAGES: IngestStage[] = [
   'resolve',
@@ -7,8 +7,8 @@ export const INGEST_STAGES: IngestStage[] = [
   'convert',
   'verify',
   'translate',
-  'register',
   'references',
+  'register',
 ]
 
 export type SourceKind = 'pdf' | 'html'

@@ -137,7 +137,7 @@ async function main(): Promise<void> {
     model: config.ingest.model,
     effort: config.ingest.effort,
     serviceTier: config.ingest.serviceTier,
-    onDone: (slug) => enqueueRegister(jobs, slug),
+    onDone: (slug) => enqueueReferences(jobs, slug),
   })
 
   const chunks = new ChunkStore(index.db)
@@ -154,7 +154,7 @@ async function main(): Promise<void> {
     indexPaper: (paper: Paper) => index.upsertPaper(paper, true),
     markEmbedded: (slug: string) => index.markEmbeddingFresh(slug),
   }
-  registerRegister(jobs, { ...registerDeps, ingests, onDone: (slug) => enqueueReferences(jobs, slug) })
+  registerRegister(jobs, { ...registerDeps, ingests })
   registerEmbed(jobs, registerDeps)
 
   registerReferences(jobs, {
@@ -164,6 +164,7 @@ async function main(): Promise<void> {
     model: config.ingest.model,
     effort: config.ingest.effort,
     serviceTier: config.ingest.serviceTier,
+    onDone: (slug) => enqueueRegister(jobs, slug),
   })
 
   /** 埋め込みを持たない論文を積み直す。索引を作り直した後と、起動のときに呼ぶ。 */
@@ -237,7 +238,7 @@ async function main(): Promise<void> {
     search: (query) => search(query, { index, chunks, embed }),
     searchChats: (query) => searchChats(query, { index, chunks: chatChunks, embed }),
     enqueueResolve: (url) => enqueueResolve(jobs, url),
-    enqueueReferences: (slug) => enqueueReferences(jobs, slug),
+    enqueueReferences: (slug) => enqueueReferences(jobs, slug, 'background'),
     dataDir,
     getConfig: () => config,
     setConfig: (next) => {
