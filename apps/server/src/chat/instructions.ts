@@ -36,17 +36,23 @@ export function chatInstructions(userInstructions: string): string {
  */
 export function instructionChangeNotice(userInstructions: string): string {
   const user = userInstructions.trim()
-  const body =
+  return notice(
     user.length === 0
       ? 'これまでの利用者からの指示は取り消された。以後は pct の指示だけに従うこと。'
-      : `以後は次の指示に従うこと。これまでの利用者からの指示は取り消された。\n\n${user}`
-  return [
-    '[pct からの連絡]',
-    body,
-    '',
-    'この連絡には応答しない。続く発言にだけ答えること。',
-    '',
-    '---',
-    '',
-  ].join('\n')
+      : `以後は次の指示に従うこと。これまでの利用者からの指示は取り消された。\n\n${user}`,
+  )
+}
+
+/**
+ * pct の指示ごと差し込む(0014)。
+ *
+ * pct の指示をスレッドの指示として持たないスレッドがある。指示の層を入れる前に
+ * 立ったスレッドは、Codex の保存領域から再開できるので残り続ける。
+ */
+export function fullInstructionNotice(userInstructions: string): string {
+  return notice(`以後は次の指示に従うこと。\n\n${chatInstructions(userInstructions)}`)
+}
+
+function notice(body: string): string {
+  return ['[pct からの連絡]', body, '', 'この連絡には応答しない。続く発言にだけ答えること。', '', '---', ''].join('\n')
 }
