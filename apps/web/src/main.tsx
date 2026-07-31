@@ -2,6 +2,15 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App.tsx'
 import './styles.css'
+// タブに出すアイコン。デスクトップアプリと同じ絵を使う。
+// index.html から相対で辿ると vite の開発用サーバーでは届かないので、ここから読む。
+import iconUrl from '../../desktop/build/icon.svg'
+
+const icon = document.createElement('link')
+icon.rel = 'icon'
+icon.type = 'image/svg+xml'
+icon.href = iconUrl
+document.head.append(icon)
 
 // Electron のウィンドウから開かれたときだけ透過モードにする。ブラウザで開くと
 // 背後に何も無いため、透過のままでは白く抜けてしまう。
