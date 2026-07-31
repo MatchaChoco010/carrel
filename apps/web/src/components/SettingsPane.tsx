@@ -244,9 +244,7 @@ export function SettingsPane({ onChanged }: SettingsPaneProps) {
             <Check size={ICON} aria-hidden /> 保存
           </button>
         </div>
-        <p className="settings__hint">
-          チャットの入力欄の呼び出しから差し込む。`@slug` で論文を指してから差し込めるように、送信ではなく入力欄へ入る。
-        </p>
+        <p className="settings__hint">チャットの入力欄の呼び出しから、書きかけの続きとして差し込む。</p>
       </section>
 
       <section className="settings__group">
