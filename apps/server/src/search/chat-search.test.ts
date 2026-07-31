@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
+import { buildSegmenter } from './segment.ts'
 import type { Chat, ChatMessage } from '../data/chat.ts'
 import { toIsoDateTime } from '../data/datetime.ts'
 import { IndexDb } from '../db/index-db.ts'
@@ -12,6 +13,9 @@ import { ChatChunkStore } from './chat-store.ts'
 import type { Embedder } from './embed.ts'
 
 /** 語が一致するほど近くなる、決まった値を返す埋め込み。 */
+// 索引と問い合わせは本物の分かち書きを通す(0019)。
+const segment = await buildSegmenter()
+
 const fakeEmbed: Embedder = async (texts) =>
   texts.map((t) => {
     const v = new Float32Array(4)
@@ -25,7 +29,7 @@ const fakeEmbed: Embedder = async (texts) =>
 function harness() {
   const root = mkdtempSync(join(tmpdir(), 'pct-chat-search-'))
   const index = new IndexDb(join(root, 'index.sqlite'))
-  const chunks = new ChatChunkStore(index.db)
+  const chunks = new ChatChunkStore(index.db, segment)
   return { root, index, chunks, close: () => (index.close(), rmSync(root, { recursive: true, force: true })) }
 }
 
@@ -81,7 +85,7 @@ test('発言の本文に当たった会話を返し、当たった発言を抜�
     )
     await add(h, chat({ id: 'b', title: '別の話', messages: [message('user', 'メッシュの簡略化について')] }))
 
-    const hits = await searchChats({ text: 'ガウシアン' }, { index: h.index, chunks: h.chunks, embed: fakeEmbed })
+    const hits = await searchChats({ text: 'ガウシアン' }, { index: h.index, chunks: h.chunks, embed: fakeEmbed, segment })
 
     assert.equal(hits.length, 2, '両方の会話がベクトル検索の候補には入る')
     assert.equal(hits[0]?.id, 'a')
@@ -104,7 +108,7 @@ test('会話ごとに 1 件にまとめる', async () => {
       }),
     )
 
-    const hits = await searchChats({ text: 'ガウシアン' }, { index: h.index, chunks: h.chunks, embed: fakeEmbed })
+    const hits = await searchChats({ text: 'ガウシアン' }, { index: h.index, chunks: h.chunks, embed: fakeEmbed, segment })
 
     assert.equal(hits.length, 1)
   } finally {
@@ -120,11 +124,11 @@ test('アーカイブ状態で絞る', async () => {
 
     const active = await searchChats(
       { text: 'ガウシアン', archived: false },
-      { index: h.index, chunks: h.chunks, embed: fakeEmbed },
+      { index: h.index, chunks: h.chunks, embed: fakeEmbed, segment },
     )
     const archived = await searchChats(
       { text: 'ガウシアン', archived: true },
-      { index: h.index, chunks: h.chunks, embed: fakeEmbed },
+      { index: h.index, chunks: h.chunks, embed: fakeEmbed, segment },
     )
 
     assert.deepEqual(
@@ -148,7 +152,7 @@ test('日付の範囲で絞る', async () => {
 
     const hits = await searchChats(
       { text: 'ガウシアン', from: '2026-07-01T00:00:00+09:00' },
-      { index: h.index, chunks: h.chunks, embed: fakeEmbed },
+      { index: h.index, chunks: h.chunks, embed: fakeEmbed, segment },
     )
 
     assert.deepEqual(
@@ -166,7 +170,7 @@ test('語句が無いときは条件に当たった会話をそのまま並べ�
     await add(h, chat({ id: 'a', messages: [message('user', 'あ')] }))
     await add(h, chat({ id: 'b', archived: true, messages: [message('user', 'い')] }))
 
-    const hits = await searchChats({ archived: true }, { index: h.index, chunks: h.chunks, embed: fakeEmbed })
+    const hits = await searchChats({ archived: true }, { index: h.index, chunks: h.chunks, embed: fakeEmbed, segment })
 
     assert.deepEqual(
       hits.map((hit) => hit.id),
@@ -185,7 +189,7 @@ test('索引に無い会話は結果に出ない', async () => {
     await add(h, target)
     h.index.deleteChatByPath(target.path)
 
-    const hits = await searchChats({ text: 'ガウシアン' }, { index: h.index, chunks: h.chunks, embed: fakeEmbed })
+    const hits = await searchChats({ text: 'ガウシアン' }, { index: h.index, chunks: h.chunks, embed: fakeEmbed, segment })
 
     assert.deepEqual(hits, [])
   } finally {

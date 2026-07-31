@@ -6,6 +6,8 @@ import type { Lang } from '../useLang.ts'
 export type FeedPaneProps = {
   lang: Lang
   onLangChange: (lang: Lang) => void
+  /** この欄が今おもてに出ているか。隠れている間は既読にしない。 */
+  visible: boolean
   revision: number
   /** 未読数を伝える。アイコンのバッジがこれを出す。 */
   onUnread: (count: number) => void
@@ -19,7 +21,7 @@ function day(at: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-export function FeedPane({ lang, onLangChange, revision, onUnread, onChanged }: FeedPaneProps) {
+export function FeedPane({ lang, onLangChange, visible, revision, onUnread, onChanged }: FeedPaneProps) {
   const [items, setItems] = useState<FeedItem[]>([])
   const [error, setError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
@@ -38,15 +40,20 @@ export function FeedPane({ lang, onLangChange, revision, onUnread, onChanged }: 
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
   }, [onUnread])
 
-  useEffect(load, [load, revision])
-
-  // 画面に出た時点で既読にする(0004)。
+  // 隠れている間は読み直さない。おもてに戻ったときに読み直して、離れていた間の新着を出す。
   useEffect(() => {
+    if (!visible) return
+    load()
+  }, [load, visible, revision])
+
+  // 画面に出た時点で既読にする(0004)。他のタブに移っている間は出ていないので既読にしない。
+  useEffect(() => {
+    if (!visible) return
     const unread = items.filter((i) => !i.read && !marked.current.has(i.arxivId)).map((i) => i.arxivId)
     if (unread.length === 0) return
     for (const id of unread) marked.current.add(id)
     void api.markFeedRead(unread).then((r) => onUnread(r.unread))
-  }, [items, onUnread])
+  }, [items, visible, onUnread])
 
   const refresh = (): void => {
     setRefreshing(true)

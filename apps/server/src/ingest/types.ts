@@ -17,6 +17,8 @@ export type SourceKind = 'pdf' | 'html'
 export type ResolvedSource = {
   /** 取得すべき原本の場所。 */
   originalUrl: string
+  /** 1 つ目が取れなかったときに試す、同じ論文の別の所在。 */
+  alternateUrls: string[]
   kind: SourceKind
   title: string
   authors: string[]

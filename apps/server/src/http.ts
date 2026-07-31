@@ -241,6 +241,8 @@ export function createApp(deps: AppDeps): Hono {
     return c.json({ counts: deps.jobs.counts(), jobs })
   })
 
+  app.post('/api/jobs/clear', (c) => c.json({ cleared: deps.jobs.clearFinished(), counts: deps.jobs.counts() }))
+
   app.post('/api/papers/import', async (c) => {
     let body: unknown
     try {

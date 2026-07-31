@@ -192,14 +192,21 @@ export class JobStore {
    *
    * 直近の `keep` 件は残す。それより古いものは、済んでから `maxAgeMs` を過ぎたら捨てる。
    */
-  pruneDone(keep: number, maxAgeMs: number, now = Date.now()): number {
+  /** 終わった仕事(成功と失敗)のうち、古くて一覧に要らないものを捨てる。 */
+  pruneFinished(keep: number, maxAgeMs: number, now = Date.now()): number {
     const result = this.#db
       .prepare(
-        `delete from jobs where state = 'done' and updated_at < ? and id not in (
-           select id from jobs where state = 'done' order by id desc limit ?
+        `delete from jobs where state in ('done', 'failed') and updated_at < ? and id not in (
+           select id from jobs where state in ('done', 'failed') order by id desc limit ?
          )`,
       )
       .run(now - maxAgeMs, keep)
+    return Number(result.changes)
+  }
+
+  /** 終わった仕事をすべて捨てる。待っている仕事と走っている仕事は残す。 */
+  clearFinished(): number {
+    const result = this.#db.prepare(`delete from jobs where state in ('done', 'failed')`).run()
     return Number(result.changes)
   }
 }

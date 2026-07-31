@@ -259,6 +259,9 @@ export function SettingsPane({ onChanged, reading, onReadingChange }: SettingsPa
           </button>
         </div>
         <p className="settings__hint">よく使う質問を登録しておき、チャットの入力欄からすぐ呼び出すための設定。</p>
+      </section>
+
+      <section className="settings__group">
         <h3>本文の読みやすさ(この端末だけ)</h3>
         <div className="settings__steps">
           <span className="settings__steps-label">文字の大きさ</span>

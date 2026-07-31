@@ -1,6 +1,7 @@
 import type { IndexDb } from '../db/index-db.ts'
 import { cosine, type Embedder } from './embed.ts'
 import { fuseByRank } from './fuse.ts'
+import type { Segmenter } from './segment.ts'
 import type { ChunkStore, StoredChunk } from './store.ts'
 
 export type SearchFilter = {
@@ -35,6 +36,8 @@ export type SearchDeps = {
   index: IndexDb
   chunks: ChunkStore
   embed: Embedder
+  /** 索引と同じ規則で問い合わせを語に直す(0019)。 */
+  segment: Segmenter
 }
 
 /** 融合の前に各経路から取る件数。論文ごとの代表を選ぶ前なので多めに取る。 */
@@ -42,9 +45,9 @@ const PER_PATH = 100
 const DEFAULT_LIMIT = 20
 const EXCERPT = 200
 
-/** FTS5 の演算子を持つ文字を落とし、素の語句として扱う。 */
-function escapeMatch(text: string): string {
-  const cleaned = text.replace(/["*()^:-]/g, ' ').trim()
+/** FTS5 の演算子を持つ文字を落とし、語の並びとして照会する形にする。 */
+function escapeMatch(text: string, segment: Segmenter): string {
+  const cleaned = segment(text).replace(/["*()^:-]/g, ' ').trim()
   return cleaned.length === 0 ? '' : `"${cleaned}"`
 }
 
@@ -59,7 +62,7 @@ export async function search(query: SearchQuery, deps: SearchDeps): Promise<Sear
     return titlesOnly(slugs, limit, deps)
   }
 
-  const match = escapeMatch(text)
+  const match = escapeMatch(text, deps.segment)
   const byText = match.length === 0 ? [] : deps.chunks.searchText(match, slugs, PER_PATH)
 
   const [queryVector] = await deps.embed([text])

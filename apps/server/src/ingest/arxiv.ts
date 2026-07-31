@@ -88,6 +88,7 @@ export function parseArxivEntry(xml: string, arxivId: string): ResolvedSource | 
 
   return {
     originalUrl: href ?? `https://arxiv.org/pdf/${arxivId}`,
+    alternateUrls: [],
     kind: 'pdf',
     title,
     authors,

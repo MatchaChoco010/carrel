@@ -152,6 +152,24 @@ body {
   padding: 12px 14px;
 }
 
+/* タブを並べる欄。スクロールはタブごとに持つので、この欄自体はスクロールしない。 */
+.pane__body--tabs {
+  display: flex;
+  overflow: hidden;
+  padding: 0;
+}
+
+.pane__slot {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 14px;
+}
+
+.pane__slot[hidden] {
+  display: none;
+}
+
 .pane__empty {
   margin: 0;
   color: var(--text-muted);
@@ -764,11 +782,16 @@ body {
   padding-bottom: 12px;
 }
 
+/* 本文の中に並ぶので、大きさと行の高さは本文の設定に合わせる。 */
 .reference__text {
   margin: 0;
-  font-size: 13px;
-  line-height: 1.7;
+  font-size: var(--reading-font-size, 14px);
+  line-height: var(--reading-line-height, 1.8);
   overflow-wrap: anywhere;
+}
+
+.reference__title {
+  font-weight: 600;
 }
 
 .reference__actions {
@@ -1028,6 +1051,11 @@ body {
 .ingest__time {
   font-variant-numeric: tabular-nums;
   opacity: 0.7;
+}
+
+.jobs__actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 /* --- arXiv フィード --- */
@@ -1727,6 +1755,31 @@ body {
 
 .prompts__item input {
   flex: 1 1 auto;
+}
+
+/* 目安のボタンと、カスタムのときの数値の欄。 */
+.settings__steps {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.settings__steps-label {
+  min-width: 7em;
+}
+
+.settings__steps input[type='number'] {
+  width: 6em;
+}
+
+.settings__steps button.on {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--surface-raised);
+}
+
 .settings__check {
   display: flex;
   align-items: center;

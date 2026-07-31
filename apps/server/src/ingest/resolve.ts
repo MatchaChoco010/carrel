@@ -14,7 +14,10 @@ export type KnownPapers = {
 const AGENT_INSTRUCTIONS = [
   'あなたは論文の所在と書誌情報を調べる。',
   'web 検索と取得を使って、指された論文の原本(PDF、無ければ HTML)を見つける。',
-  '出版社の版が有料で読めないときは、著者版・arXiv・研究室のページなど、誰でも取得できる PDF を探す。',
+  '取りに行くのはブラウザではなく素の HTTP の道具である。',
+  'そのため arXiv・著者のページ・研究機関のリポジトリのように、そのまま PDF が返る所在を優先する。',
+  '出版社の閲覧ページ(dl.acm.org、diglib.eg.org、onlinelibrary.wiley.com など)は、会話状態や合意の操作を要求して PDF を返さないことが多い。',
+  '他に取れそうな所在があれば alternateUrls に並べる。1 つ目が取れなかったときに順に試す。',
   'どこにも取得できる原本が無いときは originalUrl を null にして返す。当てずっぽうの URL を書かない。',
   '要求された JSON だけを返す。',
 ].join('\n')
@@ -23,6 +26,11 @@ const OUTPUT_SCHEMA = {
   type: 'object',
   properties: {
     originalUrl: { type: ['string', 'null'], description: '取得できる原本の URL。見つからなければ null。' },
+    alternateUrls: {
+      type: 'array',
+      items: { type: 'string' },
+      description: '同じ論文が取れる別の所在。無ければ空の配列。',
+    },
     kind: { type: 'string', enum: ['pdf', 'html'] },
     title: { type: 'string' },
     authors: { type: 'array', items: { type: 'string' } },
@@ -36,7 +44,19 @@ const OUTPUT_SCHEMA = {
       description: '論文に定着した略称。無ければタイトルの内容語を 1〜3 語。',
     },
   },
-  required: ['originalUrl', 'kind', 'title', 'authors', 'year', 'venue', 'abstract', 'arxivId', 'doi', 'slugKeyword'],
+  required: [
+    'originalUrl',
+    'alternateUrls',
+    'kind',
+    'title',
+    'authors',
+    'year',
+    'venue',
+    'abstract',
+    'arxivId',
+    'doi',
+    'slugKeyword',
+  ],
   additionalProperties: false,
 }
 
@@ -61,8 +81,13 @@ function parseAgentResult(text: string): ResolvedSource | null {
   const kind: SourceKind = r['kind'] === 'html' ? 'html' : 'pdf'
   const year = typeof r['year'] === 'number' && Number.isInteger(r['year']) ? r['year'] : null
 
+  const alternateUrls = Array.isArray(r['alternateUrls'])
+    ? r['alternateUrls'].filter((u): u is string => typeof u === 'string' && /^https?:\/\//i.test(u.trim())).map((u) => u.trim())
+    : []
+
   return {
     originalUrl,
+    alternateUrls,
     kind,
     title,
     authors: Array.isArray(r['authors'])

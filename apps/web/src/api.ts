@@ -305,6 +305,7 @@ export const api = {
   feed: () => getJson<{ items: FeedItem[]; unread: number }>('/api/feed'),
   markFeedRead: (arxivIds: string[]) =>
     sendJson<{ read: number; unread: number }>('POST', '/api/feed/read', { arxivIds }),
+  clearJobs: () => sendJson<{ cleared: number; counts: Record<JobState, number> }>('POST', '/api/jobs/clear', {}),
   refreshFeed: () => sendJson<{ queued: boolean }>('POST', '/api/feed/refresh', {}),
   search: (query: string, filter: SearchFilter = {}) =>
     getJson<{ hits: SearchHit[] }>(`/api/search?${searchParams(query, filter)}`),

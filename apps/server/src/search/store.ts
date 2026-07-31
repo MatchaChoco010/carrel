@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { fromBlob, toBlob } from './embed.ts'
+import type { Segmenter } from './segment.ts'
 
 export type ChunkLang = 'en' | 'ja'
 
@@ -24,24 +25,61 @@ export type EmbeddingModel = { model: string; dimensions: number }
 
 export class ChunkStore {
   readonly #db: DatabaseSync
+  readonly #segment: Segmenter
 
-  constructor(db: DatabaseSync) {
+  constructor(db: DatabaseSync, segment: Segmenter) {
     this.#db = db
+    this.#segment = segment
   }
 
   /** その論文のチャンクを入れ替える。取り込みのやり直しで二重に積まないため。 */
   replace(slug: string, chunks: ChunkInput[]): void {
+    this.#dropFromIndex(slug)
     this.#db.prepare('delete from chunks where slug = ?').run(slug)
     const insert = this.#db.prepare(
-      'insert into chunks (slug, lang, position, path, text, vector) values (?, ?, ?, ?, ?, ?)',
+      'insert into chunks (slug, lang, position, path, text, vector) values (?, ?, ?, ?, ?, ?) returning id',
     )
+    const index = this.#db.prepare('insert into chunks_fts (rowid, text) values (?, ?)')
     for (const chunk of chunks) {
-      insert.run(slug, chunk.lang, chunk.position, chunk.path, chunk.text, chunk.vector === null ? null : toBlob(chunk.vector))
+      const row = insert.get(
+        slug,
+        chunk.lang,
+        chunk.position,
+        chunk.path,
+        chunk.text,
+        chunk.vector === null ? null : toBlob(chunk.vector),
+      ) as { id: number }
+      // 索引には分かち書きした語列を入れる(0019)。本文はそのまま chunks に残る。
+      index.run(row.id, this.#segment(chunk.text))
     }
   }
 
   remove(slug: string): void {
+    this.#dropFromIndex(slug)
     this.#db.prepare('delete from chunks where slug = ?').run(slug)
+  }
+
+  #dropFromIndex(slug: string): void {
+    this.#db.prepare('delete from chunks_fts where rowid in (select id from chunks where slug = ?)').run(slug)
+  }
+
+  /** 索引に載っているチャンクの数。作り直しが要るかの判定に使う。 */
+  countIndexed(): number {
+    return (this.#db.prepare('select count(*) as n from chunks_fts').get() as { n: number }).n
+  }
+
+  /**
+   * 全文検索の索引を、いまあるチャンクから作り直す。
+   *
+   * 分かち書きの規則を変えたときと、索引の作り方を変えたとき(0019)に走る。
+   * 埋め込みは触らないので、GPU を使わずに済む。
+   */
+  rebuildIndex(): number {
+    this.#db.prepare('delete from chunks_fts').run()
+    const rows = this.#db.prepare('select id, text from chunks').all() as Array<{ id: number; text: string }>
+    const index = this.#db.prepare('insert into chunks_fts (rowid, text) values (?, ?)')
+    for (const row of rows) index.run(row.id, this.#segment(row.text))
+    return rows.length
   }
 
   countChunks(): number {
