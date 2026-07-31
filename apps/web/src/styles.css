@@ -152,6 +152,24 @@ body {
   padding: 12px 14px;
 }
 
+/* タブを並べる欄。送りはタブごとに持つので、この欄自体は送らない。 */
+.pane__body--tabs {
+  display: flex;
+  overflow: hidden;
+  padding: 0;
+}
+
+.pane__slot {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 14px;
+}
+
+.pane__slot[hidden] {
+  display: none;
+}
+
 .pane__empty {
   margin: 0;
   color: var(--text-muted);
