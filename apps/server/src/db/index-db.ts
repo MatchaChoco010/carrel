@@ -347,6 +347,14 @@ export class IndexDb {
     return row?.slug ?? null
   }
 
+  /** 取り込んだ順に新しいものから返す。何も検索していない一覧の並びになる。 */
+  slugsByAdded(): string[] {
+    const rows = this.#db.prepare('select slug from papers order by added_at desc, slug').all() as Array<{
+      slug: string
+    }>
+    return rows.map((r) => r.slug)
+  }
+
   allSlugs(): Set<string> {
     const rows = this.#db.prepare('select slug from papers').all() as Array<{ slug: string }>
     return new Set(rows.map((r) => r.slug))
@@ -403,7 +411,7 @@ export class IndexDb {
 
     if (where.length === 0) return null
     const rows = this.#db
-      .prepare(`select p.slug as slug from papers p where ${where.join(' and ')} order by p.slug`)
+      .prepare(`select p.slug as slug from papers p where ${where.join(' and ')} order by p.added_at desc, p.slug`)
       .all(...params) as Array<{ slug: string }>
     return rows.map((r) => r.slug)
   }
