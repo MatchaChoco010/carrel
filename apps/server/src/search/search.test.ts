@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
+import { buildSegmenter } from './segment.ts'
 import { writePaper, type PaperMeta } from '../data/paper.ts'
 import { IndexDb } from '../db/index-db.ts'
 import type { Embedder } from './embed.ts'
@@ -10,6 +11,9 @@ import { search } from './search.ts'
 import { ChunkStore } from './store.ts'
 
 /** 語が一致するほど近くなる、決まった値を返す埋め込み。 */
+// 索引と問い合わせは本物の分かち書きを通す(0019)。
+const segment = await buildSegmenter()
+
 const fakeEmbed: Embedder = async (texts) =>
   texts.map((t) => {
     const v = new Float32Array(4)
@@ -23,7 +27,7 @@ const fakeEmbed: Embedder = async (texts) =>
 function harness() {
   const root = mkdtempSync(join(tmpdir(), 'pct-search-'))
   const index = new IndexDb(join(root, 'index.sqlite'))
-  const chunks = new ChunkStore(index.db)
+  const chunks = new ChunkStore(index.db, segment)
   return { root, index, chunks, close: () => (index.close(), rmSync(root, { recursive: true, force: true })) }
 }
 
@@ -72,7 +76,7 @@ test('日本語の問い合わせで、語が一致しない英語の論文が�
       { lang: 'en', text: 'we reconstruct a triangle mesh from point clouds' },
     ])
 
-    const hits = await search({ text: 'ガウシアン' }, { index: h.index, chunks: h.chunks, embed: fakeEmbed })
+    const hits = await search({ text: 'ガウシアン' }, { index: h.index, chunks: h.chunks, embed: fakeEmbed, segment })
     assert.equal(hits[0]?.slug, 'kerbl2023-3dgs')
   } finally {
     h.close()
@@ -86,7 +90,7 @@ test('和訳のチャンクも当たる', async () => {
       { lang: 'en', text: 'gaussian primitives' },
       { lang: 'ja', text: 'ガウシアンのプリミティブ', path: '3 手法' },
     ])
-    const hits = await search({ text: 'ガウシアン' }, { index: h.index, chunks: h.chunks, embed: fakeEmbed })
+    const hits = await search({ text: 'ガウシアン' }, { index: h.index, chunks: h.chunks, embed: fakeEmbed, segment })
     assert.equal(hits.length, 1)
     assert.equal(hits[0]?.slug, 'kerbl2023-3dgs')
   } finally {
@@ -102,7 +106,7 @@ test('論文ごとに 1 件で代表させる', async () => {
       { lang: 'en', text: 'gaussian two', path: '3 手法' },
       { lang: 'ja', text: 'ガウシアン 3', path: '3 手法' },
     ])
-    const hits = await search({ text: 'gaussian' }, { index: h.index, chunks: h.chunks, embed: fakeEmbed })
+    const hits = await search({ text: 'gaussian' }, { index: h.index, chunks: h.chunks, embed: fakeEmbed, segment })
     assert.equal(hits.length, 1)
     assert.ok((hits[0]?.path ?? '').length > 0)
   } finally {
@@ -117,7 +121,7 @@ test('タイトルの部分一致で絞り込める', async () => {
     await addPaper(h, meta('b2020-y', { title: 'Mesh Reconstruction' }), [{ lang: 'en', text: 'gaussian' }])
     const hits = await search(
       { text: 'gaussian', filter: { title: 'Splatting' } },
-      { index: h.index, chunks: h.chunks, embed: fakeEmbed },
+      { index: h.index, chunks: h.chunks, embed: fakeEmbed, segment },
     )
     assert.deepEqual(
       hits.map((x) => x.slug),
@@ -135,7 +139,7 @@ test('著者と学会名と出版年で絞り込める', async () => {
     await addPaper(h, meta('b2020-y', { authors: ['Ben Mildenhall'], venue: 'ECCV', year: 2020 }), [
       { lang: 'en', text: 'gaussian' },
     ])
-    const deps = { index: h.index, chunks: h.chunks, embed: fakeEmbed }
+    const deps = { index: h.index, chunks: h.chunks, embed: fakeEmbed, segment }
     assert.deepEqual((await search({ text: 'gaussian', filter: { author: 'Kerbl' } }, deps)).map((x) => x.slug), [
       'a2023-x',
     ])
@@ -157,7 +161,7 @@ test('タグで絞り込める', async () => {
     await addPaper(h, meta('b2020-y'), [{ lang: 'en', text: 'gaussian' }])
     const hits = await search(
       { text: 'gaussian', filter: { tags: ['読了'] } },
-      { index: h.index, chunks: h.chunks, embed: fakeEmbed },
+      { index: h.index, chunks: h.chunks, embed: fakeEmbed, segment },
     )
     assert.deepEqual(
       hits.map((x) => x.slug),
@@ -174,7 +178,7 @@ test('条件に当たる論文が無ければ結果も空', async () => {
     await addPaper(h, meta('a2023-x'), [{ lang: 'en', text: 'gaussian' }])
     const hits = await search(
       { text: 'gaussian', filter: { venue: '存在しない学会' } },
-      { index: h.index, chunks: h.chunks, embed: fakeEmbed },
+      { index: h.index, chunks: h.chunks, embed: fakeEmbed, segment },
     )
     assert.deepEqual(hits, [])
   } finally {
@@ -187,7 +191,7 @@ test('語句が無ければ構造化条件だけで並べる', async () => {
   try {
     await addPaper(h, meta('a2023-x', { year: 2023 }), [{ lang: 'en', text: 'gaussian' }])
     await addPaper(h, meta('b2020-y', { year: 2020 }), [{ lang: 'en', text: 'mesh' }])
-    const hits = await search({ filter: { yearFrom: 2023 } }, { index: h.index, chunks: h.chunks, embed: fakeEmbed })
+    const hits = await search({ filter: { yearFrom: 2023 } }, { index: h.index, chunks: h.chunks, embed: fakeEmbed, segment })
     assert.deepEqual(
       hits.map((x) => x.slug),
       ['a2023-x'],
@@ -203,7 +207,7 @@ test('検索の記号を含む問い合わせでも落ちない', async () => {
     await addPaper(h, meta('a2023-x'), [{ lang: 'en', text: 'gaussian splatting' }])
     const hits = await search(
       { text: 'gaussian AND "splatting" OR (x)' },
-      { index: h.index, chunks: h.chunks, embed: fakeEmbed },
+      { index: h.index, chunks: h.chunks, embed: fakeEmbed, segment },
     )
     assert.ok(Array.isArray(hits))
   } finally {
@@ -215,7 +219,7 @@ test('見出し経路と抜粋を返す', async () => {
   const h = harness()
   try {
     await addPaper(h, meta('a2023-x'), [{ lang: 'en', text: 'gaussian primitives', path: '3 手法 > 3.1 最適化' }])
-    const hits = await search({ text: 'gaussian' }, { index: h.index, chunks: h.chunks, embed: fakeEmbed })
+    const hits = await search({ text: 'gaussian' }, { index: h.index, chunks: h.chunks, embed: fakeEmbed, segment })
     assert.equal(hits[0]?.path, '3 手法 > 3.1 最適化')
     assert.match(hits[0]?.excerpt ?? '', /gaussian/)
   } finally {
@@ -230,7 +234,7 @@ test('何も検索していないときは、取り込んだ順に新しいも�
     await addPaper(h, meta('new2026-paper', { addedAt: '2026-07-31T10:00:00+09:00' as PaperMeta['addedAt'] }), [])
     await addPaper(h, meta('mid2023-paper', { addedAt: '2026-07-15T10:00:00+09:00' as PaperMeta['addedAt'] }), [])
 
-    const hits = await search({}, { index: h.index, chunks: h.chunks, embed: fakeEmbed })
+    const hits = await search({}, { index: h.index, chunks: h.chunks, embed: fakeEmbed, segment })
 
     assert.deepEqual(
       hits.map((hit) => hit.slug),
@@ -255,7 +259,7 @@ test('条件で絞ったときも、取り込んだ順に新しいものから�
       [],
     )
 
-    const hits = await search({ filter: { venue: 'SIGGRAPH' } }, { index: h.index, chunks: h.chunks, embed: fakeEmbed })
+    const hits = await search({ filter: { venue: 'SIGGRAPH' } }, { index: h.index, chunks: h.chunks, embed: fakeEmbed, segment })
 
     assert.deepEqual(
       hits.map((hit) => hit.slug),
