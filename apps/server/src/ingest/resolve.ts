@@ -20,7 +20,9 @@ const AGENT_INSTRUCTIONS = [
   '取りに行くのはブラウザではなく素の HTTP の道具である。',
   'そのため arXiv・著者のページ・研究機関のリポジトリのように、そのまま PDF が返る所在を優先する。',
   '出版社の閲覧ページ(dl.acm.org、diglib.eg.org、onlinelibrary.wiley.com など)は、会話状態や合意の操作を要求して PDF を返さないことが多い。',
-  '他に取れそうな所在があれば alternateUrls に並べる。1 つ目が取れなかったときに順に試す。',
+  'researchgate.net と academia.edu も素の HTTP を弾く。他に何も無いときの最後の候補にとどめる。',
+  '出版社の閲覧ページを見つけたら、そのページを開いて PDF への直リンクを探す。閲覧ページと PDF で URL の形が違う出版社が多い。',
+  '取れそうな所在は alternateUrls にできるだけ並べる。1 つ目が取れなかったときに順に試すので、多いほど取り込みが通りやすい。',
   'どこにも取得できる原本が無いときは originalUrl を null にして返す。当てずっぽうの URL を書かない。',
   '要求された JSON だけを返す。',
 ].join('\n')
@@ -272,4 +274,75 @@ function parseHeadResult(text: string): ResolvedSource | null {
     slugKeyword: asString(r['slugKeyword']),
     via: 'original',
   }
+}
+
+/**
+ * 挙がった所在がすべて取れなかったときに、別の所在を探す(#221)。
+ *
+ * 1 度目の探索で挙がる所在は少なく、通信で落ちたり弾かれたりするとそこで終わってしまう。
+ * 何が駄目だったかを伝えて、別の所在を挙げさせる。
+ */
+const MORE_INSTRUCTIONS = [
+  'あなたは論文の原本の所在を探す。',
+  '既に試した所在と、その失敗の理由を渡す。同じ所在を挙げない。',
+  '取りに行くのはブラウザではなく素の HTTP の道具である。そのまま PDF が返る所在を挙げる。',
+  'researchgate.net と academia.edu も素の HTTP を弾く。他に何も無いときの最後の候補にとどめる。',
+  '出版社の閲覧ページを見つけたら、そのページを開いて PDF への直リンクを探す。閲覧ページと PDF で URL の形が違う出版社が多い。',
+  '著者のページ、研究室のページ、所属機関のリポジトリ、プロジェクトページ、arXiv も当たる。',
+  '取れる見込みのある所在が無ければ空の配列を返す。当てずっぽうの URL を書かない。',
+  '要求された JSON だけを返す。',
+].join('\n')
+
+const MORE_SCHEMA = {
+  type: 'object',
+  properties: {
+    urls: { type: 'array', items: { type: 'string' }, description: 'まだ試していない所在。無ければ空。' },
+  },
+  required: ['urls'],
+  additionalProperties: false,
+}
+
+export type MoreSourcesDeps = {
+  codex: CodexClient
+  model: string
+}
+
+/** 別の所在を探す。挙がらなければ空を返す。 */
+export async function findMoreSources(
+  source: { title: string; authors: string[]; year: number | null },
+  failures: string,
+  deps: MoreSourcesDeps,
+): Promise<string[]> {
+  const threadId = await startWorkThread(deps.codex, {
+    instructions: MORE_INSTRUCTIONS,
+    model: deps.model,
+    webSearch: true,
+  })
+  const asked = [
+    `題名: ${source.title}`,
+    source.authors.length > 0 ? `著者: ${source.authors.join(', ')}` : null,
+    source.year === null ? null : `出版年: ${source.year}`,
+    '',
+    '試した所在と失敗の理由:',
+    failures,
+  ]
+    .filter((line): line is string => line !== null)
+    .join('\n')
+
+  const outcome = await runTurn(deps.codex, {
+    threadId,
+    input: textInput(asked),
+    effort: 'low',
+    outputSchema: MORE_SCHEMA,
+  })
+
+  let raw: unknown
+  try {
+    raw = JSON.parse(outcome.text)
+  } catch {
+    return []
+  }
+  const urls = (raw as Record<string, unknown>)['urls']
+  if (!Array.isArray(urls)) return []
+  return urls.filter((u): u is string => typeof u === 'string' && /^https?:\/\//i.test(u.trim())).map((u) => u.trim())
 }

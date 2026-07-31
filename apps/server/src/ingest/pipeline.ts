@@ -7,7 +7,7 @@ import { buildSlug } from '../data/slug.ts'
 import type { IndexDb } from '../db/index-db.ts'
 import { fetchOriginal, looksLikePdf } from './fetch.ts'
 import { readOriginalHead, type HeadPaths } from './head.ts'
-import { resolveFromOriginal, resolveSource } from './resolve.ts'
+import { findMoreSources, resolveFromOriginal, resolveSource } from './resolve.ts'
 import type { StagedOriginal } from './staging.ts'
 import type { IngestStore } from './store.ts'
 import type { IngestStage, ResolvedSource } from './types.ts'
@@ -112,7 +112,54 @@ async function fetchFirst(
       failures.push(`${url}: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
-  throw new Error(`原本を取得できなかった。試した所在:\n${failures.join('\n')}`)
+  throw new FetchAllFailed(failures)
+}
+
+/** すべての所在で取れなかったときの失敗。別の所在を探し直すために、内訳を持たせる。 */
+export class FetchAllFailed extends Error {
+  readonly failures: string[]
+
+  constructor(failures: string[]) {
+    super(
+      `PDF の原本を取得できなかった。手元に PDF があれば、取り込みの欄から選んで入れられる(0021)。試した所在:\n${failures.join('\n')}`,
+    )
+    this.name = 'FetchAllFailed'
+    this.failures = failures
+  }
+}
+
+/**
+ * 挙がった所在で取れなければ、別の所在を探してもう一度試す(#221)。
+ *
+ * 1 度目に挙がる所在は少なく、通信で落ちたり弾かれたりするとそこで終わってしまう。
+ * 何が駄目だったかを渡して探し直すと、閲覧ページの奥にある PDF や別の置き場に届く。
+ */
+async function fetchWithRetry(
+  slug: string,
+  source: ResolvedSource,
+  deps: IngestDeps,
+): Promise<{ url: string; path: string }> {
+  const tried = candidates(source)
+  try {
+    return await fetchFirst(deps.dataDir, slug, tried, 'pdf')
+  } catch (error) {
+    if (!(error instanceof FetchAllFailed)) throw error
+
+    const more = await findMoreSources(
+      { title: source.title, authors: source.authors, year: source.year },
+      error.failures.join('\n'),
+      { codex: deps.codex, model: deps.model },
+    )
+    const fresh = more.filter((url) => !tried.includes(url))
+    if (fresh.length === 0) throw error
+
+    try {
+      return await fetchFirst(deps.dataDir, slug, fresh, 'pdf')
+    } catch (second) {
+      if (!(second instanceof FetchAllFailed)) throw second
+      throw new FetchAllFailed([...error.failures, ...second.failures])
+    }
+  }
 }
 
 /** 解決と取得までを行う。 */
@@ -164,7 +211,7 @@ export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<Inge
     }
     deps.ingests.advance(slug, 'fetch')
 
-    const taken = await fetchFirst(deps.dataDir, slug, candidates(source), source.kind)
+    const taken = await fetchWithRetry(slug, source, deps)
     // 別の所在から取れたときは、原本の場所をそこへ直す。
     if (taken.url !== source.originalUrl) {
       await writePaper(deps.dataDir, { ...toMeta(slug, source, sourceUrl), pdfUrl: taken.url }, '')
