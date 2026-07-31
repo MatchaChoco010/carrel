@@ -36,6 +36,7 @@ function fakeCodex(finalText: string): CodexClient {
 
 const AGENT_JSON = JSON.stringify({
   originalUrl: 'https://example.org/paper.pdf',
+  alternateUrls: ['https://arxiv.org/pdf/2201.05989'],
   kind: 'pdf',
   title: 'Instant Neural Graphics Primitives',
   authors: ['Thomas Müller'],
@@ -79,6 +80,17 @@ test('未知の出所はエージェントが解決する', async () => {
   assert.equal(outcome.source.venue, 'SIGGRAPH')
   assert.equal(outcome.source.slugKeyword, 'instant-ngp')
   assert.equal(outcome.source.doi, '10.1145/3528223.3530127')
+  assert.deepEqual(outcome.source.alternateUrls, ['https://arxiv.org/pdf/2201.05989'])
+})
+
+test('別の所在は URL の形をしたものだけを受ける', async () => {
+  const json = JSON.stringify({ ...JSON.parse(AGENT_JSON), alternateUrls: ['見つからなかった', 'https://example.org/b.pdf'] })
+  const outcome = await resolveSource('https://example.org/project/', {
+    codex: fakeCodex(json),
+    model: 'test',
+    known: NONE,
+  })
+  assert.deepEqual(outcome.kind === 'resolved' && outcome.source.alternateUrls, ['https://example.org/b.pdf'])
 })
 
 test('DOI は前置きを落として 10. から始まる形にする', async () => {
