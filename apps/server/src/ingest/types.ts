@@ -16,6 +16,8 @@ export type ResolvedSource = {
   venue: string | null
   abstract: string | null
   arxivId: string | null
+  /** 出版元が付けた識別子。参考文献との突き合わせに使う(0015)。 */
+  doi: string | null
   /** slug のタイトル由来の部分の候補。 */
   slugKeyword: string | null
   /** どの経路で解決したか。 */

@@ -34,6 +34,17 @@ export function PaperMetaTable({ meta, onTagsChange }: PaperMetaTableProps) {
     { label: '出版年', value: meta.year === null ? '—' : String(meta.year) },
     { label: 'arXiv', value: meta.arxivId ?? '—' },
     {
+      label: 'DOI',
+      value:
+        meta.doi === null ? (
+          '—'
+        ) : (
+          <a href={`https://doi.org/${meta.doi}`} target="_blank" rel="noreferrer">
+            {meta.doi} <ExternalLink size={ICON} aria-hidden />
+          </a>
+        ),
+    },
+    {
       label: '出所',
       value: (
         <a href={meta.sourceUrl} target="_blank" rel="noreferrer">

@@ -138,6 +138,14 @@ const MIGRATIONS: Migration[] = [
       end;
     `,
   },
+  {
+    version: 4,
+    up: `
+      -- 参考文献との突き合わせに使う(0015)。
+      alter table papers add column doi text;
+      create index papers_doi on papers (doi);
+    `,
+  },
 ]
 
 /** 一覧に出す会話の要点。発言そのものは含まない。 */
@@ -200,13 +208,14 @@ export class IndexDb {
       this.#db
         .prepare(
           `insert into papers
-             (slug, title, venue, year, arxiv_id, source_url, pdf_url, added_at, mtime_ms, body_hash, embedding_stale)
-           values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             (slug, title, venue, year, arxiv_id, doi, source_url, pdf_url, added_at, mtime_ms, body_hash, embedding_stale)
+           values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            on conflict (slug) do update set
              title = excluded.title,
              venue = excluded.venue,
              year = excluded.year,
              arxiv_id = excluded.arxiv_id,
+             doi = excluded.doi,
              source_url = excluded.source_url,
              pdf_url = excluded.pdf_url,
              added_at = excluded.added_at,
@@ -220,6 +229,7 @@ export class IndexDb {
           meta.venue,
           meta.year,
           meta.arxivId,
+          meta.doi,
           meta.sourceUrl,
           meta.pdfUrl,
           meta.addedAt,
@@ -335,6 +345,14 @@ export class IndexDb {
   /** 同じ論文が既に取り込まれていないかを引く。 */
   findByArxivId(arxivId: string): string | null {
     const row = this.#db.prepare('select slug from papers where arxiv_id = ? limit 1').get(arxivId) as
+      | { slug: string }
+      | undefined
+    return row?.slug ?? null
+  }
+
+  /** DOI で論文を引く。大文字と小文字は区別しない(0015)。 */
+  findByDoi(doi: string): string | null {
+    const row = this.#db.prepare('select slug from papers where lower(doi) = lower(?) limit 1').get(doi) as
       | { slug: string }
       | undefined
     return row?.slug ?? null

@@ -96,6 +96,7 @@ export function parseArxivEntry(xml: string, arxivId: string): ResolvedSource | 
     venue: text(entry, 'arxiv:journal_ref'),
     abstract: text(entry, 'summary'),
     arxivId,
+    doi: text(entry, 'arxiv:doi'),
     slugKeyword: null,
     via: 'arxiv',
   }
