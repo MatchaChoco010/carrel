@@ -1,5 +1,5 @@
 import type { CodexClient } from '../codex/client.ts'
-import { imagesAndTextInput } from '../codex/protocol.ts'
+import { imagesAndTextInput, METHODS } from '../codex/protocol.ts'
 import { resumeThread, runTurn, startConversationThread } from '../codex/threads.ts'
 import { nowIsoDateTime } from '../data/datetime.ts'
 import { readChat, writeChat, type Chat, type ChatMessage } from '../data/chat.ts'
@@ -48,6 +48,12 @@ type Pending = {
 type Running = {
   /** ターン中に届いた入力。捨てずに溜め、そのターンの完了後にまとめて流す。 */
   queued: Pending[]
+  /** いま走っているターン。止めるときに要る(0018)。 */
+  turn: { threadId: string; turnId: string } | null
+  /** 取り消しで止めたかどうか。止めたターンの終わりは失敗として知らせない。 */
+  interrupted: boolean
+  /** 溜まった入力を含めて、すべてのターンが終わるまで。 */
+  done: Promise<void>
 }
 
 /** 会話 1 つぶんの実行を受け持つ。ターンが完了するたびに markdown へ追記する。 */
@@ -129,14 +135,15 @@ export class ChatSessions {
       imagePaths: stored.map((image) => image.file),
     }
 
-    const running = this.#running.get(absolutePath)
-    if (running !== undefined) {
-      running.queued.push(pending)
+    const current = this.#running.get(absolutePath)
+    if (current !== undefined) {
+      current.queued.push(pending)
       return { path: absolutePath, id }
     }
 
-    this.#running.set(absolutePath, { queued: [] })
-    void this.#runTurns(absolutePath, pending, options)
+    const running: Running = { queued: [], turn: null, interrupted: false, done: Promise.resolve() }
+    this.#running.set(absolutePath, running)
+    running.done = this.#runTurns(absolutePath, pending, options)
       .catch(() => {
         // 失敗は #runTurn が通知で流している。ここで握るのは、待たない呼びから
         // 例外が漏れないようにするためである。
@@ -191,6 +198,7 @@ export class ChatSessions {
           ? fullInstructionNotice(instructions)
           : instructionChangeNotice(instructions)
 
+      const running = this.#running.get(absolutePath)
       const outcome = await runTurn(
         this.#deps.codex,
         {
@@ -201,8 +209,14 @@ export class ChatSessions {
           ),
           effort,
         },
-        { onDelta: (delta) => this.#deps.onEvent({ type: 'chat.turn.delta', id: chat.meta.id, delta }) },
+        {
+          onDelta: (delta) => this.#deps.onEvent({ type: 'chat.turn.delta', id: chat.meta.id, delta }),
+          onStarted: (turnId) => {
+            if (running !== undefined) running.turn = { threadId, turnId }
+          },
+        },
       )
+      if (running !== undefined) running.turn = null
 
       // 差し込みは会話の一部なので、コンパクションで落ちうる。落ちたら覚えを捨て、
       // 次の発言で差し込み直す(0014)。
@@ -221,10 +235,31 @@ export class ChatSessions {
       const saved = await this.#append(absolutePath, withAsked, [answered], threadId, model, effort)
       this.#deps.onEvent({ type: 'chat.turn.completed', id: saved.meta.id, message: answered })
     } catch (error) {
+      const running = this.#running.get(absolutePath)
+      if (running !== undefined) running.turn = null
+      // 取り消しで止めたターンは、失敗として知らせない。記録も直後に巻き戻る。
+      if (running?.interrupted === true) return
       const message = error instanceof Error ? error.message : String(error)
       this.#deps.onEvent({ type: 'chat.turn.failed', id: chat.meta.id, message })
       throw error
     }
+  }
+
+  /**
+   * 走っているターンを止め、溜まった入力を捨てる(0018)。
+   *
+   * 止めた後は、そのターンが終わるまで待つ。記録を巻き戻す側が、書き込みの
+   * 途中の記録を読まないようにするためである。
+   */
+  async stop(path: string): Promise<void> {
+    const running = this.#running.get(path)
+    if (running === undefined) return
+    running.interrupted = true
+    running.queued.length = 0
+    if (running.turn !== null) {
+      await this.#deps.codex.request(METHODS.turnInterrupt, running.turn).catch(() => {})
+    }
+    await running.done
   }
 
   /**

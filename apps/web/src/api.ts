@@ -271,6 +271,8 @@ export const api = {
       `/api/chats/one?id=${encodeURIComponent(id)}`,
     ),
   reloadChat: (id: string) => sendJson<{ codexThreadId: string }>('POST', '/api/chats/reload', { id }),
+  /** 直前のやりとりを取り消す。落とした発言の本文が返る(0018)。 */
+  undoChat: (id: string) => sendJson<{ text: string }>('POST', '/api/chats/undo', { id }),
   branchChat: (id: string, index: number) =>
     sendJson<{ id: string; forked: boolean }>('POST', '/api/chats/branch', { id, index }),
   renameChat: (id: string, title: string) => sendJson<{ title: string }>('PUT', '/api/chats/title', { id, title }),

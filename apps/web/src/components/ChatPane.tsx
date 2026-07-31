@@ -1,4 +1,4 @@
-import { ArchiveRestore, GitBranch, ImagePlus, Loader2, RotateCcw, Send, X } from 'lucide-react'
+import { ArchiveRestore, GitBranch, ImagePlus, Loader2, RotateCcw, Send, Undo2, X } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { api, type ChatMessage, type ChatState, type CodexModel, type RateLimitView } from '../api.ts'
 import { Markdown } from './Markdown.tsx'
@@ -70,6 +70,7 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
   // 選んでいる発言。マウスの無い端末で、分岐のボタンを出すために使う。
   const [selected, setSelected] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [undoing, setUndoing] = useState(false)
   const input = useRef<HTMLTextAreaElement>(null)
   const log = useRef<HTMLDivElement>(null)
   // 末尾へ送り終えた会話。開き直したときにもう一度送るための目印。
@@ -235,6 +236,27 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
       }),
     [subscribe, id, load, onOpen],
   )
+
+  /**
+   * 直前のやりとりを取り消し、落とした発言を入力欄へ戻す(0018)。
+   *
+   * 応答を書いている最中でも押せる。その場合は書いている応答が止まる。
+   */
+  const undo = (): void => {
+    if (id === null || undoing) return
+    setUndoing(true)
+    setError(null)
+    void api
+      .undoChat(id)
+      .then((r) => {
+        setDraft(r.text)
+        setTurn(null)
+        void load(id)
+        input.current?.focus()
+      })
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setUndoing(false))
+  }
 
   // 分岐したらその会話へ移る。分かれた先で続きを話すのが分岐の目的である(0006)。
   const branch = (index: number): void => {
@@ -476,6 +498,18 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
           >
             <ImagePlus size={ICON} aria-hidden />
           </button>
+          {messages.some((message) => message.role === 'user') && (
+            <button
+              type="button"
+              className="chat__attach"
+              onClick={undo}
+              disabled={undoing || archived}
+              aria-label="直前のやりとりを取り消す"
+              title="直前のやりとりを取り消す"
+            >
+              {undoing ? <Loader2 size={ICON} className="spin" aria-hidden /> : <Undo2 size={ICON} aria-hidden />}
+            </button>
+          )}
           <input
             ref={picker}
             type="file"

@@ -37,6 +37,7 @@ import {
 } from './chat/job.ts'
 import { ChatSessions } from './chat/session.ts'
 import { branchChat } from './chat/branch.ts'
+import { undoLastExchange } from './chat/undo.ts'
 import { InstructionStore } from './chat/instruction-store.ts'
 import { reloadChat } from './chat/reload.ts'
 import { deleteChat, setArchived } from './chat/lifecycle.ts'
@@ -280,6 +281,20 @@ async function main(): Promise<void> {
         reindex: (target) => collection.reloadChat(target),
       })
     },
+    undoChat: (absolutePath) =>
+      undoLastExchange(absolutePath, {
+        dataDir,
+        codex: codex.client,
+        knownSlug: (slug) => index.getPaper(slug) !== null,
+        isResumable: async (threadId) => (await chats.stateOfThread(threadId)) === 'resumable',
+        markResumed: (threadId) => chats.markResumed(threadId),
+        stop: (target) => chats.stop(target),
+        defaults: () => ({ model: config.chat.defaultModel, effort: config.chat.defaultEffort }),
+        mcpUrl,
+        instructions: () => config.chat.instructions,
+        inForce,
+        reindex: (target) => collection.reloadChat(target),
+      }),
     branchChat: (absolutePath, selected) =>
       branchChat(absolutePath, selected, {
         dataDir,
