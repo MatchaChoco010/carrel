@@ -1,10 +1,14 @@
 import { Check, Loader2, Plus, RotateCcw, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api, type CodexModel, type Config } from '../api.ts'
+import { FONT_SIZE_RANGE, LINE_HEIGHT_RANGE, READING_DEFAULT, type Reading } from '../useReading.ts'
 
 export type SettingsPaneProps = {
   /** 索引を作り直したら、一覧を読み直させる。 */
   onChanged: () => void
+  /** この端末に保存している本文の読みやすさ。 */
+  reading: Reading
+  onReadingChange: (next: Reading) => void
 }
 
 const ICON = 14
@@ -12,7 +16,7 @@ const ICON = 14
 /** 保存した直後だけ出す知らせ。 */
 type Notice = { kind: 'saved' | 'rebuilt' | 'error'; text: string }
 
-export function SettingsPane({ onChanged }: SettingsPaneProps) {
+export function SettingsPane({ onChanged, reading, onReadingChange }: SettingsPaneProps) {
   const [config, setConfig] = useState<Config | null>(null)
   const [models, setModels] = useState<CodexModel[]>([])
   const [category, setCategory] = useState('')
@@ -188,6 +192,42 @@ export function SettingsPane({ onChanged }: SettingsPaneProps) {
             ))}
           </select>
         </label>
+      </section>
+
+      <section className="settings__group">
+        <h3>本文の読みやすさ(この端末だけ)</h3>
+        <label className="settings__slider">
+          文字の大きさ
+          <input
+            type="range"
+            min={FONT_SIZE_RANGE.min}
+            max={FONT_SIZE_RANGE.max}
+            step={1}
+            value={reading.fontSize}
+            onChange={(e) => onReadingChange({ ...reading, fontSize: Number(e.target.value) })}
+          />
+          <span className="settings__value">{reading.fontSize}px</span>
+        </label>
+        <label className="settings__slider">
+          行の高さ
+          <input
+            type="range"
+            min={LINE_HEIGHT_RANGE.min}
+            max={LINE_HEIGHT_RANGE.max}
+            step={0.1}
+            value={reading.lineHeight}
+            onChange={(e) => onReadingChange({ ...reading, lineHeight: Number(e.target.value) })}
+          />
+          <span className="settings__value">{reading.lineHeight.toFixed(1)}</span>
+        </label>
+        <div className="settings__row">
+          <button type="button" onClick={() => onReadingChange(READING_DEFAULT)}>
+            <RotateCcw size={ICON} aria-hidden /> 既定に戻す
+          </button>
+        </div>
+        <p className="settings__hint">
+          論文の本文にだけ効く。端末ごとに別々に覚えるので、スマホと PC で違う値にできる。
+        </p>
       </section>
 
       <section className="settings__group">

@@ -11,6 +11,7 @@ import { PapersPane } from './components/PapersPane.tsx'
 import { StatusLine } from './components/StatusLine.tsx'
 import { useServerEvents, type ServerEvent } from './useServerEvents.ts'
 import { useLang } from './useLang.ts'
+import { useReading } from './useReading.ts'
 import { useSplit } from './useSplit.ts'
 
 type Tab = 'feed' | 'papers' | 'chats' | 'jobs' | 'settings'
@@ -62,6 +63,8 @@ export function App() {
   const panes = useRef<HTMLElement | null>(null)
   const split = useSplit(panes)
   const [lang, setLang] = useLang()
+  // 読みやすさはこの端末に持つので、設定の欄ではなくここで受けて配る。
+  const [reading, setReading] = useReading()
 
   const reloadJobs = useCallback(() => {
     void api.jobs().then(setJobs).catch(() => setJobs(null))
@@ -206,7 +209,11 @@ export function App() {
                 onChanged={() => setRevision((n) => n + 1)}
               />
             ) : (
-              <SettingsPane onChanged={() => setRevision((n) => n + 1)} />
+              <SettingsPane
+                onChanged={() => setRevision((n) => n + 1)}
+                reading={reading}
+                onReadingChange={setReading}
+              />
             )}
           </div>
         </section>
