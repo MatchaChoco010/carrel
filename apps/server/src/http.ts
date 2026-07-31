@@ -17,6 +17,8 @@ import type { Job } from './jobs/types.ts'
 import type { SearchHit, SearchQuery } from './search/search.ts'
 import type { ChatSearchHit, ChatSearchQuery } from './search/chat-search.ts'
 import { readPaper, readPaperSideFile, writePaper } from './data/paper.ts'
+import { readReferences } from './data/references.ts'
+import { matchReferences } from './references/match.ts'
 import { readFile } from 'node:fs/promises'
 import { extname, join, relative } from 'node:path'
 import { chatAssetsDirOf, paperAssetsDir } from './data/layout.ts'
@@ -442,6 +444,22 @@ export function createApp(deps: AppDeps): Hono {
       abstractJa: await side('abstractJa'),
       hasRaw: (await side('raw')) !== null,
       verification: await side('verification'),
+    })
+  })
+
+  app.get('/api/papers/:slug/references', async (c) => {
+    const slug = c.req.param('slug')
+    const stored = await readReferences(deps.dataDir, slug)
+    // まだ段階が走っていない論文と、参考文献が 1 件も無い論文を見分けられるようにする。
+    if (stored === null) return c.json({ references: null })
+
+    const matched = matchReferences(stored.references, {
+      byArxivId: (id) => deps.index.findByArxivId(id),
+      byDoi: (doi) => deps.index.findByDoi(doi),
+      titles: deps.index.titles(),
+    })
+    return c.json({
+      references: stored.references.map((reference, at) => ({ ...reference, importedSlug: matched[at] ?? null })),
     })
   })
 

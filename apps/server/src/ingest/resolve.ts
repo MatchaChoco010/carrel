@@ -1,5 +1,6 @@
 import type { CodexClient } from '../codex/client.ts'
 import { textInput } from '../codex/protocol.ts'
+import { normalizeDoi } from '../data/doi.ts'
 import { runTurn, startWorkThread } from '../codex/threads.ts'
 import { extractArxivId, isArxivUrl, lookupArxiv } from './arxiv.ts'
 import type { ResolvedSource, ResolveOutcome, SourceKind } from './types.ts'
@@ -41,13 +42,6 @@ const OUTPUT_SCHEMA = {
 
 function asString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
-}
-
-/** DOI の書き方は揺れる。https://doi.org/ や doi: の前置きを落として 10. から始まる形に揃える。 */
-function normalizeDoi(value: string | null): string | null {
-  if (value === null) return null
-  const stripped = value.replace(/^\s*(?:https?:\/\/(?:dx\.)?doi\.org\/|doi:\s*)/i, '').trim()
-  return /^10\.\S+\/\S+$/.test(stripped) ? stripped : null
 }
 
 function parseAgentResult(text: string): ResolvedSource | null {
