@@ -323,8 +323,14 @@ export const api = {
     getJson<{ references: Reference[] | null }>(`/api/papers/${encodeURIComponent(slug)}/references`),
   setTags: (slug: string, tags: string[]) =>
     sendJson<{ slug: string; tags: string[] }>('PUT', `/api/papers/${encodeURIComponent(slug)}/tags`, { tags }),
+  /** `resumed` と `restarted` は、失敗した取り込みを押し直したときに返る(#220)。 */
   importPaper: (url: string) =>
-    sendJson<{ kind?: 'queued' | 'duplicate'; slug?: string; state?: string; error?: string }>(
+    sendJson<{
+      kind?: 'queued' | 'duplicate' | 'resumed' | 'restarted'
+      slug?: string
+      state?: string
+      error?: string
+    }>(
       'POST',
       '/api/papers/import',
       { url },

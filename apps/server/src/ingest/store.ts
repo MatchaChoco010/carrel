@@ -69,6 +69,19 @@ export class IngestStore {
     return toRecord(row)
   }
 
+  /**
+   * 失敗した取り込みを、指定の段階から動かし直す(#220)。
+   *
+   * 済んだ段階の記録は残したまま、状態を実行中に戻す。
+   */
+  resume(slug: string, stage: IngestStage): void {
+    const now = this.#now()
+    this.#db
+      .prepare(`update ingests set stage = ?, status = 'inProgress', updated_at = ?, last_error = null where slug = ?`)
+      .run(stage, now, slug)
+    this.startStage(slug, stage, now)
+  }
+
   advance(slug: string, stage: IngestStage): void {
     const now = this.#now()
     const current = this.get(slug)?.stage

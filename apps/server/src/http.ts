@@ -10,10 +10,11 @@ import { ChatSessions } from './chat/session.ts'
 import type { CodexModel } from './codex/models.ts'
 import { readChat, writeChat, type Chat } from './data/chat.ts'
 import { FeedStore } from './feed/store.ts'
-import { discardIngest } from './ingest/pipeline.ts'
+import { discardIngest, planResume } from './ingest/pipeline.ts'
 import { uploadTarget } from './ingest/job.ts'
 import { stageOriginal } from './ingest/staging.ts'
 import type { IngestStore } from './ingest/store.ts'
+import type { IngestStage } from './ingest/types.ts'
 import type { JobQueue } from './jobs/queue.ts'
 import type { Job } from './jobs/types.ts'
 import type { SearchHit, SearchQuery } from './search/search.ts'
@@ -35,6 +36,8 @@ export type AppDeps = {
   searchChats: (query: ChatSearchQuery) => Promise<ChatSearchHit[]>
   /** 取り込みを積む。解決も取得も仕事の中で行うので、押した時点では待たせない(0004)。 */
   enqueueResolve: (url: string) => Job
+  /** 失敗した取り込みを、済んだ段階の続きから積む(#220)。 */
+  resumeIngest: (slug: string, stage: IngestStage) => Job
   /** 参考文献の段階を積む。取り込みより前に入れた論文と、失敗した論文の積み直しに使う(0015)。 */
   enqueueReferences: (slug: string) => Job
   /**
@@ -262,7 +265,25 @@ export function createApp(deps: AppDeps): Hono {
 
     // 解決を待たずに分かる重複だけ、ここで断る。それ以外は解決の仕事が見つける。
     const known = knownPaper(target, { index: deps.index, ingests: deps.ingests })
-    if (known !== null) return c.json({ kind: 'duplicate', slug: known.slug, state: known.state })
+    if (known !== null && known.state !== 'failed') {
+      return c.json({ kind: 'duplicate', slug: known.slug, state: known.state })
+    }
+
+    // 失敗した取り込みを押し直したときは、そこから続ける(#220)。
+    if (known !== null) {
+      const record = deps.ingests.get(known.slug)
+      if (record !== null) {
+        const plan = await planResume(deps.dataDir, record)
+        if (plan.kind === 'unavailable') return c.json({ error: plan.reason }, 409)
+        if (plan.kind === 'continue') {
+          deps.ingests.resume(plan.slug, plan.stage)
+          return c.json({ kind: 'resumed', slug: plan.slug, stage: plan.stage, job: deps.resumeIngest(plan.slug, plan.stage) })
+        }
+        // 原本を持たない取り込みは、成果物を捨てて所在を探すところからやり直す。
+        await discardIngest(deps.dataDir, known.slug, deps.ingests)
+        return c.json({ kind: 'restarted', slug: known.slug, job: deps.enqueueResolve(plan.target) })
+      }
+    }
 
     return c.json({ kind: 'queued', job: deps.enqueueResolve(target) })
   })

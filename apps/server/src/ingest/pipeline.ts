@@ -9,7 +9,7 @@ import { fetchOriginal, looksLikePdf } from './fetch.ts'
 import { readOriginalHead, type HeadPaths } from './head.ts'
 import { findMoreSources, resolveFromOriginal, resolveSource } from './resolve.ts'
 import type { StagedOriginal } from './staging.ts'
-import type { IngestStore } from './store.ts'
+import type { IngestRecord, IngestStore } from './store.ts'
 import type { IngestStage, ResolvedSource } from './types.ts'
 
 export type IngestDeps = {
@@ -53,6 +53,7 @@ export async function completedStages(dataDir: string, slug: string): Promise<Se
   if (await exists(paperFile(dataDir, slug, 'raw'))) done.add('convert')
   if (await exists(paperFile(dataDir, slug, 'verification'))) done.add('verify')
   if (await exists(paperFile(dataDir, slug, 'bodyJa'))) done.add('translate')
+  if (await exists(paperFile(dataDir, slug, 'references'))) done.add('references')
   return done
 }
 
@@ -103,6 +104,9 @@ async function fetchFirst(
       if (kind === 'pdf') {
         const head = await readFile(fetched.path, { encoding: null })
         if (!looksLikePdf(head.subarray(0, 8))) {
+          // 断った中身を残すと、原本があるように見えてしまう。次の段階も再開の判定も
+          // 成果物の存在を見ているためである(0004)。
+          await rm(fetched.path, { force: true })
           failures.push(`${url}: PDF ではない (content-type=${fetched.contentType})`)
           continue
         }
@@ -328,6 +332,43 @@ async function moveFile(from: string, to: string): Promise<void> {
     await copyFile(from, to)
     await rm(from, { force: true })
   }
+}
+
+/**
+ * 失敗した取り込みを、どこから動かし直すかを決める(#220)。
+ *
+ * 段階は成果物の存在から判定できる(0004)。原本を持たない取り込みは、所在を探すところから
+ * やり直すしかないので、成果物を捨てて解決から積み直す。原本があるものは、済んだ段階を
+ * 飛ばして続きから積む。
+ */
+export type ResumePlan =
+  | { kind: 'restart'; target: string }
+  | { kind: 'continue'; slug: string; stage: IngestStage }
+  | { kind: 'unavailable'; reason: string }
+
+export async function planResume(dataDir: string, record: IngestRecord): Promise<ResumePlan> {
+  const done = await completedStages(dataDir, record.slug)
+
+  if (!done.has('fetch')) {
+    // 手元から入れた原本は置き場から消えているので、もう一度選んでもらうしかない。
+    if (record.sourceUrl.startsWith('upload:')) {
+      return { kind: 'unavailable', reason: '手元から入れた原本は残っていない。もう一度 PDF を選ぶこと' }
+    }
+    return { kind: 'restart', target: record.sourceUrl }
+  }
+
+  // 書誌は成果物を持たないので、翻訳が済んでいるかで済んだかを判じる。どちらも同じ場所へ
+  // 上書きするだけなので、もう一度走っても副作用が無い。
+  const stage: IngestStage = !done.has('convert')
+    ? 'convert'
+    : !done.has('verify')
+      ? 'verify'
+      : !done.has('translate')
+        ? 'bibliography'
+        : !done.has('references')
+          ? 'references'
+          : 'register'
+  return { kind: 'continue', slug: record.slug, stage }
 }
 
 /** 取り込みを取り消す。成果物と記録の両方を消す。 */

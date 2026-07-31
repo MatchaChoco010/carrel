@@ -282,6 +282,23 @@ async function main(): Promise<void> {
     searchChats: (query) => searchChats(query, { index, chunks: chatChunks, embed, segment }),
     enqueueResolve: (url) => enqueueResolve(jobs, url),
     enqueueReferences: (slug) => enqueueReferences(jobs, slug, 'background'),
+    // 失敗した取り込みを続きから積む(#220)。どの段階から始めるかは記録と成果物が決める。
+    resumeIngest: (slug, stage) => {
+      switch (stage) {
+        case 'convert':
+          return enqueueConvert(jobs, slug)
+        case 'verify':
+          return enqueueVerify(jobs, slug)
+        case 'bibliography':
+          return enqueueBibliography(jobs, slug)
+        case 'translate':
+          return enqueueTranslate(jobs, slug)
+        case 'references':
+          return enqueueReferences(jobs, slug)
+        default:
+          return enqueueRegister(jobs, slug)
+      }
+    },
     dataDir,
     getConfig: () => config,
     setConfig: (next) => {
