@@ -146,6 +146,35 @@ const MIGRATIONS: Migration[] = [
       create index papers_doi on papers (doi);
     `,
   },
+  {
+    version: 5,
+    up: `
+      -- 全文検索の索引を語の単位にする(0019)。分かち書きした語列を入れるので、
+      -- 本文をそのまま写す外部内容の表と引き金はやめ、索引が自分で持つ形にする。
+      drop trigger if exists chunks_ai;
+      drop trigger if exists chunks_ad;
+      drop trigger if exists chunks_au;
+      drop table if exists chunks_fts;
+      -- 語列は索引の中だけで使うので、本文の写しは持たない(contentless)。
+      create virtual table chunks_fts using fts5 (
+        text,
+        content = '',
+        contentless_delete = 1,
+        tokenize = "unicode61"
+      );
+
+      drop trigger if exists chat_chunks_ai;
+      drop trigger if exists chat_chunks_ad;
+      drop trigger if exists chat_chunks_au;
+      drop table if exists chat_chunks_fts;
+      create virtual table chat_chunks_fts using fts5 (
+        text,
+        content = '',
+        contentless_delete = 1,
+        tokenize = "unicode61"
+      );
+    `,
+  },
 ]
 
 /** 一覧に出す会話の要点。発言そのものは含まない。 */

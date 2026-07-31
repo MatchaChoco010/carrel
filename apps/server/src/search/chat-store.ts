@@ -1,6 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import type { ChatRole } from '../data/chat.ts'
 import { fromBlob, toBlob } from './embed.ts'
+import type { Segmenter } from './segment.ts'
 
 export type StoredChatChunk = {
   id: number
@@ -22,28 +23,34 @@ export type ChatChunkInput = {
 /** 発言のチャンクを持つ表。1 発言が 1 チャンクである(0006)。 */
 export class ChatChunkStore {
   readonly #db: DatabaseSync
+  readonly #segment: Segmenter
 
-  constructor(db: DatabaseSync) {
+  constructor(db: DatabaseSync, segment: Segmenter) {
     this.#db = db
+    this.#segment = segment
   }
 
   /** その会話のチャンクを入れ替える。発言は追記されるので、毎回まとめて置き直す。 */
   replace(chatId: string, chunks: ChatChunkInput[]): void {
     this.#db.exec('begin')
     try {
+      this.#dropFromIndex(chatId)
       this.#db.prepare('delete from chat_chunks where chat_id = ?').run(chatId)
       const insert = this.#db.prepare(
-        'insert into chat_chunks (chat_id, position, role, at, text, vector) values (?, ?, ?, ?, ?, ?)',
+        'insert into chat_chunks (chat_id, position, role, at, text, vector) values (?, ?, ?, ?, ?, ?) returning id',
       )
+      const index = this.#db.prepare('insert into chat_chunks_fts (rowid, text) values (?, ?)')
       for (const chunk of chunks) {
-        insert.run(
+        const row = insert.get(
           chatId,
           chunk.position,
           chunk.role,
           chunk.at,
           chunk.text,
           chunk.vector === null ? null : toBlob(chunk.vector),
-        )
+        ) as { id: number }
+        // 索引には分かち書きした語列を入れる(0019)。
+        index.run(row.id, this.#segment(chunk.text))
       }
       this.#db.exec('commit')
     } catch (error) {
@@ -53,7 +60,26 @@ export class ChatChunkStore {
   }
 
   remove(chatId: string): void {
+    this.#dropFromIndex(chatId)
     this.#db.prepare('delete from chat_chunks where chat_id = ?').run(chatId)
+  }
+
+  #dropFromIndex(chatId: string): void {
+    this.#db.prepare('delete from chat_chunks_fts where rowid in (select id from chat_chunks where chat_id = ?)').run(chatId)
+  }
+
+  /** 索引に載っている発言の数。作り直しが要るかの判定に使う。 */
+  countIndexed(): number {
+    return (this.#db.prepare('select count(*) as n from chat_chunks_fts').get() as { n: number }).n
+  }
+
+  /** 全文検索の索引を、いまある発言から作り直す(0019)。 */
+  rebuildIndex(): number {
+    this.#db.prepare('delete from chat_chunks_fts').run()
+    const rows = this.#db.prepare('select id, text from chat_chunks').all() as Array<{ id: number; text: string }>
+    const index = this.#db.prepare('insert into chat_chunks_fts (rowid, text) values (?, ?)')
+    for (const row of rows) index.run(row.id, this.#segment(row.text))
+    return rows.length
   }
 
   /** 既にあるチャンクを返す。作り直しのときに、変わっていない発言のベクトルを使い回す。 */

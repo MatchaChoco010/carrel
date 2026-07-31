@@ -3,11 +3,15 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
+import { buildSegmenter } from './segment.ts'
 import { writePaper, type PaperMeta } from '../data/paper.ts'
 import { IndexDb } from '../db/index-db.ts'
 import type { Embedder } from './embed.ts'
 import { registerPaper } from './register.ts'
 import { ChunkStore } from './store.ts'
+
+// 索引と問い合わせは本物の分かち書きを通す(0019)。
+const segment = await buildSegmenter()
 
 const embed: Embedder = async (texts) => texts.map(() => Float32Array.from([1, 0, 0, 0]))
 
@@ -28,7 +32,7 @@ const meta = (slug: string): PaperMeta => ({
 function harness() {
   const root = mkdtempSync(join(tmpdir(), 'pct-register-'))
   const index = new IndexDb(join(root, 'index.sqlite'))
-  const chunks = new ChunkStore(index.db)
+  const chunks = new ChunkStore(index.db, segment)
   const deps = {
     dataDir: root,
     chunks,

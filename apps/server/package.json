@@ -16,6 +16,7 @@
     "@modelcontextprotocol/sdk": "^1.30.0",
     "gray-matter": "^4.0.3",
     "hono": "^4.9.0",
+    "kuromoji": "^0.1.2",
     "ws": "^8.18.0",
     "yaml": "^2.9.0",
     "zod": "^4.4.3"

@@ -10,6 +10,7 @@ import { search } from './search/search.ts'
 import { searchChats } from './search/chat-search.ts'
 import { ChatChunkStore } from './search/chat-store.ts'
 import { enqueueEmbed, enqueueRegister, registerEmbed, registerRegister } from './search/job.ts'
+import { buildSegmenter } from './search/segment.ts'
 import { ChunkStore } from './search/store.ts'
 import { enqueueReferences, registerReferences } from './references/job.ts'
 import { enqueueTranslate, registerTranslate } from './translate/job.ts'
@@ -141,7 +142,10 @@ async function main(): Promise<void> {
     onDone: (slug) => enqueueReferences(jobs, slug),
   })
 
-  const chunks = new ChunkStore(index.db)
+  // 分かち書きは索引を作るときと問い合わせるときの両方で通す(0019)。辞書の読み込みは
+  // 起動時の 1 回で済ませる。
+  const segment = await buildSegmenter()
+  const chunks = new ChunkStore(index.db, segment)
   const embed = createEmbedder({ baseUrl: config.embedding.baseUrl, model: config.embedding.model })
   const embeddingModel = { model: config.embedding.model, dimensions: config.embedding.dimensions }
   if (chunks.needsRebuild(embeddingModel)) {
@@ -168,6 +172,11 @@ async function main(): Promise<void> {
     onDone: (slug) => enqueueRegister(jobs, slug),
   })
 
+  // 語の索引が空なら、いまあるチャンクから作り直す(0019)。移行の直後に 1 度だけ走る。
+  if (chunks.countChunks() > 0 && chunks.countIndexed() === 0) {
+    console.log(`全文検索の索引を作り直した: 論文のチャンク ${chunks.rebuildIndex()} 件`)
+  }
+
   /** 埋め込みを持たない論文を積み直す。索引を作り直した後と、起動のときに呼ぶ。 */
   const backfillEmbeddings = (): number => {
     const slugs = index.staleEmbeddingSlugs()
@@ -175,7 +184,11 @@ async function main(): Promise<void> {
     return slugs.length
   }
 
-  const chatChunks = new ChatChunkStore(index.db)
+  const chatChunks = new ChatChunkStore(index.db, segment)
+  if (chatChunks.countIndexed() === 0) {
+    const rebuilt = chatChunks.rebuildIndex()
+    if (rebuilt > 0) console.log(`全文検索の索引を作り直した: 発言 ${rebuilt} 件`)
+  }
   registerChatIndex(jobs, { dataDir, chunks: chatChunks, embed })
   enqueueChatChunks = (path) => {
     enqueueChatIndex(jobs, path)
@@ -236,8 +249,8 @@ async function main(): Promise<void> {
   })
 
   const app = createApp({
-    search: (query) => search(query, { index, chunks, embed }),
-    searchChats: (query) => searchChats(query, { index, chunks: chatChunks, embed }),
+    search: (query) => search(query, { index, chunks, embed, segment }),
+    searchChats: (query) => searchChats(query, { index, chunks: chatChunks, embed, segment }),
     enqueueResolve: (url) => enqueueResolve(jobs, url),
     enqueueReferences: (slug) => enqueueReferences(jobs, slug, 'background'),
     dataDir,

@@ -2,6 +2,7 @@ import type { ChatRole } from '../data/chat.ts'
 import type { IndexDb } from '../db/index-db.ts'
 import { cosine, type Embedder } from './embed.ts'
 import { fuseByRank } from './fuse.ts'
+import type { Segmenter } from './segment.ts'
 import type { ChatChunkStore } from './chat-store.ts'
 
 export type ChatSearchQuery = {
@@ -28,6 +29,8 @@ export type ChatSearchHit = {
 }
 
 export type ChatSearchDeps = {
+  /** 索引と同じ規則で問い合わせを語に直す(0019)。 */
+  segment: Segmenter
   index: IndexDb
   chunks: ChatChunkStore
   embed: Embedder
@@ -38,8 +41,8 @@ const DEFAULT_LIMIT = 20
 const EXCERPT = 200
 
 /** FTS5 の演算子を持つ文字を落とし、素の語句として扱う。 */
-function escapeMatch(text: string): string {
-  const cleaned = text.replace(/["*()^:-]/g, ' ').trim()
+function escapeMatch(text: string, segment: Segmenter): string {
+  const cleaned = segment(text).replace(/["*()^:-]/g, ' ').trim()
   return cleaned.length === 0 ? '' : `"${cleaned}"`
 }
 
@@ -61,7 +64,7 @@ export async function searchChats(query: ChatSearchQuery, deps: ChatSearchDeps):
   const text = (query.text ?? '').trim()
   if (text.length === 0) return withoutText(ids, limit, deps)
 
-  const match = escapeMatch(text)
+  const match = escapeMatch(text, deps.segment)
   const byText = match.length === 0 ? [] : deps.chunks.searchText(match, ids, PER_PATH)
 
   const [queryVector] = await deps.embed([text])
