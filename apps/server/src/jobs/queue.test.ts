@@ -260,8 +260,26 @@ test('完了した古い仕事を捨てられる', async () => {
     await queue.drain()
 
     assert.equal(h.store.counts().done, 5)
-    assert.equal(h.store.pruneDone(2), 3)
+    // 直近 2 件を残し、それより古いものを捨てる。時刻は同じ秒に並ぶので、判定の
+    // 起点を少し先に置く。
+    assert.equal(h.store.pruneDone(2, 0, Date.now() + 1000), 3)
     assert.equal(h.store.counts().done, 2)
+  } finally {
+    h.close()
+  }
+})
+
+test('新しい仕事は、時間が経っていなければ捨てない', async () => {
+  const h = makeHarness()
+  try {
+    const queue = new JobQueue(h.store)
+    queue.register('work', async () => {})
+    queue.start()
+    for (let i = 0; i < 5; i += 1) queue.enqueue({ kind: 'work', target: `t${i}`, resource: 'gpu' })
+    await queue.drain()
+
+    assert.equal(h.store.pruneDone(2, 60_000), 0, '直近 2 件の外でも、1 分を過ぎていなければ残る')
+    assert.equal(h.store.counts().done, 5)
   } finally {
     h.close()
   }
