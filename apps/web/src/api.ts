@@ -179,6 +179,7 @@ export type PaperMeta = {
   venue: string | null
   year: number | null
   arxivId: string | null
+  doi: string | null
   sourceUrl: string
   pdfUrl: string | null
   tags: string[]

@@ -52,6 +52,7 @@ function toMeta(slug: string, source: ResolvedSource, sourceUrl: string): PaperM
     venue: source.venue,
     year: source.year,
     arxivId: source.arxivId,
+    doi: source.doi,
     sourceUrl,
     pdfUrl: source.originalUrl,
     tags: [],

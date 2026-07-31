@@ -43,6 +43,7 @@ const AGENT_JSON = JSON.stringify({
   venue: 'SIGGRAPH',
   abstract: '要旨',
   arxivId: null,
+  doi: '10.1145/3528223.3530127',
   slugKeyword: 'instant-ngp',
 })
 
@@ -77,6 +78,27 @@ test('未知の出所はエージェントが解決する', async () => {
   assert.equal(outcome.source.title, 'Instant Neural Graphics Primitives')
   assert.equal(outcome.source.venue, 'SIGGRAPH')
   assert.equal(outcome.source.slugKeyword, 'instant-ngp')
+  assert.equal(outcome.source.doi, '10.1145/3528223.3530127')
+})
+
+test('DOI は前置きを落として 10. から始まる形にする', async () => {
+  const json = JSON.stringify({ ...JSON.parse(AGENT_JSON), doi: 'https://doi.org/10.1145/3528223.3530127' })
+  const outcome = await resolveSource('https://example.org/project/', {
+    codex: fakeCodex(json),
+    model: 'test',
+    known: NONE,
+  })
+  assert.equal(outcome.kind === 'resolved' && outcome.source.doi, '10.1145/3528223.3530127')
+})
+
+test('DOI として読めない値は空にする', async () => {
+  const json = JSON.stringify({ ...JSON.parse(AGENT_JSON), doi: '不明' })
+  const outcome = await resolveSource('https://example.org/project/', {
+    codex: fakeCodex(json),
+    model: 'test',
+    known: NONE,
+  })
+  assert.equal(outcome.kind === 'resolved' && outcome.source.doi, null)
 })
 
 test('エージェントが見つけた arXiv 識別子でも重複を判定する', async () => {

@@ -63,6 +63,12 @@ test('feed のタイトルを論文のタイトルと取り違えない', () => 
   assert.equal(source.title.startsWith('arXiv Query'), false)
 })
 
+test('arXiv が持っていれば DOI を拾う', () => {
+  const withDoi = ENTRY.replace('<arxiv:primary_category term="cs.CV"/>', '<arxiv:doi>10.1145/3503250</arxiv:doi>')
+  assert.equal(parseArxivEntry(withDoi, '2003.08934')?.doi, '10.1145/3503250')
+  assert.equal(parseArxivEntry(ENTRY, '2003.08934')?.doi, null)
+})
+
 test('journal_ref が無ければ学会名は空になる', () => {
   const source = parseArxivEntry(ENTRY, '2003.08934')
   assert.equal(source?.venue, null)
