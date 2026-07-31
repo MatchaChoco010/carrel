@@ -3,7 +3,7 @@ import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/p
 import { dirname, join, relative } from 'node:path'
 import { EPOCH_ISO_DATE_TIME, parseIsoDateTime, type IsoDateTime } from './datetime.ts'
 import { joinDocument, splitDocument } from './frontmatter.ts'
-import { chatDayDir, chatFileName, chatsDir } from './layout.ts'
+import { chatFile, chatsDir } from './layout.ts'
 
 export type ChatRole = 'user' | 'assistant'
 
@@ -199,51 +199,13 @@ export function newChatId(createdAt: Date): string {
   return `${stamp}-${randomUUID().slice(0, 6)}`
 }
 
-/** 作成時刻とタイトルから、そのチャットを置くべき相対パスを決める。 */
-export function chatPathFor(dataDir: string, createdAt: Date, title: string): string {
-  const dir = chatDayDir(dataDir, createdAt)
-  return relative(dataDir, join(dir, chatFileName(createdAt, title)))
-}
-
 /**
- * まだ使われていない置き場所を返す。
+ * 作成時刻と識別子から、その会話の本文を置くべき相対パスを決める(0013)。
  *
- * 名前は秒までしか持たないので、同じ秒に同じ題の会話ができると衝突する。
- * そのまま書くと先にあった会話を消してしまう。
+ * 識別子は作成のときに決まって変わらないので、この場所も会話の一生の間で動かない。
  */
-export async function freeChatPath(
-  dataDir: string,
-  createdAt: Date,
-  title: string,
-  keep?: string,
-): Promise<string> {
-  for (let at = 1; at <= 100; at += 1) {
-    const path = chatPathFor(dataDir, createdAt, at === 1 ? title : `${title}-${at}`)
-    if (path === keep || !(await exists(join(dataDir, path)))) return path
-  }
-  throw new Error('会話の置き場所が決まらない')
-}
-
-/** ファイル名をいまのタイトルに合わせる(0002)。動かしたら新しい相対パスを返す。 */
-export async function renameChatToTitle(dataDir: string, chat: Chat): Promise<string> {
-  const createdAt = new Date(chat.meta.created)
-  if (Number.isNaN(createdAt.getTime())) return chat.path
-
-  const wanted = await freeChatPath(dataDir, createdAt, chat.meta.title, chat.path)
-  if (wanted === chat.path) return chat.path
-
-  await mkdir(dirname(join(dataDir, wanted)), { recursive: true })
-  await rename(join(dataDir, chat.path), join(dataDir, wanted))
-  return wanted
-}
-
-async function exists(path: string): Promise<boolean> {
-  try {
-    await stat(path)
-    return true
-  } catch {
-    return false
-  }
+export function chatPathFor(dataDir: string, createdAt: Date, id: string): string {
+  return relative(dataDir, chatFile(dataDir, createdAt, id))
 }
 
 export async function listChatFiles(dataDir: string): Promise<string[]> {

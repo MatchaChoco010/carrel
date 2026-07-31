@@ -2,7 +2,7 @@ import { join } from 'node:path'
 import type { CodexClient } from '../codex/client.ts'
 import { textInput } from '../codex/protocol.ts'
 import { runTurn, startWorkThread } from '../codex/threads.ts'
-import { readChat, renameChatToTitle, writeChat, type Chat, type ChatMessage } from '../data/chat.ts'
+import { readChat, writeChat, type Chat, type ChatMessage } from '../data/chat.ts'
 import { nowIsoDateTime } from '../data/datetime.ts'
 
 const INSTRUCTIONS = `あなたは論文についての議論の記録に、一覧で見分けるためのタイトルと要約を付ける。
@@ -155,7 +155,6 @@ export async function digestChat(absolutePath: string, deps: ChatDigestDeps): Pr
     },
   }
   await writeChat(deps.dataDir, next)
-  const path = await renameChatToTitle(deps.dataDir, next)
-  await deps.reindex(join(deps.dataDir, path))
+  await deps.reindex(join(deps.dataDir, next.path))
   return digest
 }

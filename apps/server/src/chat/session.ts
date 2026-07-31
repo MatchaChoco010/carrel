@@ -1,8 +1,11 @@
 import type { CodexClient } from '../codex/client.ts'
-import { textInput } from '../codex/protocol.ts'
+import { imagesAndTextInput } from '../codex/protocol.ts'
 import { resumeThread, runTurn, startConversationThread } from '../codex/threads.ts'
 import { nowIsoDateTime } from '../data/datetime.ts'
 import { readChat, writeChat, type Chat, type ChatMessage } from '../data/chat.ts'
+import { storeImages, withAttachments, type IncomingImage } from './attachments.ts'
+import { chatInstructions, instructionChangeNotice } from './instructions.ts'
+import type { InstructionStore } from './instruction-store.ts'
 import { expandMentions, findMentions } from './mentions.ts'
 
 export type SessionDeps = {
@@ -20,6 +23,10 @@ export type SessionDeps = {
    * 設定は動いている間に書き換わるので、都度読む。
    */
   defaults: () => { model: string; effort: string }
+  /** ユーザーが決めた応答の仕方への指示(0014)。 */
+  instructions: () => string
+  /** スレッドに効いている指示の覚え(0014)。 */
+  inForce: InstructionStore
   /** ターンの進みを画面へ流す。 */
   onEvent: (event: ChatTurnEvent) => void
   /** 会話を索引へ載せ直す。一覧が追随するのに要る。 */
@@ -32,9 +39,15 @@ export type ChatTurnEvent =
   | { type: 'chat.turn.completed'; id: string; message: ChatMessage }
   | { type: 'chat.turn.failed'; id: string; message: string }
 
+/** 1 回の発言。本文と、それに添えた画像の実体の場所を持つ(0013)。 */
+type Pending = {
+  text: string
+  imagePaths: string[]
+}
+
 type Running = {
   /** ターン中に届いた入力。捨てずに溜め、そのターンの完了後にまとめて流す。 */
-  queued: string[]
+  queued: Pending[]
 }
 
 /** 会話 1 つぶんの実行を受け持つ。ターンが完了するたびに markdown へ追記する。 */
@@ -101,7 +114,7 @@ export class ChatSessions {
   async send(
     path: string | null,
     text: string,
-    options: { model?: string; effort?: string } = {},
+    options: { model?: string; effort?: string; images?: IncomingImage[] } = {},
   ): Promise<{ path: string; id: string }> {
     const created =
       path === null
@@ -110,14 +123,20 @@ export class ChatSessions {
     const absolutePath = created?.absolutePath ?? (path as string)
     const id = created?.id ?? (await readChat(this.#deps.dataDir, absolutePath))?.meta.id ?? absolutePath
 
+    const stored = await storeImages(absolutePath, options.images ?? [])
+    const pending: Pending = {
+      text: withAttachments(text, stored),
+      imagePaths: stored.map((image) => image.file),
+    }
+
     const running = this.#running.get(absolutePath)
     if (running !== undefined) {
-      running.queued.push(text)
+      running.queued.push(pending)
       return { path: absolutePath, id }
     }
 
     this.#running.set(absolutePath, { queued: [] })
-    void this.#runTurns(absolutePath, text, options)
+    void this.#runTurns(absolutePath, pending, options)
       .catch(() => {
         // 失敗は #runTurn が通知で流している。ここで握るのは、待たない呼びから
         // 例外が漏れないようにするためである。
@@ -128,16 +147,24 @@ export class ChatSessions {
   }
 
   /** 溜まった入力が無くなるまでターンを続ける。 */
-  async #runTurns(absolutePath: string, first: string, options: { model?: string; effort?: string }): Promise<void> {
-    let pending: string | null = first
+  async #runTurns(absolutePath: string, first: Pending, options: { model?: string; effort?: string }): Promise<void> {
+    let pending: Pending | null = first
     while (pending !== null) {
       await this.#runTurn(absolutePath, pending, options)
       const queued = this.#running.get(absolutePath)?.queued ?? []
-      pending = queued.length === 0 ? null : queued.splice(0, queued.length).join('\n\n')
+      if (queued.length === 0) {
+        pending = null
+        continue
+      }
+      const taken = queued.splice(0, queued.length)
+      pending = {
+        text: taken.map((item) => item.text).join('\n\n'),
+        imagePaths: taken.flatMap((item) => item.imagePaths),
+      }
     }
   }
 
-  async #runTurn(absolutePath: string, text: string, options: { model?: string; effort?: string }): Promise<void> {
+  async #runTurn(absolutePath: string, pending: Pending, options: { model?: string; effort?: string }): Promise<void> {
     const chat = await readChat(this.#deps.dataDir, absolutePath)
     if (chat === null) throw new Error(`会話が読めない: ${absolutePath}`)
 
@@ -148,16 +175,33 @@ export class ChatSessions {
 
     // ユーザーの発言は応答を待たずに記録する。待ってから書くと、応答が返るまでの
     // 間にファイルを読んだ画面から発言が消える。
-    const asked: ChatMessage = { role: 'user', at: nowIsoDateTime(), text }
+    const asked: ChatMessage = { role: 'user', at: nowIsoDateTime(), text: pending.text }
     const withAsked = await this.#append(absolutePath, chat, [asked], threadId, model, effort)
     this.#deps.onEvent({ type: 'chat.turn.started', id: chat.meta.id })
 
     try {
+      // 設定の指示が変わっていたら、この発言の前に差し込む(0014)。記録には残さない。
+      const instructions = this.#deps.instructions()
+      const changed = this.#deps.inForce.inForce(threadId) !== instructions
+      const notice = changed ? instructionChangeNotice(instructions) : ''
+
       const outcome = await runTurn(
         this.#deps.codex,
-        { threadId, input: textInput(expandMentions(text, this.#deps.dataDir, this.#deps.knownSlug)), effort },
+        {
+          threadId,
+          input: imagesAndTextInput(
+            pending.imagePaths,
+            notice + expandMentions(pending.text, this.#deps.dataDir, this.#deps.knownSlug),
+          ),
+          effort,
+        },
         { onDelta: (delta) => this.#deps.onEvent({ type: 'chat.turn.delta', id: chat.meta.id, delta }) },
       )
+
+      // 差し込みは会話の一部なので、コンパクションで落ちうる。落ちたら覚えを捨て、
+      // 次の発言で差し込み直す(0014)。
+      if (outcome.compacted) this.#deps.inForce.forget(threadId)
+      else if (changed) this.#deps.inForce.remember(threadId, instructions)
 
       // 応答が無いまま終わったターンは失敗として扱う。空の発言を残すと、記録の上で
       // 「何も返らなかった」と「ターンが途中で終わった」を区別できなくなる。
@@ -191,11 +235,14 @@ export class ChatSessions {
     }
     // 空のモデルでもスレッドは立つが、ターンは何も返さずに終わる。
     if (model.length === 0) throw new Error('モデルが決まっていない。設定の chat.defaultModel を確かめること')
+    const instructions = this.#deps.instructions()
     const created = await startConversationThread(this.#deps.codex, {
       dataDir: this.#deps.dataDir,
       model,
       mcpUrl: this.#deps.mcpUrl,
+      instructions: chatInstructions(instructions),
     })
+    this.#deps.inForce.remember(created, instructions)
     this.#alive.set(created, true)
     return created
   }

@@ -1,5 +1,5 @@
 import { serveStatic } from '@hono/node-server/serve-static'
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import type { CodexService } from './codex/service.ts'
 import type { Collection, ScanResult } from './data/collection.ts'
 import type { Config } from './config.ts'
@@ -8,7 +8,7 @@ import type { IndexDb } from './db/index-db.ts'
 import { extractArxivId } from './ingest/arxiv.ts'
 import { ChatSessions } from './chat/session.ts'
 import type { CodexModel } from './codex/models.ts'
-import { readChat, renameChatToTitle, writeChat, type Chat } from './data/chat.ts'
+import { readChat, writeChat, type Chat } from './data/chat.ts'
 import { FeedStore } from './feed/store.ts'
 import { discardIngest, ingestFromUrl } from './ingest/pipeline.ts'
 import type { IngestStore } from './ingest/store.ts'
@@ -17,8 +17,9 @@ import type { SearchHit, SearchQuery } from './search/search.ts'
 import type { ChatSearchHit, ChatSearchQuery } from './search/chat-search.ts'
 import { readPaper, readPaperSideFile, writePaper } from './data/paper.ts'
 import { readFile } from 'node:fs/promises'
-import { join, relative } from 'node:path'
-import { paperAssetsDir } from './data/layout.ts'
+import { extname, join, relative } from 'node:path'
+import { chatAssetsDirOf, paperAssetsDir } from './data/layout.ts'
+import { unsupportedImageType, type IncomingImage } from './chat/attachments.ts'
 import { createMcpApp } from './mcp/server.ts'
 
 export type AppDeps = {
@@ -63,6 +64,70 @@ export type AppDeps = {
   refreshFeed: () => void
   /** ビルド済みの Web クライアントの場所。無ければ配信しない。 */
   webRoot: string | null
+}
+
+/** 受け取る画像の形式(0013)。 */
+const IMAGE_TYPES: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+}
+
+function isSafeAssetName(name: string): boolean {
+  return !name.includes('/') && !name.includes('\\') && !name.startsWith('.')
+}
+
+async function sendImage(c: Context, file: string, missing: string): Promise<Response> {
+  const type = IMAGE_TYPES[extname(file).toLowerCase()]
+  if (type === undefined) return c.json({ error: '扱わない形式' }, 415)
+  try {
+    const body = await readFile(file)
+    return c.body(body as unknown as ArrayBuffer, 200, { 'content-type': type, 'cache-control': 'max-age=3600' })
+  } catch {
+    return c.json({ error: missing }, 404)
+  }
+}
+
+/** 発言の送信で受け取るもの。画像を添えるときは multipart で届く(0013)。 */
+type Sending = {
+  id?: string
+  text: string
+  model?: string
+  effort?: string
+  images: IncomingImage[]
+}
+
+async function readSending(c: Context): Promise<Sending> {
+  const text = (value: unknown): string | undefined => (typeof value === 'string' ? value : undefined)
+
+  if (!(c.req.header('content-type') ?? '').startsWith('multipart/form-data')) {
+    const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>
+    return {
+      ...(text(body['id']) === undefined ? {} : { id: text(body['id']) as string }),
+      text: (text(body['text']) ?? '').trim(),
+      ...(text(body['model']) === undefined ? {} : { model: text(body['model']) as string }),
+      ...(text(body['effort']) === undefined ? {} : { effort: text(body['effort']) as string }),
+      images: [],
+    }
+  }
+
+  const form = await c.req.parseBody({ all: true })
+  const files = form['images']
+  const list = files === undefined ? [] : Array.isArray(files) ? files : [files]
+  const images: IncomingImage[] = []
+  for (const file of list) {
+    if (!(file instanceof File)) continue
+    images.push({ name: file.name, type: file.type, bytes: new Uint8Array(await file.arrayBuffer()) })
+  }
+  return {
+    ...(text(form['id']) === undefined ? {} : { id: text(form['id']) as string }),
+    text: (text(form['text']) ?? '').trim(),
+    ...(text(form['model']) === undefined ? {} : { model: text(form['model']) as string }),
+    ...(text(form['effort']) === undefined ? {} : { effort: text(form['effort']) as string }),
+    images,
+  }
 }
 
 export function createApp(deps: AppDeps): Hono {
@@ -293,8 +358,7 @@ export function createApp(deps: AppDeps): Hono {
       meta: { ...chat.meta, title: body.title.trim(), titleSource: 'user' },
     }
     await writeChat(dataDir, renamed)
-    const path = await renameChatToTitle(dataDir, renamed)
-    await deps.reindexChat(join(dataDir, path))
+    await deps.reindexChat(join(dataDir, renamed.path))
     return c.json({ title: body.title.trim() })
   })
 
@@ -316,23 +380,29 @@ export function createApp(deps: AppDeps): Hono {
   })
 
   app.post('/api/chats/messages', async (c) => {
-    const body = (await c.req.json().catch(() => ({}))) as {
-      id?: unknown
-      text?: unknown
-      model?: unknown
-      effort?: unknown
+    let sending: Sending
+    try {
+      sending = await readSending(c)
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 400)
     }
-    if (typeof body.text !== 'string' || body.text.trim().length === 0) {
-      return c.json({ error: 'text を指定すること' }, 400)
+    if (sending.text.length === 0 && sending.images.length === 0) {
+      return c.json({ error: '本文か画像を指定すること' }, 400)
     }
+    const bad = sending.images.find((image) => unsupportedImageType(image.type))
+    if (bad !== undefined) return c.json({ error: `扱わない形式: ${bad.type}` }, 415)
+
     // 識別子を省くと、この発言で会話が作られる。始めただけの空の会話を残さない。
-    const target = body.id === undefined ? null : chatFile(body.id)
-    if (body.id !== undefined && target === null) return c.json({ error: `会話が見つからない: ${String(body.id)}` }, 404)
-    const options = {
-      ...(typeof body.model === 'string' ? { model: body.model } : {}),
-      ...(typeof body.effort === 'string' ? { effort: body.effort } : {}),
+    const target = sending.id === undefined ? null : chatFile(sending.id)
+    if (sending.id !== undefined && target === null) {
+      return c.json({ error: `会話が見つからない: ${sending.id}` }, 404)
     }
-    const sent = await deps.chats.send(target, body.text.trim(), options)
+    const options = {
+      ...(sending.model === undefined ? {} : { model: sending.model }),
+      ...(sending.effort === undefined ? {} : { effort: sending.effort }),
+      images: sending.images,
+    }
+    const sent = await deps.chats.send(target, sending.text, options)
     return c.json({ id: sent.id })
   })
 
@@ -396,20 +466,18 @@ export function createApp(deps: AppDeps): Hono {
 
   // 本文の中の図の参照(assets/...)をそのまま引けるようにする。
   app.get('/api/papers/:slug/assets/:name', async (c) => {
-    const slug = c.req.param('slug')
     const name = c.req.param('name')
-    // 論文のディレクトリの外へ出る名前は受け付けない。
-    if (name.includes('/') || name.includes('\\') || name.startsWith('.')) {
-      return c.json({ error: '図の名前が不正' }, 400)
-    }
-    try {
-      const file = join(paperAssetsDir(deps.dataDir, slug), name)
-      const body = await readFile(file)
-      const type = name.endsWith('.png') ? 'image/png' : 'image/jpeg'
-      return c.body(body as unknown as ArrayBuffer, 200, { 'content-type': type, 'cache-control': 'max-age=3600' })
-    } catch {
-      return c.json({ error: '図が見つからない' }, 404)
-    }
+    if (!isSafeAssetName(name)) return c.json({ error: '図の名前が不正' }, 400)
+    return sendImage(c, join(paperAssetsDir(deps.dataDir, c.req.param('slug')), name), '図が見つからない')
+  })
+
+  // 会話の本文が指す添付(assets/...)を引く(0013)。
+  app.get('/api/chats/:id/assets/:name', async (c) => {
+    const name = c.req.param('name')
+    if (!isSafeAssetName(name)) return c.json({ error: '添付の名前が不正' }, 400)
+    const file = chatFile(c.req.param('id'))
+    if (file === null) return c.json({ error: '会話が見つからない' }, 404)
+    return sendImage(c, join(chatAssetsDirOf(file), name), '添付が見つからない')
   })
 
   app.get('/api/papers/:slug/raw', async (c) => {

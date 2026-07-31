@@ -2,7 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { inBatches } from '../batches.ts'
 import type { CodexClient } from '../codex/client.ts'
-import { imageAndTextInput } from '../codex/protocol.ts'
+import { imagesAndTextInput } from '../codex/protocol.ts'
 import { runTurn, startWorkThread } from '../codex/threads.ts'
 import { parseDocument } from '../convert/runner.ts'
 import { ASSETS_DIR_NAME, paperBlocksFile } from '../convert/store.ts'
@@ -71,7 +71,7 @@ async function verifyPage(work: PageWork, imagePath: string, deps: VerifyDeps): 
   })
   const outcome = await runTurn(deps.codex, {
     threadId,
-    input: imageAndTextInput(imagePath, buildVerifyPrompt(work.input)),
+    input: imagesAndTextInput([imagePath], buildVerifyPrompt(work.input)),
     outputSchema: VERIFY_OUTPUT_SCHEMA,
     effort: deps.effort,
   })

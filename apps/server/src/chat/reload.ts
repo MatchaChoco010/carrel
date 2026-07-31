@@ -1,9 +1,12 @@
 import type { CodexClient } from '../codex/client.ts'
-import { textInput } from '../codex/protocol.ts'
+import { imagesAndTextInput } from '../codex/protocol.ts'
 import { runTurn, startConversationThread } from '../codex/threads.ts'
 import { readChat, withoutTurnIds, writeChat, type Chat } from '../data/chat.ts'
 import { nowIsoDateTime } from '../data/datetime.ts'
 import { paperDir } from '../data/layout.ts'
+import { attachmentPaths, referencedAttachments } from './attachments.ts'
+import type { InstructionStore } from './instruction-store.ts'
+import { chatInstructions } from './instructions.ts'
 import { serializeMessages } from '../data/chat.ts'
 
 export type ReloadDeps = {
@@ -12,6 +15,10 @@ export type ReloadDeps = {
   knownSlug: (slug: string) => boolean
   /** 議論中のエージェントが接続する MCP の口(0005)。 */
   mcpUrl: string
+  /** ユーザーが決めた応答の仕方への指示(0014)。 */
+  instructions: () => string
+  /** スレッドに効いている指示の覚え(0014)。 */
+  inForce: InstructionStore
 }
 
 /**
@@ -39,6 +46,9 @@ export function buildReloadInput(chat: Chat, dataDir: string, knownSlug: (slug: 
       '必要になったら読み直すこと。いま読む必要はない。',
     )
   }
+  if (referencedAttachments(chat.messages).length > 0) {
+    parts.push('', '記録の中の `assets/...` の画像は、この入力に添えてある。')
+  }
   parts.push('', 'この記録を踏まえて、次の発言を待て。返答は要らない。')
   return parts.join('\n')
 }
@@ -53,14 +63,19 @@ export async function reloadChat(absolutePath: string, deps: ReloadDeps): Promis
   const chat = await readChat(deps.dataDir, absolutePath)
   if (chat === null) throw new Error(`会話が読めない: ${absolutePath}`)
 
+  const instructions = deps.instructions()
   const threadId = await startConversationThread(deps.codex, {
     dataDir: deps.dataDir,
     model: chat.meta.model ?? '',
     mcpUrl: deps.mcpUrl,
+    instructions: chatInstructions(instructions),
   })
+  deps.inForce.remember(threadId, instructions)
+  // 画像は文字で場所を示しても見えないので、実体を載せる(0013)。
+  const images = await attachmentPaths(absolutePath, referencedAttachments(chat.messages))
   await runTurn(deps.codex, {
     threadId,
-    input: textInput(buildReloadInput(chat, deps.dataDir, deps.knownSlug)),
+    input: imagesAndTextInput(images, buildReloadInput(chat, deps.dataDir, deps.knownSlug)),
   })
 
   await writeChat(deps.dataDir, {

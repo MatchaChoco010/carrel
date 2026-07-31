@@ -1,8 +1,9 @@
 import { rm } from 'node:fs/promises'
-import { relative } from 'node:path'
+import { basename, dirname, relative } from 'node:path'
 import type { CodexClient } from '../codex/client.ts'
 import { METHODS } from '../codex/protocol.ts'
 import { readChat, writeChat } from '../data/chat.ts'
+import { CHAT_FILE } from '../data/layout.ts'
 import { nowIsoDateTime } from '../data/datetime.ts'
 
 export type LifecycleDeps = {
@@ -47,7 +48,10 @@ export async function deleteChat(absolutePath: string, deps: LifecycleDeps): Pro
   const chat = await readChat(deps.dataDir, absolutePath)
   const threadId = chat?.meta.codexThreadId ?? null
 
-  await rm(absolutePath, { force: true })
+  // 会話は 1 つのディレクトリなので、本文と添付をまとめて消す(0013)。日付の
+  // ディレクトリに直に置かれた古い形の会話は、そのファイルだけを消す。
+  const target = basename(absolutePath) === CHAT_FILE ? dirname(absolutePath) : absolutePath
+  await rm(target, { recursive: true, force: true })
   deps.dropFromIndex(relative(deps.dataDir, absolutePath))
 
   if (threadId === null) return { threadDeleted: false }

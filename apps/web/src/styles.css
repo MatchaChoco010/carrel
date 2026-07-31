@@ -1081,6 +1081,19 @@ body {
   margin-inline: auto;
 }
 
+/*
+ * 始めの案内。発言が並ぶ列に載せ、空の記録の中で上下も中央に置く。
+ * 欄の隅に貼り付くと、この欄が何をするところかの説明に見えない。
+ */
+.chat__intro {
+  margin: auto;
+  width: 100%;
+  max-width: var(--chat-text);
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
 /* 枠を持たないので、広く取っても余白が広がるだけに見える。 */
 .turn--assistant {
   width: 100%;
@@ -1205,6 +1218,57 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  border-radius: 8px;
+}
+
+/* 落とし込みを受け付けることを、枠で示す。 */
+.chat__compose--dropping {
+  outline: 2px dashed var(--accent);
+  outline-offset: 4px;
+}
+
+.chat__attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chat__attachments li {
+  position: relative;
+}
+
+.chat__attachments img {
+  display: block;
+  height: 64px;
+  width: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.chat__attachments button {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  padding: 2px !important;
+  border-radius: 50% !important;
+  background: var(--surface-raised) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text) !important;
+  cursor: pointer;
+}
+
+/*
+ * 記録の中の画像は、縮めて出す。置いてある実体は原寸のままである(0013)。
+ * 高さで抑えるのは、縦長の画像 1 枚で発言が埋まるのを避けるためである。
+ */
+.turn .markdown img {
+  max-width: 100%;
+  max-height: 40vh;
+  height: auto;
+  border-radius: 6px;
 }
 
 .chat__controls {
@@ -1231,6 +1295,13 @@ body {
 .chat__controls button {
   order: 2;
   margin-left: auto;
+}
+
+/* 画像を添えるボタンは入力欄の側に置く。 */
+.chat__controls .chat__attach {
+  order: 0;
+  margin-left: 0;
+  padding: 7px 8px;
 }
 
 .suggest {
@@ -1536,6 +1607,29 @@ body {
 
 .settings__hint--warn {
   color: var(--warn);
+}
+
+.settings__instructions {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+
+/* 引けない画像は、場所が分かる形で出す。黙って消すと参照が壊れたことに気づけない。 */
+.markdown__missing-image {
+  color: var(--warn);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.markdown__external-image {
+  overflow-wrap: anywhere;
 }
 
 .settings__row {

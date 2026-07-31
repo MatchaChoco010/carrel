@@ -1,6 +1,7 @@
 import type { CodexClient } from './client.ts'
 import {
   isAgentMessageItem,
+  isContextCompactionItem,
   MCP_SERVER_NAME,
   METHODS,
   NOTIFICATIONS,
@@ -16,6 +17,8 @@ export type TurnOutcome = {
   status: string
   /** 最終的な応答の本文。`item/completed` から拾う。 */
   text: string
+  /** このターンの途中で文脈が詰まり、古い発言が落ちたか(0014)。 */
+  compacted: boolean
 }
 
 function readThreadId(result: unknown): string {
@@ -34,13 +37,14 @@ function readThreadId(result: unknown): string {
 /** 議論に使うスレッド。コレクションを読め、モデルと effort は呼び出し側が選ぶ。 */
 export async function startConversationThread(
   client: CodexClient,
-  options: { dataDir: string; model: string; mcpUrl?: string },
+  options: { dataDir: string; model: string; mcpUrl?: string; instructions?: string },
 ): Promise<string> {
   const params: ThreadStartParams = {
     cwd: options.dataDir,
     sandbox: 'read-only',
     model: options.model,
   }
+  if (options.instructions !== undefined) params.baseInstructions = options.instructions
   if (options.mcpUrl !== undefined) {
     params.config = { mcp_servers: { [MCP_SERVER_NAME]: { url: options.mcpUrl } } }
   }
@@ -99,6 +103,7 @@ export function runTurn(
   return new Promise<TurnOutcome>((resolve, reject) => {
     let text = ''
     let turnId: string | null = null
+    let compacted = false
     let off = (): void => {}
 
     const finish = (outcome: TurnOutcome): void => {
@@ -126,6 +131,7 @@ export function runTurn(
         case NOTIFICATIONS.itemCompleted: {
           const item = payload['item']
           if (isAgentMessageItem(item) && item.phase === 'final_answer') text = item.text
+          if (isContextCompactionItem(item)) compacted = true
           return
         }
         case NOTIFICATIONS.turnCompleted: {
@@ -135,6 +141,7 @@ export function runTurn(
             turnId,
             status: typeof turn['status'] === 'string' ? turn['status'] : 'unknown',
             text,
+            compacted,
           })
           return
         }

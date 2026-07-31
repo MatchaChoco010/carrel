@@ -23,6 +23,7 @@ export function SettingsPane({ onChanged }: SettingsPaneProps) {
   // 打っている途中の値。保存は明示の操作でだけ行う。
   const [dataDir, setDataDir] = useState<string | null>(null)
   const [fetchInterval, setFetchInterval] = useState<number | null>(null)
+  const [instructions, setInstructions] = useState<string | null>(null)
 
   useEffect(() => {
     void api
@@ -31,6 +32,7 @@ export function SettingsPane({ onChanged }: SettingsPaneProps) {
         setConfig(next)
         setDataDir(next.dataDir)
         setFetchInterval(next.arxiv.fetchIntervalMinutes)
+        setInstructions(next.chat.instructions)
       })
       .catch((e: unknown) => setNotice({ kind: 'error', text: e instanceof Error ? e.message : String(e) }))
     void api
@@ -51,6 +53,7 @@ export function SettingsPane({ onChanged }: SettingsPaneProps) {
         setConfig(next)
         setDataDir(next.dataDir)
         setFetchInterval(next.arxiv.fetchIntervalMinutes)
+        setInstructions(next.chat.instructions)
         setNotice({ kind: 'saved', text })
       })
       .catch((e: unknown) => setNotice({ kind: 'error', text: e instanceof Error ? e.message : String(e) }))
@@ -83,6 +86,8 @@ export function SettingsPane({ onChanged }: SettingsPaneProps) {
     Number.isInteger(nextInterval) && nextInterval >= 1 && nextInterval !== config.arxiv.fetchIntervalMinutes
   const nextDataDir = (dataDir ?? config.dataDir).trim()
   const dataDirChanged = nextDataDir.length > 0 && nextDataDir !== config.dataDir
+  const nextInstructions = instructions ?? config.chat.instructions
+  const instructionsChanged = nextInstructions !== config.chat.instructions
 
   const addCategory = (): void => {
     const value = category.trim()
@@ -183,6 +188,30 @@ export function SettingsPane({ onChanged }: SettingsPaneProps) {
             ))}
           </select>
         </label>
+      </section>
+
+      <section className="settings__group">
+        <h3>エージェントへの指示</h3>
+        <textarea
+          className="settings__instructions"
+          value={nextInstructions}
+          onChange={(e) => setInstructions(e.target.value)}
+          rows={4}
+          placeholder="常体で答える。前置きを書かない。"
+          aria-label="エージェントへの指示"
+        />
+        <div className="settings__row">
+          <button
+            type="button"
+            onClick={() => save({ chat: { ...config.chat, instructions: nextInstructions } }, '保存した。次の発言から効く。')}
+            disabled={!instructionsChanged}
+          >
+            <Check size={ICON} aria-hidden /> 保存
+          </button>
+        </div>
+        <p className="settings__hint">
+          口調や答え方をここで決める。新しい会話にも、続いている会話にも、次の発言から効く。
+        </p>
       </section>
 
       <section className="settings__group">

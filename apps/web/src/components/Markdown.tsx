@@ -6,12 +6,15 @@ import rehypeRaw from 'rehype-raw'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import { linkCitations } from '../citations.ts'
+import { imageSource } from '../imageSource.ts'
 import { normalizeMathDelimiters } from '../mathDelimiters.ts'
 
 export type MarkdownProps = {
   text: string
   /** 図の画像を引くための論文の slug。 */
   slug?: string
+  /** 添付を引くための会話の識別子。会話を描くときに渡す(0013)。 */
+  chatId?: string | undefined
   /** 引用を参考文献へのリンクにするか。本文だけで、記録の表示では要らない。 */
   linkReferences?: boolean
 }
@@ -28,7 +31,7 @@ function scrollToAnchor(event: MouseEvent<HTMLAnchorElement>, id: string): void 
   target.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
-function MarkdownView({ text, slug, linkReferences = false }: MarkdownProps) {
+function MarkdownView({ text, slug, chatId, linkReferences = false }: MarkdownProps) {
   const source = useMemo(() => {
     const normalized = normalizeMathDelimiters(text)
     return linkReferences ? linkCitations(normalized) : normalized
@@ -41,12 +44,19 @@ function MarkdownView({ text, slug, linkReferences = false }: MarkdownProps) {
         rehypePlugins={[rehypeRaw, rehypeKatex]}
         components={{
           img: ({ src, alt }) => {
-            // 本文の中の参照は `assets/...` の相対で書かれている(0004)。
-            const source =
-              typeof src === 'string' && !src.startsWith('http') && slug !== undefined
-                ? `/api/papers/${encodeURIComponent(slug)}/${src}`
-                : src
-            return <img src={typeof source === 'string' ? source : ''} alt={alt ?? ''} loading="lazy" />
+            const image = imageSource(typeof src === 'string' ? src : undefined, { slug, chatId })
+            // 外の画像は取りに行かない(0013)。
+            if (image.kind === 'external') {
+              return (
+                <a href={image.url} target="_blank" rel="noreferrer" className="markdown__external-image">
+                  {alt !== undefined && alt.length > 0 ? alt : image.url}
+                </a>
+              )
+            }
+            if (image.kind === 'unresolved') {
+              return <span className="markdown__missing-image">画像を引けない: {image.raw}</span>
+            }
+            return <img src={image.url} alt={alt ?? ''} loading="lazy" />
           },
           a: ({ href, children }) => {
             const internal = typeof href === 'string' && href.startsWith('#')

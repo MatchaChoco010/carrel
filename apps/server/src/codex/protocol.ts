@@ -63,6 +63,12 @@ export function isAgentMessageItem(value: unknown): value is AgentMessageItem {
   return item['type'] === 'agentMessage' && typeof item['text'] === 'string'
 }
 
+/** 文脈が詰まって古い発言が落ちたことを示す項目。 */
+export function isContextCompactionItem(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false
+  return (value as Record<string, unknown>)['type'] === 'contextCompaction'
+}
+
 /** 承認を求めるサーバ要求かどうか。 */
 /** pct が立てる MCP のサーバーの名前。会話スレッドの設定に載る。 */
 export const MCP_SERVER_NAME = 'pct'
@@ -79,9 +85,9 @@ export function textInput(text: string): UserInput[] {
 }
 
 /** 手元のファイルの画像と本文を 1 つのターンの入力にする。 */
-export function imageAndTextInput(imagePath: string, text: string): UserInput[] {
+export function imagesAndTextInput(imagePaths: string[], text: string): UserInput[] {
   return [
-    { type: 'localImage', path: imagePath },
+    ...imagePaths.map((path): UserInput => ({ type: 'localImage', path })),
     { type: 'text', text, text_elements: [] },
   ]
 }

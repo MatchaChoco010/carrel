@@ -27,7 +27,9 @@ papers/<slug>/
   original.pdf      取得した原本
   assets/           本文から参照する図表の画像
   pages/            PDF を 1 ページずつ画像化したもの
-chats/YYYY/MM/DD/   議論の記録
+chats/YYYY/MM/DD/<id>/
+  chat.md           議論の記録
+  assets/           その議論に添えられた画像
 \`\`\`
 
 \`slug\` は \`<筆頭著者の姓><出版年>-<タイトル由来の短い語>\` の形で、論文を指す不変の名前である。

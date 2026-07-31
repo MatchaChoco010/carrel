@@ -1,9 +1,9 @@
 import { join } from 'node:path'
 import type { CodexClient } from '../codex/client.ts'
-import { METHODS, textInput } from '../codex/protocol.ts'
+import { METHODS, imagesAndTextInput } from '../codex/protocol.ts'
 import { runTurn, startConversationThread } from '../codex/threads.ts'
 import {
-  freeChatPath,
+  chatPathFor,
   newChatId,
   readChat,
   withoutTurnIds,
@@ -12,6 +12,9 @@ import {
   type ChatMessage,
 } from '../data/chat.ts'
 import { nowIsoDateTime, toIsoDateTime } from '../data/datetime.ts'
+import { attachmentPaths, copyAttachments, referencedAttachments } from './attachments.ts'
+import type { InstructionStore } from './instruction-store.ts'
+import { chatInstructions } from './instructions.ts'
 import { buildReloadInput } from './reload.ts'
 
 export type BranchDeps = {
@@ -26,6 +29,10 @@ export type BranchDeps = {
   defaults: () => { model: string; effort: string }
   /** 議論中のエージェントが接続する MCP の口(0005)。 */
   mcpUrl: string
+  /** ユーザーが決めた応答の仕方への指示(0014)。 */
+  instructions: () => string
+  /** スレッドに効いている指示の覚え(0014)。 */
+  inForce: InstructionStore
   reindex: (absolutePath: string) => Promise<void>
 }
 
@@ -80,18 +87,20 @@ export async function branchChat(absolutePath: string, selected: number, deps: B
 
   const threadId = canFork
     ? await forkThread(deps.codex, source.meta.codexThreadId as string, turnId as string)
-    : await primeThread(source, messages, model, deps)
+    : await primeThread(source, absolutePath, messages, model, deps)
+  // 写したスレッドは元の指示をそのまま持つ(0014)。
+  if (canFork) deps.inForce.copy(source.meta.codexThreadId as string, threadId)
   deps.markResumed(threadId)
 
   const now = new Date()
-  const path = await freeChatPath(deps.dataDir, now, source.meta.title)
+  const id = newChatId(now)
   const next: Omit<Chat, 'mtimeMs'> = {
-    path,
+    path: chatPathFor(deps.dataDir, now, id),
     // 立て直した経路では、写した発言の turn が新しいスレッドに無い(0012)。
     messages: canFork ? messages : withoutTurnIds(messages),
     meta: {
       ...source.meta,
-      id: newChatId(now),
+      id,
       created: toIsoDateTime(now),
       updated: nowIsoDateTime(),
       archived: false,
@@ -104,7 +113,9 @@ export async function branchChat(absolutePath: string, selected: number, deps: B
     },
   }
   await writeChat(deps.dataDir, next)
-  await deps.reindex(join(deps.dataDir, path))
+  // 分岐先が単体で読める状態を保つ。参照は識別子を含まないので本文は書き替えない(0013)。
+  await copyAttachments(absolutePath, join(deps.dataDir, next.path), referencedAttachments(messages))
+  await deps.reindex(join(deps.dataDir, next.path))
   return { id: next.meta.id, forked: canFork }
 }
 
@@ -120,18 +131,23 @@ async function forkThread(codex: CodexClient, threadId: string, lastTurn: string
 /** 引き継ぐ範囲の記録で新しいスレッドを立てる。読み込み直しと同じ組み立てを使う。 */
 async function primeThread(
   source: Chat,
+  sourcePath: string,
   messages: ChatMessage[],
   model: string,
   deps: BranchDeps,
 ): Promise<string> {
+  const instructions = deps.instructions()
   const threadId = await startConversationThread(deps.codex, {
     dataDir: deps.dataDir,
     model,
     mcpUrl: deps.mcpUrl,
+    instructions: chatInstructions(instructions),
   })
+  deps.inForce.remember(threadId, instructions)
+  const images = await attachmentPaths(sourcePath, referencedAttachments(messages))
   await runTurn(deps.codex, {
     threadId,
-    input: textInput(buildReloadInput({ ...source, messages }, deps.dataDir, deps.knownSlug)),
+    input: imagesAndTextInput(images, buildReloadInput({ ...source, messages }, deps.dataDir, deps.knownSlug)),
   })
   return threadId
 }

@@ -35,6 +35,7 @@ import {
 } from './chat/job.ts'
 import { ChatSessions } from './chat/session.ts'
 import { branchChat } from './chat/branch.ts'
+import { InstructionStore } from './chat/instruction-store.ts'
 import { reloadChat } from './chat/reload.ts'
 import { deleteChat, setArchived } from './chat/lifecycle.ts'
 import { listModels } from './codex/models.ts'
@@ -52,6 +53,7 @@ async function main(): Promise<void> {
   const index = new IndexDb(indexDbFile())
   const state = new StateDb(stateDbFile())
   const ingests = new IngestStore(state.db)
+  const inForce = new InstructionStore(state.db)
 
   // 起動時の走査はキューを作る前に走るので、そのぶんは走査の後にまとめて積む。
   let enqueueChatChunks: (path: string) => void = () => {}
@@ -201,6 +203,8 @@ async function main(): Promise<void> {
     knownSlug: (slug) => index.getPaper(slug) !== null,
     mcpUrl,
     defaults: () => ({ model: config.chat.defaultModel, effort: config.chat.defaultEffort }),
+    instructions: () => config.chat.instructions,
+    inForce,
     onEvent: (event) => {
       hub.broadcast({ type: event.type, payload: event })
       if (event.type === 'chat.turn.completed') digests.touch(event.id)
@@ -261,6 +265,8 @@ async function main(): Promise<void> {
         isResumable: async (threadId) => (await chats.stateOfThread(threadId)) === 'resumable',
         markResumed: (threadId) => chats.markResumed(threadId),
         defaults: () => ({ model: config.chat.defaultModel, effort: config.chat.defaultEffort }),
+        instructions: () => config.chat.instructions,
+        inForce,
         mcpUrl,
         reindex: (target) => collection.reloadChat(target),
       }),
@@ -270,6 +276,8 @@ async function main(): Promise<void> {
         codex: codex.client,
         knownSlug: (slug) => index.getPaper(slug) !== null,
         mcpUrl,
+        instructions: () => config.chat.instructions,
+        inForce,
       })
       chats.markResumed(threadId)
       return threadId

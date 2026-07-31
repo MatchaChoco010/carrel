@@ -19,6 +19,8 @@ export type Config = {
   chat: {
     defaultModel: string
     defaultEffort: string
+    /** ユーザーが決める、応答の仕方への指示(0014)。 */
+    instructions: string
   }
   ingest: {
     /** 取り込みの段階が使う Codex のモデル。 */
@@ -59,6 +61,7 @@ export const defaultConfig: Config = {
   chat: {
     defaultModel: 'gpt-5.6-sol',
     defaultEffort: 'high',
+    instructions: '',
   },
   ingest: {
     model: 'gpt-5.6-sol',
@@ -131,6 +134,8 @@ export function mergeConfig(stored: unknown): Config {
     if (typeof c['defaultEffort'] === 'string' && c['defaultEffort'].length > 0) {
       merged.chat.defaultEffort = c['defaultEffort']
     }
+    // 空にできる値なので、長さでは判じない。
+    if (typeof c['instructions'] === 'string') merged.chat.instructions = c['instructions']
   }
 
   const ingest = raw['ingest']

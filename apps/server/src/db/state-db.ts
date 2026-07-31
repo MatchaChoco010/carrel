@@ -90,6 +90,16 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 6,
+    up: `
+      -- スレッドに効いているユーザーの指示(0014)。
+      create table thread_instructions (
+        thread_id text primary key,
+        instructions text not null
+      );
+    `,
+  },
 ]
 
 /**
