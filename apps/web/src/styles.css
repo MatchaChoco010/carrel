@@ -738,7 +738,11 @@ body {
 .references {
   max-width: 46rem;
   width: 100%;
-  margin-top: 18px;
+  margin: 12px auto 0;
+}
+
+.references__build {
+  margin: 0;
 }
 
 .reference-list {
