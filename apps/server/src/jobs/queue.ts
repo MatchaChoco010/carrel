@@ -12,6 +12,16 @@ import {
 
 const RESOURCES: ResourceClass[] = ['gpu', 'codex', 'network']
 
+/**
+ * 済んだ仕事を一覧に残す量。
+ *
+ * 一覧は「いま何が動いていて、直前に何が終わったか」を見る場所である。取り込み 1 本が
+ * 5 つの仕事になるので、直近 50 件で 10 本ぶんが残る。それより古いものは、1 日を過ぎたら
+ * 捨てる。
+ */
+const KEEP_DONE = 50
+const DONE_MAX_AGE_MS = 24 * 60 * 60 * 1000
+
 /** 枠を使う区分。ここだけが枠の枯渇で止まる。 */
 const QUOTA_BOUND: ResourceClass = 'codex'
 
@@ -144,6 +154,7 @@ export class JobQueue {
       .then(() => {
         const done = this.#store.setState(job.id, 'done')
         if (done !== null) this.#onChange(done)
+        this.#store.pruneDone(KEEP_DONE, DONE_MAX_AGE_MS)
       })
       .catch((error: unknown) => {
         const message = error instanceof Error ? error.message : String(error)
