@@ -48,7 +48,7 @@ export function JobsPane({ jobs, onCleared }: JobsPaneProps) {
         <div className="jobs__actions">
           <button type="button" onClick={clear} disabled={clearing}>
             {clearing ? <Loader2 size={ICON} className="spin" aria-hidden /> : <Eraser size={ICON} aria-hidden />}
-            終わった {finished} 件の記録を消す
+            済んだ {finished} 件の記録を消す
           </button>
         </div>
       )}
