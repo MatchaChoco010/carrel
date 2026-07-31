@@ -11,6 +11,7 @@ import type { CodexModel } from './codex/models.ts'
 import { readChat, writeChat, type Chat } from './data/chat.ts'
 import { FeedStore } from './feed/store.ts'
 import { discardIngest } from './ingest/pipeline.ts'
+import { stageOriginal } from './ingest/staging.ts'
 import type { IngestStore } from './ingest/store.ts'
 import type { JobQueue } from './jobs/queue.ts'
 import type { Job } from './jobs/types.ts'
@@ -72,6 +73,8 @@ export type AppDeps = {
   refreshFeed: () => void
   /** ビルド済みの Web クライアントの場所。無ければ配信しない。 */
   webRoot: string | null
+  /** 状態のディレクトリ。手元から上げた原本の置き場をこの下に持つ(0021)。 */
+  stateDir: string
 }
 
 /** 受け取る画像の形式(0013)。 */
@@ -261,6 +264,24 @@ export function createApp(deps: AppDeps): Hono {
     if (known !== null) return c.json({ kind: 'duplicate', slug: known.slug, state: known.state })
 
     return c.json({ kind: 'queued', job: deps.enqueueResolve(target) })
+  })
+
+  /**
+   * 手元の PDF を原本として預かる(0021)。
+   *
+   * 本文をそのまま PDF として受け取る。multipart にしないのは、数百 MB の原本を
+   * メモリに載せずにディスクへ流すためである。ファイル名は問い合わせの文字列で受ける。
+   */
+  app.post('/api/papers/upload', async (c) => {
+    const name = c.req.query('name') ?? 'original.pdf'
+    const body = c.req.raw.body
+    if (body === null) return c.json({ error: '原本の中身が送られていない' }, 400)
+    try {
+      const staged = await stageOriginal(deps.stateDir, name, body)
+      return c.json({ id: staged.id, name: staged.name, bytes: staged.bytes })
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 400)
+    }
   })
 
   // `@` の補完に使う。本文は要らないので slug だけを返す。
