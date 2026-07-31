@@ -57,6 +57,8 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
   const [effort, setEffort] = useState<string>('')
   /** 設定の既定。会話が自分の値を持たないときに使う。 */
   const [defaults, setDefaults] = useState<{ model: string; effort: string } | null>(null)
+  /** Enter 系のキーで送るかどうか。設定で選ぶ。 */
+  const [sendKeys, setSendKeys] = useState({ enter: false, ctrlEnter: false })
   /** 開いている会話が記録している値。まだ話していない会話は持たない。 */
   const [recorded, setRecorded] = useState<{ model: string | null; effort: string | null }>({
     model: null,
@@ -88,7 +90,10 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
     const read = (): void => {
       void api
         .config()
-        .then((c) => setDefaults({ model: c.chat.defaultModel, effort: c.chat.defaultEffort }))
+        .then((c) => {
+          setDefaults({ model: c.chat.defaultModel, effort: c.chat.defaultEffort })
+          setSendKeys({ enter: c.chat.sendOnEnter, ctrlEnter: c.chat.sendOnCtrlEnter })
+        })
         .catch(() => setDefaults(null))
     }
     read()
@@ -433,7 +438,15 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
             ))}
           </ul>
         )}
-        <SlugSuggest slugs={slugs} value={draft} onChange={setDraft} inputRef={input} />
+        <SlugSuggest
+          slugs={slugs}
+          value={draft}
+          onChange={setDraft}
+          inputRef={input}
+          sendOnEnter={sendKeys.enter}
+          sendOnCtrlEnter={sendKeys.ctrlEnter}
+          onSend={() => sendable && send()}
+        />
         {/* 送るボタンを入力欄の次に置く。Escape のあと Tab を 1 回で届くようにする。
             見た目の並びは CSS の order で戻す。 */}
         <div className="chat__controls">
