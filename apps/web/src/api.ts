@@ -121,11 +121,22 @@ export type FeedItem = {
 }
 
 /** サーバーが持つ設定。編集して書き戻す(0001)。 */
+/** 入力欄へ差し込める定型の文。 */
+export type SavedPrompt = {
+  name: string
+  body: string
+}
+
 export type Config = {
   dataDir: string
   server: { host: string; port: number }
   arxiv: { categories: string[]; fetchIntervalMinutes: number; initialLookbackDays: number }
-  chat: { defaultModel: string; defaultEffort: string; instructions: string }
+  chat: {
+    defaultModel: string
+    defaultEffort: string
+    instructions: string
+    prompts: SavedPrompt[]
+  }
   ingest: { model: string; effort: string; serviceTier: string | null }
   embedding: { baseUrl: string; model: string; dimensions: number }
   converter: { python: string; llamaServer: string; llamaLibDir: string; pageScale: number }

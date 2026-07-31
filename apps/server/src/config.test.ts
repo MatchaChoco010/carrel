@@ -18,6 +18,21 @@ test('書かれたキーだけを既定値の上に重ねる', () => {
   assert.equal(merged.server.port, defaultConfig.server.port)
 })
 
+test('呼び出せるプロンプトは名前と本文が揃ったものだけを受ける', () => {
+  const merged = mergeConfig({
+    chat: {
+      prompts: [
+        { name: 'まとめ', body: 'この論文をまとめてください。' },
+        { name: '', body: '名前が無い' },
+        { name: '本文が無い', body: '   ' },
+        '文字列',
+      ],
+    },
+  })
+  assert.deepEqual(merged.chat.prompts, [{ name: 'まとめ', body: 'この論文をまとめてください。' }])
+  assert.deepEqual(mergeConfig({}).chat.prompts, [])
+})
+
 test('待ち受けるアドレスを設定で変えられる', () => {
   assert.equal(mergeConfig({ server: { host: '127.0.0.1' } }).server.host, '127.0.0.1')
   assert.equal(mergeConfig({}).server.host, '0.0.0.0')

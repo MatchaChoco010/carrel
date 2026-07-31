@@ -1,6 +1,6 @@
 import { Check, Loader2, Plus, RotateCcw, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { api, type CodexModel, type Config } from '../api.ts'
+import { api, type CodexModel, type Config, type SavedPrompt } from '../api.ts'
 
 export type SettingsPaneProps = {
   /** 索引を作り直したら、一覧を読み直させる。 */
@@ -24,6 +24,7 @@ export function SettingsPane({ onChanged }: SettingsPaneProps) {
   const [dataDir, setDataDir] = useState<string | null>(null)
   const [fetchInterval, setFetchInterval] = useState<number | null>(null)
   const [instructions, setInstructions] = useState<string | null>(null)
+  const [prompts, setPrompts] = useState<SavedPrompt[] | null>(null)
 
   useEffect(() => {
     void api
@@ -33,6 +34,7 @@ export function SettingsPane({ onChanged }: SettingsPaneProps) {
         setDataDir(next.dataDir)
         setFetchInterval(next.arxiv.fetchIntervalMinutes)
         setInstructions(next.chat.instructions)
+        setPrompts(next.chat.prompts)
       })
       .catch((e: unknown) => setNotice({ kind: 'error', text: e instanceof Error ? e.message : String(e) }))
     void api
@@ -54,6 +56,7 @@ export function SettingsPane({ onChanged }: SettingsPaneProps) {
         setDataDir(next.dataDir)
         setFetchInterval(next.arxiv.fetchIntervalMinutes)
         setInstructions(next.chat.instructions)
+        setPrompts(next.chat.prompts)
         setNotice({ kind: 'saved', text })
       })
       .catch((e: unknown) => setNotice({ kind: 'error', text: e instanceof Error ? e.message : String(e) }))
@@ -86,6 +89,12 @@ export function SettingsPane({ onChanged }: SettingsPaneProps) {
     Number.isInteger(nextInterval) && nextInterval >= 1 && nextInterval !== config.arxiv.fetchIntervalMinutes
   const nextDataDir = (dataDir ?? config.dataDir).trim()
   const dataDirChanged = nextDataDir.length > 0 && nextDataDir !== config.dataDir
+  const nextPrompts = prompts ?? config.chat.prompts
+  const promptsChanged = JSON.stringify(nextPrompts) !== JSON.stringify(config.chat.prompts)
+  const editPrompt = (at: number, patch: Partial<SavedPrompt>): void => {
+    setPrompts(nextPrompts.map((prompt, index) => (index === at ? { ...prompt, ...patch } : prompt)))
+  }
+
   const nextInstructions = instructions ?? config.chat.instructions
   const instructionsChanged = nextInstructions !== config.chat.instructions
 
@@ -188,6 +197,56 @@ export function SettingsPane({ onChanged }: SettingsPaneProps) {
             ))}
           </select>
         </label>
+      </section>
+
+      <section className="settings__group">
+        <h3>呼び出せるプロンプト</h3>
+        {nextPrompts.length === 0 ? <p className="settings__hint">まだ登録していない。</p> : null}
+        <ul className="prompts">
+          {nextPrompts.map((prompt, at) => (
+            <li key={at} className="prompts__item">
+              <div className="settings__row">
+                <input
+                  value={prompt.name}
+                  onChange={(e) => editPrompt(at, { name: e.target.value })}
+                  placeholder="名前(まとめ・査読など)"
+                  aria-label={`${at + 1} 番目のプロンプトの名前`}
+                />
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => setPrompts(nextPrompts.filter((_, index) => index !== at))}
+                  aria-label={`${at + 1} 番目のプロンプトを消す`}
+                >
+                  <X size={ICON} aria-hidden />
+                </button>
+              </div>
+              <textarea
+                className="settings__instructions"
+                value={prompt.body}
+                onChange={(e) => editPrompt(at, { body: e.target.value })}
+                rows={4}
+                placeholder="この論文について、解決したい問題と手法と結果をまとめてください。"
+                aria-label={`${at + 1} 番目のプロンプトの本文`}
+              />
+            </li>
+          ))}
+        </ul>
+        <div className="settings__row">
+          <button type="button" onClick={() => setPrompts([...nextPrompts, { name: '', body: '' }])}>
+            <Plus size={ICON} aria-hidden /> 足す
+          </button>
+          <button
+            type="button"
+            onClick={() => save({ chat: { ...config.chat, prompts: nextPrompts } })}
+            disabled={!promptsChanged}
+          >
+            <Check size={ICON} aria-hidden /> 保存
+          </button>
+        </div>
+        <p className="settings__hint">
+          チャットの入力欄の呼び出しから差し込む。`@slug` で論文を指してから差し込めるように、送信ではなく入力欄へ入る。
+        </p>
       </section>
 
       <section className="settings__group">
