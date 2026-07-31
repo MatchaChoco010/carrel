@@ -1,7 +1,7 @@
 # 手元の PDF を原本として取り込む
 
 - created: 2026-07-31
-- status: reviewing
+- status: approved
 - implementation: not-started
 
 ## 解決したい問題
