@@ -946,65 +946,78 @@ body {
   background: var(--surface-raised);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 10px 12px;
+  padding: 8px 12px;
 }
 
 .ingest--failed {
   border-color: var(--warn);
 }
 
-.ingest header {
+/* 1 本の取り込みは 1 行に収める。失敗の理由だけがその下に続く。 */
+.ingest__row {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 8px;
-  font-size: 13px;
-}
-
-.ingest__total {
-  color: var(--text-muted);
+  align-items: center;
+  gap: 10px;
   font-size: 12px;
 }
 
-/* 1 段階ぶんの幅は等しくする。実時間には対応させない。 */
+.ingest__slug {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .ingest__stages {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   list-style: none;
-  margin: 10px 0 0;
+  margin: 0;
   padding: 0;
 }
 
 .ingest__stage {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 6px 2px;
-  border-top: 2px solid var(--border);
+  gap: 3px;
   color: var(--text-muted);
   font-size: 11px;
+  white-space: nowrap;
+}
+
+.ingest__mark {
+  display: flex;
 }
 
 .ingest__stage.done {
-  border-top-color: #5ad19b;
-  color: var(--text);
+  color: #5ad19b;
 }
 
 .ingest__stage.running {
-  border-top-color: var(--accent);
   color: var(--accent);
 }
 
 .ingest__stage.failed {
-  border-top-color: var(--warn);
   color: var(--warn);
+}
+
+.ingest__total {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .ingest__time {
   font-variant-numeric: tabular-nums;
   opacity: 0.7;
+}
+
+.ingest__error {
+  margin: 6px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* --- arXiv フィード --- */
