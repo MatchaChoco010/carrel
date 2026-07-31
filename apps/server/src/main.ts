@@ -11,6 +11,7 @@ import { searchChats } from './search/chat-search.ts'
 import { ChatChunkStore } from './search/chat-store.ts'
 import { enqueueEmbed, enqueueRegister, registerEmbed, registerRegister } from './search/job.ts'
 import { ChunkStore } from './search/store.ts'
+import { enqueueReferences, registerReferences } from './references/job.ts'
 import { enqueueTranslate, registerTranslate } from './translate/job.ts'
 import { enqueueVerify, registerVerify } from './verify/job.ts'
 import { loadConfig, type Config } from './config.ts'
@@ -153,8 +154,17 @@ async function main(): Promise<void> {
     indexPaper: (paper: Paper) => index.upsertPaper(paper, true),
     markEmbedded: (slug: string) => index.markEmbeddingFresh(slug),
   }
-  registerRegister(jobs, { ...registerDeps, ingests })
+  registerRegister(jobs, { ...registerDeps, ingests, onDone: (slug) => enqueueReferences(jobs, slug) })
   registerEmbed(jobs, registerDeps)
+
+  registerReferences(jobs, {
+    dataDir,
+    ingests,
+    codex: codex.client,
+    model: config.ingest.model,
+    effort: config.ingest.effort,
+    serviceTier: config.ingest.serviceTier,
+  })
 
   /** 埋め込みを持たない論文を積み直す。索引を作り直した後と、起動のときに呼ぶ。 */
   const backfillEmbeddings = (): number => {
@@ -227,6 +237,7 @@ async function main(): Promise<void> {
     search: (query) => search(query, { index, chunks, embed }),
     searchChats: (query) => searchChats(query, { index, chunks: chatChunks, embed }),
     enqueueResolve: (url) => enqueueResolve(jobs, url),
+    enqueueReferences: (slug) => enqueueReferences(jobs, slug),
     dataDir,
     getConfig: () => config,
     setConfig: (next) => {
