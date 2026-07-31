@@ -247,9 +247,10 @@ async function sendJson<T>(method: string, path: string, body: unknown): Promise
   return json
 }
 
-function searchParams(query: string, filter: SearchFilter): string {
+function searchParams(query: string, filter: SearchFilter, limit?: number): string {
   const params = new URLSearchParams()
   if (query.length > 0) params.set('q', query)
+  if (limit !== undefined) params.set('limit', String(limit))
   for (const key of ['title', 'author', 'venue'] as const) {
     const value = filter[key]
     if (value !== undefined && value.length > 0) params.set(key, value)
@@ -315,8 +316,9 @@ export const api = {
     sendJson<{ read: number; unread: number }>('POST', '/api/feed/read', { arxivIds }),
   clearJobs: () => sendJson<{ cleared: number; counts: Record<JobState, number> }>('POST', '/api/jobs/clear', {}),
   refreshFeed: () => sendJson<{ queued: boolean }>('POST', '/api/feed/refresh', {}),
-  search: (query: string, filter: SearchFilter = {}) =>
-    getJson<{ hits: SearchHit[] }>(`/api/search?${searchParams(query, filter)}`),
+  /** limit を渡すと、その件数まで返る。一覧の続きを読むときに増やす(#222)。 */
+  search: (query: string, filter: SearchFilter = {}, limit?: number) =>
+    getJson<{ hits: SearchHit[] }>(`/api/search?${searchParams(query, filter, limit)}`),
   paper: (slug: string) => getJson<PaperDetail>(`/api/papers/${encodeURIComponent(slug)}`),
   /** references が null なら、参考文献の段階がまだ走っていない。 */
   paperReferences: (slug: string) =>

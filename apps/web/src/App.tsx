@@ -123,6 +123,8 @@ export function App() {
         case 'paper.changed':
         case 'paper.removed':
         case 'index.rebuilt':
+          // 取り込みが終わった論文がすぐ一覧に出るように、読み直す番号も進める(#222)。
+          setRevision((n) => n + 1)
           void api.indexStatus().then(setIndex).catch(() => {})
           return
         default:
