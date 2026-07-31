@@ -1,5 +1,5 @@
 import { BookOpen, ExternalLink, Plus } from 'lucide-react'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { api, type Reference } from '../api.ts'
 
 export type ReferenceListProps = {
@@ -13,6 +13,25 @@ const ICON = 14
 
 /** 取り込みを押した後の状態。結果は仕事の一覧で進む(0004)。 */
 type Queued = 'queued' | 'duplicate' | string
+
+/**
+ * 原文の中の題を太字にする。
+ *
+ * 1 件は著者・題・掲載誌が続けて書かれていて、同じ太さだと目が留まらない。原文を
+ * そのまま出す(0015)ので、書き換えずに題の位置だけを強める。題が原文と一字一句
+ * 揃わないときは、そのまま出す。
+ */
+function withTitle(text: string, title: string): ReactNode {
+  const at = title.length === 0 ? -1 : text.toLowerCase().indexOf(title.toLowerCase())
+  if (at < 0) return text
+  return (
+    <>
+      {text.slice(0, at)}
+      <span className="reference__title">{text.slice(at, at + title.length)}</span>
+      {text.slice(at + title.length)}
+    </>
+  )
+}
 
 /** 本文の参考文献の節に差し込む一覧(0017)。 */
 export function ReferenceList({ references, onOpenPaper }: ReferenceListProps) {
@@ -38,7 +57,7 @@ export function ReferenceList({ references, onOpenPaper }: ReferenceListProps) {
           const state = queued.get(at)
           return (
             <li key={`${at}-${reference.text.slice(0, 40)}`} className="reference">
-              <p className="reference__text">{reference.text}</p>
+              <p className="reference__text">{withTitle(reference.text, reference.title)}</p>
               <div className="reference__actions">
                 {reference.importedSlug !== null ? (
                   <button type="button" className="on" onClick={() => onOpenPaper(reference.importedSlug as string)}>
