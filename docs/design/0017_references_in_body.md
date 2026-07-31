@@ -1,7 +1,7 @@
 # 参考文献を本文の中で辿る
 
 - created: 2026-07-31
-- status: ready for review
+- status: reviewing
 - implementation: not-started
 
 ## 解決したい問題

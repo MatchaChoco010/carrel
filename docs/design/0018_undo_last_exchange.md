@@ -1,7 +1,7 @@
 # 直前のやりとりの取り消し
 
 - created: 2026-07-31
-- status: ready for review
+- status: reviewing
 - implementation: not-started
 
 ## 解決したい問題
