@@ -1239,6 +1239,7 @@ body {
 }
 
 .turn:hover .turn__branch,
+.turn--selected .turn__branch,
 .turn__branch:focus-visible {
   opacity: 1;
 }
