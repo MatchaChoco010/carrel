@@ -4,7 +4,7 @@ import { resumeThread, runTurn, startConversationThread } from '../codex/threads
 import { nowIsoDateTime } from '../data/datetime.ts'
 import { readChat, writeChat, type Chat, type ChatMessage } from '../data/chat.ts'
 import { storeImages, withAttachments, type IncomingImage } from './attachments.ts'
-import { chatInstructions, instructionChangeNotice } from './instructions.ts'
+import { chatInstructions, fullInstructionNotice, instructionChangeNotice } from './instructions.ts'
 import type { InstructionStore } from './instruction-store.ts'
 import { expandMentions, findMentions } from './mentions.ts'
 
@@ -181,9 +181,15 @@ export class ChatSessions {
 
     try {
       // 設定の指示が変わっていたら、この発言の前に差し込む(0014)。記録には残さない。
+      // 覚えの無いスレッドは pct の指示を持たないことがあるので、そのときは全体を載せる。
       const instructions = this.#deps.instructions()
-      const changed = this.#deps.inForce.inForce(threadId) !== instructions
-      const notice = changed ? instructionChangeNotice(instructions) : ''
+      const known = this.#deps.inForce.inForce(threadId)
+      const changed = known !== instructions
+      const notice = !changed
+        ? ''
+        : known === null
+          ? fullInstructionNotice(instructions)
+          : instructionChangeNotice(instructions)
 
       const outcome = await runTurn(
         this.#deps.codex,
