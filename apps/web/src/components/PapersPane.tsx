@@ -85,6 +85,9 @@ export function PapersPane({ lang, onLangChange, tags, revision, onChanged }: Pa
         setError(result.error)
       } else if (result.kind === 'duplicate') {
         setError(`既に取り込んでいる: ${result.slug ?? ''}`)
+      } else if (result.kind === 'resumed' || result.kind === 'restarted') {
+        // 失敗した取り込みを押し直したときは、そこから続く(#220)。進みはジョブの欄に出る。
+        setUrl('')
       } else {
         // 解決も取得も仕事の中で行うので、ここでは積んだところまでしか分からない。
         setUrl('')
