@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path'
 export const PAPERS_DIR = 'papers'
 export const CHATS_DIR = 'chats'
 
-export type PaperFileKind = 'body' | 'bodyJa' | 'abstract' | 'abstractJa' | 'raw' | 'verification'
+export type PaperFileKind = 'body' | 'bodyJa' | 'abstract' | 'abstractJa' | 'raw' | 'verification' | 'references'
 
 const PAPER_FILE_NAMES: Record<PaperFileKind, string> = {
   body: 'paper.md',
@@ -12,6 +12,7 @@ const PAPER_FILE_NAMES: Record<PaperFileKind, string> = {
   abstractJa: 'abstract.ja.md',
   raw: 'paper.raw.md',
   verification: 'verification.md',
+  references: 'references.md',
 }
 
 export function papersDir(dataDir: string): string {

@@ -5,17 +5,21 @@ import type { Collection, ScanResult } from './data/collection.ts'
 import type { Config } from './config.ts'
 import { mergeConfig, saveConfig, unusableDataDir } from './config.ts'
 import type { IndexDb } from './db/index-db.ts'
-import { extractArxivId } from './ingest/arxiv.ts'
+import { knownPaper } from './ingest/known.ts'
 import { ChatSessions } from './chat/session.ts'
 import type { CodexModel } from './codex/models.ts'
 import { readChat, writeChat, type Chat } from './data/chat.ts'
 import { FeedStore } from './feed/store.ts'
-import { discardIngest, ingestFromUrl } from './ingest/pipeline.ts'
+import { discardIngest } from './ingest/pipeline.ts'
 import type { IngestStore } from './ingest/store.ts'
 import type { JobQueue } from './jobs/queue.ts'
+import type { Job } from './jobs/types.ts'
 import type { SearchHit, SearchQuery } from './search/search.ts'
 import type { ChatSearchHit, ChatSearchQuery } from './search/chat-search.ts'
 import { readPaper, readPaperSideFile, writePaper } from './data/paper.ts'
+import { readReferences } from './data/references.ts'
+import { matchReferences } from './references/match.ts'
+import { findPaper, titleIndex } from './search/find-paper.ts'
 import { readFile } from 'node:fs/promises'
 import { extname, join, relative } from 'node:path'
 import { chatAssetsDirOf, paperAssetsDir } from './data/layout.ts'
@@ -27,8 +31,10 @@ export type AppDeps = {
   search: (query: SearchQuery) => Promise<SearchHit[]>
   /** 会話を検索する。 */
   searchChats: (query: ChatSearchQuery) => Promise<ChatSearchHit[]>
-  /** 解決と取得が済んだ論文の、残りの段階を始める。 */
-  onIngested: (slug: string) => void
+  /** 取り込みを積む。解決も取得も仕事の中で行うので、押した時点では待たせない(0004)。 */
+  enqueueResolve: (url: string) => Job
+  /** 参考文献の段階を積む。取り込みより前に入れた論文と、失敗した論文の積み直しに使う(0015)。 */
+  enqueueReferences: (slug: string) => Job
   /**
    * コレクションの置き場所。
    *
@@ -242,25 +248,15 @@ export function createApp(deps: AppDeps): Hono {
     }
     const url = (body as { url?: unknown }).url
     if (typeof url !== 'string' || url.trim().length === 0) {
-      return c.json({ error: 'url を指定すること' }, 400)
+      return c.json({ error: 'URL か題名を指定すること' }, 400)
     }
+    const target = url.trim()
 
-    try {
-      const result = await ingestFromUrl(url.trim(), {
-        dataDir: deps.dataDir,
-        index: deps.index,
-        ingests: deps.ingests,
-        codex: deps.codex.client,
-        model: deps.getConfig().ingest.model,
-      })
-      if (result.kind === 'imported') deps.onIngested(result.slug)
-      // フィードから取り込んだ論文を結びつける。同じ論文を二度取り込ませないため。
-      const arxivId = extractArxivId(url)
-      if (arxivId !== null) deps.feed.setSlug(arxivId, result.slug)
-      return c.json(result)
-    } catch (error) {
-      return c.json({ error: error instanceof Error ? error.message : String(error) }, 502)
-    }
+    // 解決を待たずに分かる重複だけ、ここで断る。それ以外は解決の仕事が見つける。
+    const known = knownPaper(target, { index: deps.index, ingests: deps.ingests })
+    if (known !== null) return c.json({ kind: 'duplicate', slug: known.slug, state: known.state })
+
+    return c.json({ kind: 'queued', job: deps.enqueueResolve(target) })
   })
 
   // `@` の補完に使う。本文は要らないので slug だけを返す。
@@ -444,6 +440,29 @@ export function createApp(deps: AppDeps): Hono {
     })
   })
 
+  app.get('/api/papers/:slug/references', async (c) => {
+    const slug = c.req.param('slug')
+    const stored = await readReferences(deps.dataDir, slug)
+    // まだ段階が走っていない論文と、参考文献が 1 件も無い論文を見分けられるようにする。
+    if (stored === null) return c.json({ references: null })
+
+    const matched = matchReferences(stored.references, {
+      byArxivId: (id) => deps.index.findByArxivId(id),
+      byDoi: (doi) => deps.index.findByDoi(doi),
+      titles: deps.index.titles(),
+    })
+    return c.json({
+      references: stored.references.map((reference, at) => ({ ...reference, importedSlug: matched[at] ?? null })),
+    })
+  })
+
+  app.post('/api/papers/:slug/references', async (c) => {
+    const slug = c.req.param('slug')
+    const paper = await readPaper(deps.dataDir, slug)
+    if (paper === null) return c.json({ error: `論文が見つからない: ${slug}` }, 404)
+    return c.json({ job: deps.enqueueReferences(slug) })
+  })
+
   app.put('/api/papers/:slug/tags', async (c) => {
     const slug = c.req.param('slug')
     let body: unknown
@@ -503,6 +522,18 @@ export function createApp(deps: AppDeps): Hono {
       dataDir: deps.dataDir,
       search: deps.search,
       tags: () => deps.index.tagCounts(),
+      findPaper: (key) =>
+        findPaper(key, {
+          byArxivId: (id) => deps.index.findByArxivId(id),
+          byDoi: (doi) => deps.index.findByDoi(doi),
+          byTitle: titleIndex(deps.index.titles()),
+        }),
+      importPaper: (target) => {
+        const known = knownPaper(target, { index: deps.index, ingests: deps.ingests })
+        if (known !== null) return { kind: 'duplicate', known }
+        deps.enqueueResolve(target)
+        return { kind: 'queued' }
+      },
     }),
   )
 

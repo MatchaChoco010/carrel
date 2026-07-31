@@ -1,5 +1,6 @@
 import type { CodexClient } from '../codex/client.ts'
 import { textInput } from '../codex/protocol.ts'
+import { normalizeDoi } from '../data/doi.ts'
 import { runTurn, startWorkThread } from '../codex/threads.ts'
 import { extractArxivId, isArxivUrl, lookupArxiv } from './arxiv.ts'
 import type { ResolvedSource, ResolveOutcome, SourceKind } from './types.ts'
@@ -12,15 +13,16 @@ export type KnownPapers = {
 
 const AGENT_INSTRUCTIONS = [
   'あなたは論文の所在と書誌情報を調べる。',
-  'web 検索と取得を使って、渡された URL が指す論文の原本(PDF、無ければ HTML)を見つける。',
-  'ページ内に原本へのリンクが無い場合は、タイトルで検索して探す。',
+  'web 検索と取得を使って、指された論文の原本(PDF、無ければ HTML)を見つける。',
+  '出版社の版が有料で読めないときは、著者版・arXiv・研究室のページなど、誰でも取得できる PDF を探す。',
+  'どこにも取得できる原本が無いときは originalUrl を null にして返す。当てずっぽうの URL を書かない。',
   '要求された JSON だけを返す。',
 ].join('\n')
 
 const OUTPUT_SCHEMA = {
   type: 'object',
   properties: {
-    originalUrl: { type: 'string' },
+    originalUrl: { type: ['string', 'null'], description: '取得できる原本の URL。見つからなければ null。' },
     kind: { type: 'string', enum: ['pdf', 'html'] },
     title: { type: 'string' },
     authors: { type: 'array', items: { type: 'string' } },
@@ -28,12 +30,13 @@ const OUTPUT_SCHEMA = {
     venue: { type: ['string', 'null'] },
     abstract: { type: ['string', 'null'] },
     arxivId: { type: ['string', 'null'] },
+    doi: { type: ['string', 'null'], description: '出版元の DOI。10. で始まる形。無ければ null。' },
     slugKeyword: {
       type: ['string', 'null'],
       description: '論文に定着した略称。無ければタイトルの内容語を 1〜3 語。',
     },
   },
-  required: ['originalUrl', 'kind', 'title', 'authors', 'year', 'venue', 'abstract', 'arxivId', 'slugKeyword'],
+  required: ['originalUrl', 'kind', 'title', 'authors', 'year', 'venue', 'abstract', 'arxivId', 'doi', 'slugKeyword'],
   additionalProperties: false,
 }
 
@@ -69,6 +72,7 @@ function parseAgentResult(text: string): ResolvedSource | null {
     venue: asString(r['venue']),
     abstract: asString(r['abstract']),
     arxivId: asString(r['arxivId']),
+    doi: normalizeDoi(asString(r['doi'])),
     slugKeyword: asString(r['slugKeyword']),
     via: 'agent',
   }
@@ -80,12 +84,22 @@ export type ResolveDeps = {
   model: string
 }
 
-/** URL から原本の所在と書誌情報を確定する。 */
+/** 入力が URL かどうか。URL でなければ題名として扱う。 */
+export function looksLikeUrl(input: string): boolean {
+  return /^https?:\/\//i.test(input.trim())
+}
+
+/**
+ * URL か題名から、原本の所在と書誌情報を確定する。
+ *
+ * 題名で指された場合は web 検索で探す。出版社の版が有料のときは著者版を探させ、
+ * どこにも取得できる原本が無ければ失敗にする。
+ */
 export async function resolveSource(sourceUrl: string, deps: ResolveDeps): Promise<ResolveOutcome> {
   const bySourceUrl = deps.known.bySourceUrl(sourceUrl)
   if (bySourceUrl !== null) return { kind: 'duplicate', slug: bySourceUrl, reason: 'sourceUrl' }
 
-  if (isArxivUrl(sourceUrl)) {
+  if (looksLikeUrl(sourceUrl) && isArxivUrl(sourceUrl)) {
     const arxivId = extractArxivId(sourceUrl)
     if (arxivId !== null) {
       const byId = deps.known.byArxivId(arxivId)
@@ -99,16 +113,26 @@ export async function resolveSource(sourceUrl: string, deps: ResolveDeps): Promi
   const threadId = await startWorkThread(deps.codex, {
     instructions: AGENT_INSTRUCTIONS,
     model: deps.model,
+    webSearch: true,
   })
+  const asked = looksLikeUrl(sourceUrl)
+    ? `次の URL が指す論文の原本と書誌情報を調べよ: ${sourceUrl}`
+    : `次の題名の論文を探し、取得できる原本と書誌情報を返せ: ${sourceUrl}`
   const outcome = await runTurn(deps.codex, {
     threadId,
-    input: textInput(`次の URL が指す論文の原本と書誌情報を調べよ: ${sourceUrl}`),
+    input: textInput(asked),
     effort: 'low',
     outputSchema: OUTPUT_SCHEMA,
   })
 
   const source = parseAgentResult(outcome.text)
-  if (source === null) throw new Error(`URL を解決できなかった: ${sourceUrl}`)
+  if (source === null) {
+    throw new Error(
+      looksLikeUrl(sourceUrl)
+        ? `URL を解決できなかった: ${sourceUrl}`
+        : `取得できる原本が見つからなかった: ${sourceUrl}`,
+    )
+  }
 
   // エージェントが arXiv の識別子を見つけた場合も、重複の判定に使う。
   if (source.arxivId !== null) {

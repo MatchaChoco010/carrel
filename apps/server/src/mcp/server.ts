@@ -3,13 +3,16 @@ import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { paperDir, paperFile } from '../data/layout.ts'
+import type { KnownPaper } from '../ingest/known.ts'
+import type { PaperKey } from '../search/find-paper.ts'
 import type { SearchHit, SearchQuery } from '../search/search.ts'
 
 /**
  * 議論中のエージェントへコレクションを開く口。
  *
- * 公開するのは検索とタグの一覧だけで、本文を返す操作と書き込みの操作は持たない(0005)。
- * 本文は検索結果の場所からエージェントが自分で読む。
+ * 本文を返す操作は持たない(0005)。本文は検索結果の場所からエージェントが自分で読む。
+ * 状態を変える操作は取り込みだけである。取り消せる操作だけをエージェントに渡す、が
+ * この口の線引きで、削除・整理・設定の変更は出さない(0016)。
  *
  * 手続きそのものは MCP の公式の実装に任せる。仕様は改訂が続いており、セッション・
  * 事象の再送・`Origin` の検証を自分で追い続ける理由がない。
@@ -19,6 +22,10 @@ export type McpDeps = {
   dataDir: string
   search: (query: SearchQuery) => Promise<SearchHit[]>
   tags: () => Array<{ tag: string; count: number }>
+  /** 題名・arXiv の識別子・DOI で 1 本を引く(0016)。 */
+  findPaper: (key: PaperKey) => { slug: string; title: string } | null
+  /** 取り込みを積む。積んだところで返り、完了は待たない(0016)。 */
+  importPaper: (target: string) => { kind: 'queued' } | { kind: 'duplicate'; known: KnownPaper }
 }
 
 const SEARCH_INPUT = {
@@ -82,6 +89,35 @@ function text(body: string): { content: Array<{ type: 'text'; text: string }> } 
   return { content: [{ type: 'text' as const, text: body }] }
 }
 
+const FIND_INPUT = {
+  title: z.string().optional().describe('論文の題名。書き方の揺れは無視して当てる。'),
+  year: z.number().optional().describe('出版年。同じ題名の別の論文と取り違えないために添える。'),
+  arxivId: z.string().optional().describe('arXiv の識別子。URL でもよい。'),
+  doi: z.string().optional().describe('DOI。'),
+}
+
+const IMPORT_INPUT = {
+  target: z.string().describe('論文の URL か題名。1 回の呼びで 1 本だけ積む。'),
+}
+
+export function describeFound(found: { slug: string; title: string } | null): string {
+  if (found === null) return 'コレクションにこの論文は無い。取り込むなら import_paper を呼ぶこと。'
+  return [`コレクションにある。`, `- slug: ${found.slug}`, `- 題: ${found.title}`].join('\n')
+}
+
+export function describeImport(result: ReturnType<McpDeps['importPaper']>): string {
+  if (result.kind === 'queued') {
+    return [
+      '取り込みを積んだ。解決と取得はこの後の仕事として進むので、結果はここでは分からない。',
+      'ユーザーの画面には仕事として現れ、そこで取り消せる。',
+    ].join('\n')
+  }
+  const known = result.known
+  if (known.state === 'imported') return `既にコレクションにある: ${known.slug}`
+  if (known.state === 'inProgress') return `この論文は取り込みの途中である: ${known.slug}`
+  return `この論文は前の取り込みが失敗している: ${known.slug}。ユーザーが画面から積み直せる。`
+}
+
 export function createMcpServer(deps: McpDeps): McpServer {
   const server = new McpServer({ name: 'pct', version: '0.1.0' })
 
@@ -94,6 +130,28 @@ export function createMcpServer(deps: McpDeps): McpServer {
       inputSchema: SEARCH_INPUT,
     },
     async (args) => text(describeHits(await deps.search(buildQuery(args as SearchArgs)), deps.dataDir)),
+  )
+
+  server.registerTool(
+    'find_paper',
+    {
+      title: '論文がコレクションにあるかを引く',
+      description:
+        '題名・arXiv の識別子・DOI のいずれかで、その論文がコレクションにあるかを確かめる。当たれば slug を返す。関連する論文を探すのではなく、その 1 本があるかを確かめる道具である。',
+      inputSchema: FIND_INPUT,
+    },
+    async (args) => text(describeFound(deps.findPaper(args as PaperKey))),
+  )
+
+  server.registerTool(
+    'import_paper',
+    {
+      title: '論文の取り込みを積む',
+      description:
+        '論文の取り込みを積む。引数は URL か題名で、1 回の呼びで 1 本だけ積む。積んだところで返り、取り込みの完了は待たない。ユーザーが取り込みを望んだときに呼ぶこと。',
+      inputSchema: IMPORT_INPUT,
+    },
+    async (args) => text(describeImport(deps.importPaper((args as { target: string }).target))),
   )
 
   server.registerTool(

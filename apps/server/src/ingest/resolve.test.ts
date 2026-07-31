@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { CodexClient } from '../codex/client.ts'
-import { resolveSource, type KnownPapers } from './resolve.ts'
+import { looksLikeUrl, resolveSource, type KnownPapers } from './resolve.ts'
 
 const NONE: KnownPapers = { byArxivId: () => null, bySourceUrl: () => null }
 
@@ -43,6 +43,7 @@ const AGENT_JSON = JSON.stringify({
   venue: 'SIGGRAPH',
   abstract: '要旨',
   arxivId: null,
+  doi: '10.1145/3528223.3530127',
   slugKeyword: 'instant-ngp',
 })
 
@@ -77,6 +78,27 @@ test('未知の出所はエージェントが解決する', async () => {
   assert.equal(outcome.source.title, 'Instant Neural Graphics Primitives')
   assert.equal(outcome.source.venue, 'SIGGRAPH')
   assert.equal(outcome.source.slugKeyword, 'instant-ngp')
+  assert.equal(outcome.source.doi, '10.1145/3528223.3530127')
+})
+
+test('DOI は前置きを落として 10. から始まる形にする', async () => {
+  const json = JSON.stringify({ ...JSON.parse(AGENT_JSON), doi: 'https://doi.org/10.1145/3528223.3530127' })
+  const outcome = await resolveSource('https://example.org/project/', {
+    codex: fakeCodex(json),
+    model: 'test',
+    known: NONE,
+  })
+  assert.equal(outcome.kind === 'resolved' && outcome.source.doi, '10.1145/3528223.3530127')
+})
+
+test('DOI として読めない値は空にする', async () => {
+  const json = JSON.stringify({ ...JSON.parse(AGENT_JSON), doi: '不明' })
+  const outcome = await resolveSource('https://example.org/project/', {
+    codex: fakeCodex(json),
+    model: 'test',
+    known: NONE,
+  })
+  assert.equal(outcome.kind === 'resolved' && outcome.source.doi, null)
 })
 
 test('エージェントが見つけた arXiv 識別子でも重複を判定する', async () => {
@@ -109,4 +131,11 @@ test('必須の項目が欠けた応答は失敗にする', async () => {
     }),
     /URL を解決できなかった/,
   )
+})
+
+test('URL かどうかで、探し方を分ける', () => {
+  assert.equal(looksLikeUrl('https://arxiv.org/abs/2003.08934'), true)
+  assert.equal(looksLikeUrl('  http://example.com/a.pdf '), true)
+  assert.equal(looksLikeUrl('3D Gaussian Splatting for Real-Time Radiance Field Rendering'), false)
+  assert.equal(looksLikeUrl('10.1145/3592433'), false)
 })

@@ -138,6 +138,14 @@ const MIGRATIONS: Migration[] = [
       end;
     `,
   },
+  {
+    version: 4,
+    up: `
+      -- 参考文献との突き合わせに使う(0015)。
+      alter table papers add column doi text;
+      create index papers_doi on papers (doi);
+    `,
+  },
 ]
 
 /** 一覧に出す会話の要点。発言そのものは含まない。 */
@@ -200,13 +208,14 @@ export class IndexDb {
       this.#db
         .prepare(
           `insert into papers
-             (slug, title, venue, year, arxiv_id, source_url, pdf_url, added_at, mtime_ms, body_hash, embedding_stale)
-           values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             (slug, title, venue, year, arxiv_id, doi, source_url, pdf_url, added_at, mtime_ms, body_hash, embedding_stale)
+           values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            on conflict (slug) do update set
              title = excluded.title,
              venue = excluded.venue,
              year = excluded.year,
              arxiv_id = excluded.arxiv_id,
+             doi = excluded.doi,
              source_url = excluded.source_url,
              pdf_url = excluded.pdf_url,
              added_at = excluded.added_at,
@@ -220,6 +229,7 @@ export class IndexDb {
           meta.venue,
           meta.year,
           meta.arxivId,
+          meta.doi,
           meta.sourceUrl,
           meta.pdfUrl,
           meta.addedAt,
@@ -340,11 +350,36 @@ export class IndexDb {
     return row?.slug ?? null
   }
 
+  /** DOI で論文を引く。大文字と小文字は区別しない(0015)。 */
+  findByDoi(doi: string): string | null {
+    const row = this.#db.prepare('select slug from papers where lower(doi) = lower(?) limit 1').get(doi) as
+      | { slug: string }
+      | undefined
+    return row?.slug ?? null
+  }
+
   findBySourceUrl(url: string): string | null {
     const row = this.#db
       .prepare('select slug from papers where source_url = ? or pdf_url = ? limit 1')
       .get(url, url) as { slug: string } | undefined
     return row?.slug ?? null
+  }
+
+  /** 取り込んだ順に新しいものから返す。何も検索していない一覧の並びになる。 */
+  slugsByAdded(): string[] {
+    const rows = this.#db.prepare('select slug from papers order by added_at desc, slug').all() as Array<{
+      slug: string
+    }>
+    return rows.map((r) => r.slug)
+  }
+
+  /** 題での突き合わせに使う一覧(0015)。件数はコレクションの論文の数で、1 回の問い合わせで読む。 */
+  titles(): Array<{ slug: string; title: string; year: number | null }> {
+    return this.#db.prepare('select slug, title, year from papers').all() as Array<{
+      slug: string
+      title: string
+      year: number | null
+    }>
   }
 
   allSlugs(): Set<string> {
@@ -403,7 +438,7 @@ export class IndexDb {
 
     if (where.length === 0) return null
     const rows = this.#db
-      .prepare(`select p.slug as slug from papers p where ${where.join(' and ')} order by p.slug`)
+      .prepare(`select p.slug as slug from papers p where ${where.join(' and ')} order by p.added_at desc, p.slug`)
       .all(...params) as Array<{ slug: string }>
     return rows.map((r) => r.slug)
   }

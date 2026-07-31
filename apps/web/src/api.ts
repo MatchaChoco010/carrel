@@ -38,7 +38,7 @@ export type JobsResponse = {
   jobs: Job[]
 }
 
-export type IngestStage = 'resolve' | 'fetch' | 'convert' | 'verify' | 'translate' | 'register'
+export type IngestStage = 'resolve' | 'fetch' | 'convert' | 'verify' | 'translate' | 'register' | 'references'
 
 export type Ingest = {
   slug: string
@@ -179,10 +179,24 @@ export type PaperMeta = {
   venue: string | null
   year: number | null
   arxivId: string | null
+  doi: string | null
   sourceUrl: string
   pdfUrl: string | null
   tags: string[]
   addedAt: string
+}
+
+/** 論文の参考文献 1 件。取り込み済みなら importedSlug が入る(0015)。 */
+export type Reference = {
+  text: string
+  title: string
+  authors: string[]
+  year: number | null
+  arxivId: string | null
+  doi: string | null
+  url: string | null
+  kind: 'paper' | 'other'
+  importedSlug: string | null
 }
 
 export type PaperDetail = {
@@ -281,9 +295,19 @@ export const api = {
     getJson<{ hits: SearchHit[] }>(`/api/search?${searchParams(query, filter)}`),
   paper: (slug: string) => getJson<PaperDetail>(`/api/papers/${encodeURIComponent(slug)}`),
   paperRaw: (slug: string) => getJson<{ raw: string }>(`/api/papers/${encodeURIComponent(slug)}/raw`),
+  /** references が null なら、参考文献の段階がまだ走っていない。 */
+  paperReferences: (slug: string) =>
+    getJson<{ references: Reference[] | null }>(`/api/papers/${encodeURIComponent(slug)}/references`),
+  buildReferences: (slug: string) =>
+    sendJson<{ job: Job }>('POST', `/api/papers/${encodeURIComponent(slug)}/references`, {}),
   setTags: (slug: string, tags: string[]) =>
     sendJson<{ slug: string; tags: string[] }>('PUT', `/api/papers/${encodeURIComponent(slug)}/tags`, { tags }),
-  importPaper: (url: string) => sendJson<{ slug?: string; error?: string }>('POST', '/api/papers/import', { url }),
+  importPaper: (url: string) =>
+    sendJson<{ kind?: 'queued' | 'duplicate'; slug?: string; state?: string; error?: string }>(
+      'POST',
+      '/api/papers/import',
+      { url },
+    ),
   deletePaper: (slug: string) =>
     sendJson<{ deleted: string; cancelledJobs: number; runningJobs: number }>(
       'DELETE',

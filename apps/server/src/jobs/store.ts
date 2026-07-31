@@ -187,15 +187,19 @@ export class JobStore {
     return counts
   }
 
-  /** 完了した古い仕事を捨てる。一覧が無限に伸びないようにする。 */
-  pruneDone(keep: number): number {
+  /**
+   * 済んだ仕事を捨てる。一覧が無限に伸びないようにする。
+   *
+   * 直近の `keep` 件は残す。それより古いものは、済んでから `maxAgeMs` を過ぎたら捨てる。
+   */
+  pruneDone(keep: number, maxAgeMs: number, now = Date.now()): number {
     const result = this.#db
       .prepare(
-        `delete from jobs where state = 'done' and id not in (
+        `delete from jobs where state = 'done' and updated_at < ? and id not in (
            select id from jobs where state = 'done' order by id desc limit ?
          )`,
       )
-      .run(keep)
+      .run(now - maxAgeMs, keep)
     return Number(result.changes)
   }
 }

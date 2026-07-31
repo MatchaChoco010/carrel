@@ -19,5 +19,7 @@ pct(paper collection tool)の設計判断の記録。
 | [0012](0012_chat_branching.md) | 会話の分岐に turn の識別子を持たせる | approved | done (2026-07-30) |
 | [0013](0013_chat_images.md) | チャットで画像を扱う | approved | done (2026-07-31) |
 | [0014](0014_chat_instructions.md) | 会話のエージェントへ渡す指示 | approved | done (2026-07-31) |
+| [0015](0015_paper_references.md) | 論文の参考文献を持つ | approved | done (2026-07-31) |
+| [0016](0016_import_from_chat.md) | チャットからの取り込み | approved | done (2026-07-31) |
 
-件数: 14
+件数: 16

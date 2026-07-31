@@ -34,6 +34,7 @@ const meta = (slug: string, over: Partial<PaperMeta> = {}): PaperMeta => ({
   venue: 'ACM TOG',
   year: 2023,
   arxivId: null,
+  doi: null,
   sourceUrl: `https://example.com/${slug}`,
   pdfUrl: null,
   tags: [],
@@ -217,6 +218,49 @@ test('見出し経路と抜粋を返す', async () => {
     const hits = await search({ text: 'gaussian' }, { index: h.index, chunks: h.chunks, embed: fakeEmbed })
     assert.equal(hits[0]?.path, '3 手法 > 3.1 最適化')
     assert.match(hits[0]?.excerpt ?? '', /gaussian/)
+  } finally {
+    h.close()
+  }
+})
+
+test('何も検索していないときは、取り込んだ順に新しいものから並ぶ', async () => {
+  const h = harness()
+  try {
+    await addPaper(h, meta('old2020-paper', { addedAt: '2026-07-01T10:00:00+09:00' as PaperMeta['addedAt'] }), [])
+    await addPaper(h, meta('new2026-paper', { addedAt: '2026-07-31T10:00:00+09:00' as PaperMeta['addedAt'] }), [])
+    await addPaper(h, meta('mid2023-paper', { addedAt: '2026-07-15T10:00:00+09:00' as PaperMeta['addedAt'] }), [])
+
+    const hits = await search({}, { index: h.index, chunks: h.chunks, embed: fakeEmbed })
+
+    assert.deepEqual(
+      hits.map((hit) => hit.slug),
+      ['new2026-paper', 'mid2023-paper', 'old2020-paper'],
+    )
+  } finally {
+    h.close()
+  }
+})
+
+test('条件で絞ったときも、取り込んだ順に新しいものから並ぶ', async () => {
+  const h = harness()
+  try {
+    await addPaper(
+      h,
+      meta('old2020-paper', { venue: 'SIGGRAPH', addedAt: '2026-07-01T10:00:00+09:00' as PaperMeta['addedAt'] }),
+      [],
+    )
+    await addPaper(
+      h,
+      meta('new2026-paper', { venue: 'SIGGRAPH', addedAt: '2026-07-31T10:00:00+09:00' as PaperMeta['addedAt'] }),
+      [],
+    )
+
+    const hits = await search({ filter: { venue: 'SIGGRAPH' } }, { index: h.index, chunks: h.chunks, embed: fakeEmbed })
+
+    assert.deepEqual(
+      hits.map((hit) => hit.slug),
+      ['new2026-paper', 'old2020-paper'],
+    )
   } finally {
     h.close()
   }

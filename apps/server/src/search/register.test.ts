@@ -18,6 +18,7 @@ const meta = (slug: string): PaperMeta => ({
   venue: 'ACM TOG',
   year: 2023,
   arxivId: null,
+  doi: null,
   sourceUrl: `https://example.com/${slug}`,
   pdfUrl: null,
   tags: [],
@@ -48,6 +49,21 @@ test('登録すると、埋め込みの作り直しが要る印が下りる', as
 
     assert.deepEqual(h.index.staleEmbeddingSlugs(), [], '印が残ると、起動のたびに作り直しを積み直す')
     assert.ok(h.chunks.countChunks() > 0)
+  } finally {
+    h.close()
+  }
+})
+
+test('DOI で論文を引ける', async () => {
+  const h = harness()
+  try {
+    await writePaper(h.root, { ...meta('kerbl2023-3dgs'), doi: '10.1111/cgf.14340' }, '')
+
+    await registerPaper('kerbl2023-3dgs', h.deps)
+
+    assert.equal(h.index.findByDoi('10.1111/cgf.14340'), 'kerbl2023-3dgs')
+    assert.equal(h.index.findByDoi('10.1111/CGF.14340'), 'kerbl2023-3dgs')
+    assert.equal(h.index.findByDoi('10.1111/cgf.00000'), null)
   } finally {
     h.close()
   }
