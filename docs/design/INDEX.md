@@ -21,7 +21,7 @@ pct(paper collection tool)の設計判断の記録。
 | [0014](0014_chat_instructions.md) | 会話のエージェントへ渡す指示 | approved | done (2026-07-31) |
 | [0015](0015_paper_references.md) | 論文の参考文献を持つ | approved | done (2026-07-31) |
 | [0016](0016_import_from_chat.md) | チャットからの取り込み | approved | done (2026-07-31) |
-| [0017](0017_references_in_body.md) | 参考文献を本文の中で辿る | reviewing | not-started |
-| [0018](0018_undo_last_exchange.md) | 直前のやりとりの取り消し | reviewing | not-started |
+| [0017](0017_references_in_body.md) | 参考文献を本文の中で辿る | approved | not-started |
+| [0018](0018_undo_last_exchange.md) | 直前のやりとりの取り消し | approved | not-started |
 
 件数: 18
