@@ -24,6 +24,7 @@ import { JobQueue } from './jobs/queue.ts'
 import { JobStore } from './jobs/store.ts'
 import { IngestStore } from './ingest/store.ts'
 import { enqueueFeedFetch, registerFeed } from './feed/job.ts'
+import { enqueueResolve, registerResolve } from './ingest/job.ts'
 import { FeedStore } from './feed/store.ts'
 import { createChat } from './chat/create.ts'
 import {
@@ -93,6 +94,16 @@ async function main(): Promise<void> {
       resumeAt: () => codex.rateLimits?.nextResetAt ?? null,
     },
     onChange: (job) => hub.broadcast({ type: 'job.changed', payload: job }),
+  })
+
+  registerResolve(jobs, {
+    dataDir,
+    index,
+    ingests,
+    codex: codex.client,
+    model: () => config.ingest.model,
+    onImported: (slug) => enqueueConvert(jobs, slug),
+    linkFeed: (arxivId, slug) => feed.setSlug(arxivId, slug),
   })
 
   registerConvert(jobs, {
@@ -215,7 +226,7 @@ async function main(): Promise<void> {
   const app = createApp({
     search: (query) => search(query, { index, chunks, embed }),
     searchChats: (query) => searchChats(query, { index, chunks: chatChunks, embed }),
-    onIngested: (slug) => enqueueConvert(jobs, slug),
+    enqueueResolve: (url) => enqueueResolve(jobs, url),
     dataDir,
     getConfig: () => config,
     setConfig: (next) => {

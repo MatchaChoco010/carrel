@@ -283,7 +283,12 @@ export const api = {
   paperRaw: (slug: string) => getJson<{ raw: string }>(`/api/papers/${encodeURIComponent(slug)}/raw`),
   setTags: (slug: string, tags: string[]) =>
     sendJson<{ slug: string; tags: string[] }>('PUT', `/api/papers/${encodeURIComponent(slug)}/tags`, { tags }),
-  importPaper: (url: string) => sendJson<{ slug?: string; error?: string }>('POST', '/api/papers/import', { url }),
+  importPaper: (url: string) =>
+    sendJson<{ kind?: 'queued' | 'duplicate'; slug?: string; state?: string; error?: string }>(
+      'POST',
+      '/api/papers/import',
+      { url },
+    ),
   deletePaper: (slug: string) =>
     sendJson<{ deleted: string; cancelledJobs: number; runningJobs: number }>(
       'DELETE',
