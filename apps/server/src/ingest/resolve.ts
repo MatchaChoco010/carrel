@@ -1,14 +1,17 @@
 import type { CodexClient } from '../codex/client.ts'
-import { textInput } from '../codex/protocol.ts'
+import { imagesAndTextInput, textInput } from '../codex/protocol.ts'
 import { normalizeDoi } from '../data/doi.ts'
 import { runTurn, startWorkThread } from '../codex/threads.ts'
 import { extractArxivId, isArxivUrl, lookupArxiv } from './arxiv.ts'
+import { readOriginalHead, type HeadPaths } from './head.ts'
 import type { ResolvedSource, ResolveOutcome, SourceKind } from './types.ts'
 
 /** 既に取り込んである論文を引く口。 */
 export type KnownPapers = {
   byArxivId: (arxivId: string) => string | null
   bySourceUrl: (url: string) => string | null
+  /** 題での突き合わせ。手元から入れた原本には URL が無いので、これで重複を判じる(0021)。 */
+  byTitle: (title: string) => string | null
 }
 
 const AGENT_INSTRUCTIONS = [
@@ -166,4 +169,107 @@ export async function resolveSource(sourceUrl: string, deps: ResolveDeps): Promi
   }
 
   return { kind: 'resolved', source, sourceUrl }
+}
+
+/**
+ * 手元の原本の先頭から書誌を読み取る指示。
+ *
+ * web は探させない。学会名と DOI を確かめるのは後の段階の仕事である(0020)。ここで要るのは
+ * slug を決めるための名前と、重複を判じるための題名だけである(0021)。
+ */
+const HEAD_INSTRUCTIONS = [
+  'あなたは論文の原本の先頭から書誌情報を読み取る。',
+  '渡されるのは PDF の先頭 2 ページ分である。文字層か、そのページの画像で届く。',
+  '所属機関のリポジトリが付けた表紙が先頭にあることがある。表紙ではなく論文そのものの標題を選ぶ。',
+  '著者は紙面の書式をそのまま写さない。全部を大文字にした表記は、通常の表記に直す。',
+  '読み取れない項目は null にする。web は使わない。',
+  '要求された JSON だけを返す。',
+].join('\n')
+
+const HEAD_SCHEMA = {
+  type: 'object',
+  properties: {
+    title: { type: ['string', 'null'], description: '論文の標題。' },
+    authors: { type: 'array', items: { type: 'string' }, description: '著者。順序を保つ。' },
+    year: { type: ['integer', 'null'], description: '紙面から読める出版年。無ければ null。' },
+    abstract: { type: ['string', 'null'], description: 'abstract の本文。無ければ null。' },
+    slugKeyword: {
+      type: ['string', 'null'],
+      description: '論文に定着した略称。無ければタイトルの内容語を 1〜3 語。',
+    },
+  },
+  required: ['title', 'authors', 'year', 'abstract', 'slugKeyword'],
+  additionalProperties: false,
+}
+
+export type ResolveOriginalDeps = ResolveDeps & {
+  /** 原本の先頭を読む道具。 */
+  head: HeadPaths
+}
+
+/**
+ * 手元の原本から書誌を確定する(0021)。
+ *
+ * 原本は既に手元にあるので、所在は空にする。`source_url` と `pdf_url` を持たない論文に
+ * なり、出所は後の段階が入れる DOI が表す(0020)。
+ */
+export async function resolveFromOriginal(pdf: string, deps: ResolveOriginalDeps): Promise<ResolveOutcome> {
+  const head = await readOriginalHead(pdf, deps.head)
+  const threadId = await startWorkThread(deps.codex, { instructions: HEAD_INSTRUCTIONS, model: deps.model })
+  try {
+    const asked = '次の原本の先頭から、論文の書誌情報を読み取れ。'
+    const outcome = await runTurn(deps.codex, {
+      threadId,
+      input:
+        head.kind === 'text'
+          ? textInput(`${asked}\n\n${head.text.slice(0, HEAD_CHARS)}`)
+          : imagesAndTextInput(head.files, asked),
+      effort: 'low',
+      outputSchema: HEAD_SCHEMA,
+    })
+
+    const source = parseHeadResult(outcome.text)
+    if (source === null) throw new Error('原本の先頭から書誌を読み取れなかった')
+
+    const byTitle = deps.known.byTitle(source.title)
+    if (byTitle !== null) return { kind: 'duplicate', slug: byTitle, reason: 'title' }
+
+    return { kind: 'resolved', source, sourceUrl: null }
+  } finally {
+    if (head.kind === 'images') await head.dispose()
+  }
+}
+
+/** 文字層を渡すときの上限。標題と著者と abstract が収まればよい。 */
+const HEAD_CHARS = 12000
+
+function parseHeadResult(text: string): ResolvedSource | null {
+  let raw: unknown
+  try {
+    raw = JSON.parse(text)
+  } catch {
+    return null
+  }
+  if (typeof raw !== 'object' || raw === null) return null
+  const r = raw as Record<string, unknown>
+
+  const title = asString(r['title'])
+  if (title === null) return null
+
+  return {
+    originalUrl: null,
+    alternateUrls: [],
+    kind: 'pdf',
+    title,
+    authors: Array.isArray(r['authors'])
+      ? r['authors'].filter((a): a is string => typeof a === 'string' && a.trim().length > 0).map((a) => a.trim())
+      : [],
+    year: typeof r['year'] === 'number' && Number.isInteger(r['year']) ? r['year'] : null,
+    venue: null,
+    abstract: asString(r['abstract']),
+    arxivId: null,
+    doi: null,
+    slugKeyword: asString(r['slugKeyword']),
+    via: 'original',
+  }
 }

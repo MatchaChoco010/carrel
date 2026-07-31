@@ -11,6 +11,7 @@ import type { CodexModel } from './codex/models.ts'
 import { readChat, writeChat, type Chat } from './data/chat.ts'
 import { FeedStore } from './feed/store.ts'
 import { discardIngest } from './ingest/pipeline.ts'
+import { uploadTarget } from './ingest/job.ts'
 import { stageOriginal } from './ingest/staging.ts'
 import type { IngestStore } from './ingest/store.ts'
 import type { JobQueue } from './jobs/queue.ts'
@@ -278,7 +279,10 @@ export function createApp(deps: AppDeps): Hono {
     if (body === null) return c.json({ error: '原本の中身が送られていない' }, 400)
     try {
       const staged = await stageOriginal(deps.stateDir, name, body)
-      return c.json({ id: staged.id, name: staged.name, bytes: staged.bytes })
+      // 預かったらそのまま取り込みを積む。押した時点では論文が何かも分からないので、
+      // 解決の仕事が原本の先頭を読んで決める(0021)。
+      const job = deps.enqueueResolve(uploadTarget(staged.id))
+      return c.json({ kind: 'queued', job, name: staged.name, bytes: staged.bytes })
     } catch (error) {
       return c.json({ error: error instanceof Error ? error.message : String(error) }, 400)
     }

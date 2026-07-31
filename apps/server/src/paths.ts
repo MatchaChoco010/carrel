@@ -24,6 +24,11 @@ export function indexDbFile(): string {
   return join(stateDir(), 'index.sqlite')
 }
 
+/** ページを画像にする script(0021)。 */
+export function pagesScript(): string {
+  return join(converterDir(), 'pct_pages.py')
+}
+
 export function stateDbFile(): string {
   return join(stateDir(), 'state.sqlite')
 }
