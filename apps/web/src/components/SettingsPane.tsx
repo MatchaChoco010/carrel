@@ -274,6 +274,29 @@ export function SettingsPane({ onChanged, reading, onReadingChange }: SettingsPa
       </section>
 
       <section className="settings__group">
+        <h3>送信のキー</h3>
+        <label className="settings__check">
+          <input
+            type="checkbox"
+            checked={config.chat.sendOnEnter}
+            onChange={(e) => save({ chat: { ...config.chat, sendOnEnter: e.target.checked } })}
+          />
+          Enter キーで送信
+        </label>
+        <label className="settings__check">
+          <input
+            type="checkbox"
+            checked={config.chat.sendOnCtrlEnter}
+            onChange={(e) => save({ chat: { ...config.chat, sendOnCtrlEnter: e.target.checked } })}
+          />
+          Ctrl+Enter キーで送信
+        </label>
+        <p className="settings__hint">
+          どちらも外すと、送るのはボタンだけになる。`@` の候補が出ている間の Enter は、まず候補を選ぶ。
+        </p>
+      </section>
+
+      <section className="settings__group">
         <h3>エージェントへの指示</h3>
         <textarea
           className="settings__instructions"

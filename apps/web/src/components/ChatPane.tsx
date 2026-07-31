@@ -57,6 +57,8 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
   const [effort, setEffort] = useState<string>('')
   /** 設定の既定。会話が自分の値を持たないときに使う。 */
   const [defaults, setDefaults] = useState<{ model: string; effort: string } | null>(null)
+  /** Enter 系のキーで送るかどうか。設定で選ぶ。 */
+  const [sendKeys, setSendKeys] = useState({ enter: false, ctrlEnter: false })
   /** 開いている会話が記録している値。まだ話していない会話は持たない。 */
   const [recorded, setRecorded] = useState<{ model: string | null; effort: string | null }>({
     model: null,
@@ -65,6 +67,8 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
   const [turn, setTurn] = useState<Turn | null>(null)
   // 末尾から数えて描く発言の外にある、古い発言の数。
   const [hidden, setHidden] = useState(0)
+  // 選んでいる発言。マウスの無い端末で、分岐のボタンを出すために使う。
+  const [selected, setSelected] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const input = useRef<HTMLTextAreaElement>(null)
   const log = useRef<HTMLDivElement>(null)
@@ -88,7 +92,10 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
     const read = (): void => {
       void api
         .config()
-        .then((c) => setDefaults({ model: c.chat.defaultModel, effort: c.chat.defaultEffort }))
+        .then((c) => {
+          setDefaults({ model: c.chat.defaultModel, effort: c.chat.defaultEffort })
+          setSendKeys({ enter: c.chat.sendOnEnter, ctrlEnter: c.chat.sendOnCtrlEnter })
+        })
         .catch(() => setDefaults(null))
     }
     read()
@@ -164,7 +171,7 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
   const efforts = useMemo(() => models.find((m) => m.id === model)?.efforts ?? [], [models, model])
 
   const load = useCallback((target: string) => {
-    void api
+    return api
       .chat(target)
       .then((r) => {
         setMessages(r.messages)
@@ -191,7 +198,7 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
       setError(null)
       return
     }
-    load(id)
+    void load(id)
   }, [id, load])
 
   useEffect(
@@ -206,18 +213,18 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
           case 'chat.turn.delta':
             setTurn((previous) => ({ id, delta: (previous?.delta ?? '') + (payload.delta ?? '') }))
             return
+          // 描いている途中の応答は、記録を読み終えてから外す。先に外すと本文が
+          // いったん縮み、末尾を見ていたはずの位置が自分の発言の下へ落ちる。
           case 'chat.turn.completed':
-            setTurn(null)
-            load(id)
+            void load(id).then(() => setTurn(null))
             return
           case 'chat.turn.failed':
-            setTurn(null)
             setError(payload.message ?? '応答が返らなかった')
-            load(id)
+            void load(id).then(() => setTurn(null))
             return
           // アーカイブや題の書き換えは一覧からも起きる。
           case 'chat.changed':
-            load(id)
+            void load(id)
             return
           case 'chat.removed':
             onOpen(null)
@@ -336,7 +343,15 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
         {messages.slice(hidden).map((message, offset) => {
           const index = hidden + offset
           return (
-          <article key={`${message.at}-${index}`} className={`turn turn--${message.role}`}>
+          <article
+            key={`${message.at}-${index}`}
+            className={`turn turn--${message.role} ${selected === index ? 'turn--selected' : ''}`}
+            // マウスを重ねられない端末では、発言を選ぶと操作が出る。
+            onClick={(event) => {
+              if ((event.target as HTMLElement).closest('a, button') !== null) return
+              setSelected((previous) => (previous === index ? null : index))
+            }}
+          >
             <Markdown text={message.text} chatId={shown ?? undefined} />
             {/* 最初の turn より後の発言から分岐できる(0012)。 */}
             {id !== null && index >= 2 && (
@@ -353,14 +368,18 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
           )
         })}
         {turn !== null && (
-          <article className="turn turn--assistant turn--running">
-            {turn.delta.length === 0 ? (
-              <p className="turn__waiting">
-                <Loader2 size={ICON} className="spin" aria-hidden /> 考えています
-              </p>
-            ) : (
-              <Markdown text={turn.delta} chatId={shown ?? undefined} />
-            )}
+          <article className="turn turn--assistant">
+            {turn.delta.length === 0 ? null : <Markdown text={turn.delta} chatId={shown ?? undefined} />}
+            {/* 応答が伸びている間も、伸びが止まって見える間も、作っていることを示し続ける。 */}
+            <p className="turn__working">
+              <Loader2 size={ICON} className="spin" aria-hidden />
+              応答を作っています
+              <span className="turn__dots" aria-hidden>
+                <i />
+                <i />
+                <i />
+              </span>
+            </p>
           </article>
         )}
       </div>
@@ -433,7 +452,15 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
             ))}
           </ul>
         )}
-        <SlugSuggest slugs={slugs} value={draft} onChange={setDraft} inputRef={input} />
+        <SlugSuggest
+          slugs={slugs}
+          value={draft}
+          onChange={setDraft}
+          inputRef={input}
+          sendOnEnter={sendKeys.enter}
+          sendOnCtrlEnter={sendKeys.ctrlEnter}
+          onSend={() => sendable && send()}
+        />
         {/* 送るボタンを入力欄の次に置く。Escape のあと Tab を 1 回で届くようにする。
             見た目の並びは CSS の order で戻す。 */}
         <div className="chat__controls">

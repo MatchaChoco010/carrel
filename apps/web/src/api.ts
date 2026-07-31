@@ -38,7 +38,7 @@ export type JobsResponse = {
   jobs: Job[]
 }
 
-export type IngestStage = 'resolve' | 'fetch' | 'convert' | 'verify' | 'translate' | 'register' | 'references'
+export type IngestStage = 'resolve' | 'fetch' | 'convert' | 'verify' | 'translate' | 'references' | 'register'
 
 export type Ingest = {
   slug: string
@@ -125,7 +125,13 @@ export type Config = {
   dataDir: string
   server: { host: string; port: number }
   arxiv: { categories: string[]; fetchIntervalMinutes: number; initialLookbackDays: number }
-  chat: { defaultModel: string; defaultEffort: string; instructions: string }
+  chat: {
+    defaultModel: string
+    defaultEffort: string
+    instructions: string
+    sendOnEnter: boolean
+    sendOnCtrlEnter: boolean
+  }
   ingest: { model: string; effort: string; serviceTier: string | null }
   embedding: { baseUrl: string; model: string; dimensions: number }
   converter: { python: string; llamaServer: string; llamaLibDir: string; pageScale: number }
@@ -294,7 +300,6 @@ export const api = {
   search: (query: string, filter: SearchFilter = {}) =>
     getJson<{ hits: SearchHit[] }>(`/api/search?${searchParams(query, filter)}`),
   paper: (slug: string) => getJson<PaperDetail>(`/api/papers/${encodeURIComponent(slug)}`),
-  paperRaw: (slug: string) => getJson<{ raw: string }>(`/api/papers/${encodeURIComponent(slug)}/raw`),
   /** references が null なら、参考文献の段階がまだ走っていない。 */
   paperReferences: (slug: string) =>
     getJson<{ references: Reference[] | null }>(`/api/papers/${encodeURIComponent(slug)}/references`),
