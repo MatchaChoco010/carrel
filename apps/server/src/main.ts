@@ -379,7 +379,11 @@ async function main(): Promise<void> {
     console.error('codex app-server を起動できなかった', error)
   }
 
+  // 合図は続けて届くことがある。2 度目からは何もしない。
+  let stopping = false
   const shutdown = (signal: string): void => {
+    if (stopping) return
+    stopping = true
     console.log(`${signal} を受けたので終了する`)
     collection.stopWatching()
     clearInterval(feedTimer)
