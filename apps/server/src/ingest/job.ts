@@ -3,13 +3,26 @@ import type { IndexDb } from '../db/index-db.ts'
 import type { JobQueue } from '../jobs/queue.ts'
 import type { Job } from '../jobs/types.ts'
 import { extractArxivId } from './arxiv.ts'
-import { ingestFromUrl } from './pipeline.ts'
+import type { HeadPaths } from './head.ts'
+import { ingestFromUpload, ingestFromUrl, type IngestResult } from './pipeline.ts'
+import { readStaged, removeStaged } from './staging.ts'
 import type { IngestStore } from './store.ts'
 
 export const RESOLVE_JOB = 'resolve'
 
+/** 手元から預かった原本を指す仕事の対象。URL と見分けるために印を付ける。 */
+const UPLOAD_PREFIX = 'upload:'
+
+export function uploadTarget(id: string): string {
+  return `${UPLOAD_PREFIX}${id}`
+}
+
 export type ResolveDeps = {
   dataDir: string
+  /** 預かった原本の置き場を持つディレクトリ(0021)。 */
+  stateDir: string
+  /** 原本の先頭を読む道具(0021)。 */
+  head: HeadPaths
   index: IndexDb
   ingests: IngestStore
   codex: CodexClient
@@ -34,13 +47,15 @@ export function enqueueResolve(queue: JobQueue, url: string): Job {
 export function registerResolve(queue: JobQueue, deps: ResolveDeps): void {
   queue.register(RESOLVE_JOB, async (job) => {
     const url = job.target
-    const result = await ingestFromUrl(url, {
-      dataDir: deps.dataDir,
-      index: deps.index,
-      ingests: deps.ingests,
-      codex: deps.codex,
-      model: deps.model(),
-    })
+    const result = url.startsWith(UPLOAD_PREFIX)
+      ? await resolveUpload(url.slice(UPLOAD_PREFIX.length), deps)
+      : await ingestFromUrl(url, {
+          dataDir: deps.dataDir,
+          index: deps.index,
+          ingests: deps.ingests,
+          codex: deps.codex,
+          model: deps.model(),
+        })
 
     const arxivId = extractArxivId(url)
     if (arxivId !== null) deps.linkFeed(arxivId, result.slug)
@@ -56,4 +71,28 @@ export function registerResolve(queue: JobQueue, deps: ResolveDeps): void {
       throw new Error(record?.lastError ?? `前の取り込みが失敗している: ${result.slug}`)
     }
   })
+}
+
+/**
+ * 預かった原本から取り込む。
+ *
+ * 取り込みが始まらなかったときも、預かった原本を置き場に残さない(0021)。取り込みが
+ * 始まったときは、取得の段階がコレクションへ移した時点で置き場から無くなっている。
+ */
+async function resolveUpload(id: string, deps: ResolveDeps): Promise<IngestResult> {
+  const staged = await readStaged(deps.stateDir, id)
+  if (staged === null) throw new Error(`預かった原本が見つからない: ${id}`)
+
+  try {
+    return await ingestFromUpload(staged, {
+      dataDir: deps.dataDir,
+      index: deps.index,
+      ingests: deps.ingests,
+      codex: deps.codex,
+      model: deps.model(),
+      head: deps.head,
+    })
+  } finally {
+    await removeStaged(deps.stateDir, id)
+  }
 }

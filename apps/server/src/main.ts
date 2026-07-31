@@ -12,6 +12,8 @@ import { ChatChunkStore } from './search/chat-store.ts'
 import { enqueueEmbed, enqueueRegister, registerEmbed, registerRegister } from './search/job.ts'
 import { buildSegmenter } from './search/segment.ts'
 import { ChunkStore } from './search/store.ts'
+import { enqueueBibliography, registerBibliography } from './bibliography/job.ts'
+import { sweepStaged } from './ingest/staging.ts'
 import { enqueueReferences, registerReferences } from './references/job.ts'
 import { enqueueTranslate, registerTranslate } from './translate/job.ts'
 import { enqueueVerify, registerVerify } from './verify/job.ts'
@@ -44,7 +46,15 @@ import { reloadChat } from './chat/reload.ts'
 import { deleteChat, setArchived } from './chat/lifecycle.ts'
 import { listModels } from './codex/models.ts'
 import { Hub } from './hub.ts'
-import { converterScript, indexDbFile, stateDbFile, stateDir, textLayerScript, webRoot } from './paths.ts'
+import {
+  converterScript,
+  indexDbFile,
+  pagesScript,
+  stateDbFile,
+  stateDir,
+  textLayerScript,
+  webRoot,
+} from './paths.ts'
 
 async function main(): Promise<void> {
   let config: Config = await loadConfig()
@@ -52,6 +62,9 @@ async function main(): Promise<void> {
   // 変えると取り込みと変換が別の場所を見る。保存した値は次の起動から効く。
   const dataDir = config.dataDir
   await mkdir(stateDir(), { recursive: true })
+  // 上げたまま取り込みに使われなかった原本を掃く(0021)。
+  const swept = await sweepStaged(stateDir())
+  if (swept > 0) console.log(`預かったままの原本を ${swept} 件消した`)
 
   const hub = new Hub()
   const index = new IndexDb(indexDbFile())
@@ -101,6 +114,12 @@ async function main(): Promise<void> {
 
   registerResolve(jobs, {
     dataDir,
+    stateDir: stateDir(),
+    head: {
+      python: config.converter.python,
+      textLayer: textLayerScript(),
+      pages: pagesScript(),
+    },
     index,
     ingests,
     codex: codex.client,
@@ -129,6 +148,16 @@ async function main(): Promise<void> {
     effort: config.ingest.effort,
     serviceTier: config.ingest.serviceTier,
     textLayer: { python: config.converter.python, script: textLayerScript() },
+    onDone: (slug) => enqueueBibliography(jobs, slug),
+  })
+
+  registerBibliography(jobs, {
+    dataDir,
+    ingests,
+    codex: codex.client,
+    model: config.ingest.model,
+    effort: config.ingest.effort,
+    serviceTier: config.ingest.serviceTier,
     onDone: (slug) => enqueueTranslate(jobs, slug),
   })
 
@@ -335,6 +364,7 @@ async function main(): Promise<void> {
     },
     refreshFeed: () => enqueueFeedFetch(jobs),
     webRoot: await webRoot(),
+    stateDir: stateDir(),
   })
 
   const server = serve({

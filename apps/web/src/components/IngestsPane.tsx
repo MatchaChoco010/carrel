@@ -9,13 +9,23 @@ export type IngestsPaneProps = {
 const ICON = 14
 
 /** 取り込みが進む順。 */
-const STAGES: IngestStage[] = ['resolve', 'fetch', 'convert', 'verify', 'translate', 'references', 'register']
+const STAGES: IngestStage[] = [
+  'resolve',
+  'fetch',
+  'convert',
+  'verify',
+  'bibliography',
+  'translate',
+  'references',
+  'register',
+]
 
 const STAGE_LABEL: Record<IngestStage, string> = {
   resolve: '解決',
   fetch: '取得',
   convert: '変換',
   verify: '照合',
+  bibliography: '書誌',
   translate: '翻訳',
   references: '参考文献',
   register: '登録',

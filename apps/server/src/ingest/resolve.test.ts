@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import type { CodexClient } from '../codex/client.ts'
 import { looksLikeUrl, resolveSource, type KnownPapers } from './resolve.ts'
 
-const NONE: KnownPapers = { byArxivId: () => null, bySourceUrl: () => null }
+const NONE: KnownPapers = { byArxivId: () => null, bySourceUrl: () => null, byTitle: () => null }
 
 /** turn/start に対して決められた JSON を返す、最小の代役。 */
 function fakeCodex(finalText: string): CodexClient {

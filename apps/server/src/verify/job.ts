@@ -25,12 +25,12 @@ export function registerVerify(
     try {
       // 原本が HTML の論文はページ画像を作れないため、この段階を飛ばす(0004)。
       if (!(await exists(paperFile(deps.dataDir, slug, 'raw')))) {
-        deps.ingests.advance(slug, 'translate')
+        deps.ingests.advance(slug, 'bibliography')
         deps.onDone(slug)
         return
       }
       await verifyPaper(slug, deps)
-      deps.ingests.advance(slug, 'translate')
+      deps.ingests.advance(slug, 'bibliography')
       deps.onDone(slug)
     } catch (error) {
       deps.ingests.fail(slug, error instanceof Error ? error.message : String(error))

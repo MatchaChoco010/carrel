@@ -38,7 +38,15 @@ export type JobsResponse = {
   jobs: Job[]
 }
 
-export type IngestStage = 'resolve' | 'fetch' | 'convert' | 'verify' | 'translate' | 'references' | 'register'
+export type IngestStage =
+  | 'resolve'
+  | 'fetch'
+  | 'convert'
+  | 'verify'
+  | 'bibliography'
+  | 'translate'
+  | 'references'
+  | 'register'
 
 export type Ingest = {
   slug: string
@@ -321,6 +329,21 @@ export const api = {
       '/api/papers/import',
       { url },
     ),
+  /**
+   * 手元の PDF を原本として上げる(0021)。
+   *
+   * 本文をそのまま送る。ファイル名は問い合わせの文字列で渡す。上げ終わると取り込みが積まれる。
+   */
+  uploadPaper: (file: File) =>
+    fetch(`/api/papers/upload?name=${encodeURIComponent(file.name)}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/pdf' },
+      body: file,
+    }).then(async (response) => {
+      const body = (await response.json()) as { kind?: 'queued'; name?: string; error?: string }
+      if (!response.ok) throw new Error(body.error ?? `上げられなかった (${response.status})`)
+      return body
+    }),
   deletePaper: (slug: string) =>
     sendJson<{ deleted: string; cancelledJobs: number; runningJobs: number }>(
       'DELETE',

@@ -1,12 +1,14 @@
-import { access, readFile } from 'node:fs/promises'
+import { access, copyFile, mkdir, readFile, rename, rm } from 'node:fs/promises'
 import type { CodexClient } from '../codex/client.ts'
 import { nowIsoDateTime } from '../data/datetime.ts'
-import { paperFile, paperOriginalPdf } from '../data/layout.ts'
+import { paperDir, paperFile, paperOriginalPdf } from '../data/layout.ts'
 import { deletePaperDir, writePaper, writePaperSideFile, type PaperMeta } from '../data/paper.ts'
 import { buildSlug } from '../data/slug.ts'
 import type { IndexDb } from '../db/index-db.ts'
 import { fetchOriginal, looksLikePdf } from './fetch.ts'
-import { resolveSource } from './resolve.ts'
+import { readOriginalHead, type HeadPaths } from './head.ts'
+import { resolveFromOriginal, resolveSource } from './resolve.ts'
+import type { StagedOriginal } from './staging.ts'
 import type { IngestStore } from './store.ts'
 import type { IngestStage, ResolvedSource } from './types.ts'
 
@@ -18,9 +20,19 @@ export type IngestDeps = {
   model: string
 }
 
+export type UploadIngestDeps = IngestDeps & {
+  /** 原本の先頭を読む道具(0021)。 */
+  head: HeadPaths
+}
+
 export type IngestResult =
   | { kind: 'imported'; slug: string; stagesRun: IngestStage[] }
-  | { kind: 'duplicate'; slug: string; reason: 'arxivId' | 'sourceUrl'; state: 'imported' | 'inProgress' | 'failed' }
+  | {
+      kind: 'duplicate'
+      slug: string
+      reason: 'arxivId' | 'sourceUrl' | 'title'
+      state: 'imported' | 'inProgress' | 'failed'
+    }
 
 async function exists(path: string): Promise<boolean> {
   try {
@@ -44,7 +56,7 @@ export async function completedStages(dataDir: string, slug: string): Promise<Se
   return done
 }
 
-function toMeta(slug: string, source: ResolvedSource, sourceUrl: string): PaperMeta {
+function toMeta(slug: string, source: ResolvedSource, sourceUrl: string | null): PaperMeta {
   return {
     slug,
     title: source.title,
@@ -67,7 +79,7 @@ function toMeta(slug: string, source: ResolvedSource, sourceUrl: string): PaperM
  * 挙がらなかったときの受け皿になる。
  */
 function candidates(source: ResolvedSource): string[] {
-  const urls = [source.originalUrl, ...source.alternateUrls]
+  const urls = [...(source.originalUrl === null ? [] : [source.originalUrl]), ...source.alternateUrls]
   if (source.arxivId !== null) urls.push(`https://arxiv.org/pdf/${source.arxivId}`)
   return [...new Set(urls)]
 }
@@ -111,6 +123,7 @@ export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<Inge
     known: {
       byArxivId: (id) => deps.index.findByArxivId(id) ?? deps.ingests.byArxivId(id)?.slug ?? null,
       bySourceUrl: (u) => deps.index.findBySourceUrl(u) ?? deps.ingests.bySourceUrl(u)?.slug ?? null,
+      byTitle: (title) => findByTitle(deps.index, title),
     },
   })
 
@@ -120,14 +133,16 @@ export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<Inge
     return { ...outcome, state }
   }
 
-  const { source, sourceUrl } = outcome
+  const { source } = outcome
+  // URL か題名から解決したときは、必ず入り口の文字列が返る。
+  const sourceUrl = outcome.sourceUrl ?? url
   const taken = new Set([...deps.index.allSlugs(), ...deps.ingests.takenSlugs()])
   const slug = buildSlug(
     {
       authors: source.authors,
       year: source.year,
       keyword: source.slugKeyword ?? source.title,
-      identity: source.arxivId ?? source.originalUrl,
+      identity: source.arxivId ?? source.originalUrl ?? sourceUrl,
     },
     (candidate) => taken.has(candidate),
   )
@@ -162,6 +177,110 @@ export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<Inge
   }
 
   return { kind: 'imported', slug, stagesRun: ['resolve', 'fetch'] }
+}
+
+
+/**
+ * 題が同じ論文を引く。
+ *
+ * 突き合わせは、大文字と小文字、前後の空白、記号の違いを均してから行う。同じ論文でも
+ * 出所によって記号の書き方が変わるためである。
+ */
+export function normalizeTitle(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[\u2018\u2019\u201c\u201d]/g, "'")
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+}
+
+function findByTitle(index: IndexDb, title: string): string | null {
+  const wanted = normalizeTitle(title)
+  if (wanted.length === 0) return null
+  for (const paper of index.titles()) {
+    if (normalizeTitle(paper.title) === wanted) return paper.slug
+  }
+  return null
+}
+
+/**
+ * 手元から預かった原本を取り込む(0021)。
+ *
+ * 解決は原本の先頭から読み、取得は預かった原本をコレクションへ移す操作になる。取り込みが
+ * 始まらなかったときは、預かった原本も置き場に残さない。
+ */
+export async function ingestFromUpload(staged: StagedOriginal, deps: UploadIngestDeps): Promise<IngestResult> {
+  const outcome = await resolveFromOriginal(staged.path, {
+    codex: deps.codex,
+    model: deps.model,
+    head: deps.head,
+    known: {
+      byArxivId: (id) => deps.index.findByArxivId(id) ?? deps.ingests.byArxivId(id)?.slug ?? null,
+      bySourceUrl: (u) => deps.index.findBySourceUrl(u) ?? deps.ingests.bySourceUrl(u)?.slug ?? null,
+      byTitle: (title) => findByTitle(deps.index, title),
+    },
+  })
+
+  if (outcome.kind === 'duplicate') {
+    const record = deps.ingests.get(outcome.slug)
+    const state = record === null ? 'imported' : record.status === 'done' ? 'imported' : record.status
+    return { ...outcome, state }
+  }
+
+  const { source } = outcome
+  const taken = new Set([...deps.index.allSlugs(), ...deps.ingests.takenSlugs()])
+  const slug = buildSlug(
+    {
+      authors: source.authors,
+      year: source.year,
+      keyword: source.slugKeyword ?? source.title,
+      identity: staged.id,
+    },
+    (candidate) => taken.has(candidate),
+  )
+
+  // 記録には手元から入れたことと選んだファイルの名前を残す。識別子を含めるのは、同じ名前の
+  // ファイルを別の論文で選んだときに、URL の突き合わせで同じものに見えないためである(0021)。
+  deps.ingests.start({
+    slug,
+    sourceUrl: `upload:${staged.id}/${staged.name}`,
+    arxivId: null,
+    originalUrl: null,
+  })
+  deps.ingests.startStage(slug, 'resolve')
+
+  try {
+    await writePaper(deps.dataDir, toMeta(slug, source, null), '')
+    if (source.abstract !== null && source.abstract.length > 0) {
+      await writePaperSideFile(deps.dataDir, slug, 'abstract', source.abstract, 'en')
+    }
+    deps.ingests.advance(slug, 'fetch')
+
+    await mkdir(paperDir(deps.dataDir, slug), { recursive: true })
+    await moveFile(staged.path, paperOriginalPdf(deps.dataDir, slug))
+    deps.ingests.advance(slug, 'convert')
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    deps.ingests.fail(slug, message)
+    throw error
+  }
+
+  return { kind: 'imported', slug, stagesRun: ['resolve', 'fetch'] }
+}
+
+/**
+ * 置き場からコレクションへ移す。
+ *
+ * 置き場は状態のディレクトリ、コレクションは別の場所を指しうるので、同じファイルシステムで
+ * ないことがある。名前の付け替えができないときは写して消す。
+ */
+async function moveFile(from: string, to: string): Promise<void> {
+  try {
+    await rename(from, to)
+  } catch {
+    await copyFile(from, to)
+    await rm(from, { force: true })
+  }
 }
 
 /** 取り込みを取り消す。成果物と記録の両方を消す。 */

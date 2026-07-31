@@ -1,5 +1,5 @@
-import { Loader2, Plus } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { FilePlus2, Loader2, Plus } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, type PaperDetail, type SearchFilter, type SearchHit } from '../api.ts'
 import { PaperCard } from './PaperCard.tsx'
 import { PaperFilters } from './PaperFilters.tsx'
@@ -27,6 +27,7 @@ export function PapersPane({ lang, onLangChange, tags, revision, onChanged }: Pa
   /** 開いている論文の履歴。末尾が今の論文で、参考文献から移るたびに伸びる(0015)。 */
   const [trail, setTrail] = useState<string[]>([])
   const [importing, setImporting] = useState(false)
+  const picker = useRef<HTMLInputElement>(null)
   const [url, setUrl] = useState('')
 
   const load = useCallback(async (): Promise<void> => {
@@ -88,6 +89,26 @@ export function PapersPane({ lang, onLangChange, tags, revision, onChanged }: Pa
         // 解決も取得も仕事の中で行うので、ここでは積んだところまでしか分からない。
         setUrl('')
       }
+      onChanged()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  /**
+   * 手元の PDF を原本として上げる(0021)。
+   *
+   * 上げ終わった時点で取り込みが積まれる。何の論文かは解決の段階が原本を読んで決めるので、
+   * ここで題名を尋ねない。
+   */
+  const uploadPaper = async (file: File): Promise<void> => {
+    if (importing) return
+    setImporting(true)
+    setError(null)
+    try {
+      await api.uploadPaper(file)
       onChanged()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -160,6 +181,30 @@ export function PapersPane({ lang, onLangChange, tags, revision, onChanged }: Pa
           {importing ? <Loader2 size={ICON} className="spin" aria-hidden /> : <Plus size={ICON} aria-hidden />}
           {importing ? '取り込み中' : '取り込む'}
         </button>
+        {/* 出版社のページから原本を取れない論文は、手元に落とした PDF から入れる(0021)。 */}
+        <button
+          type="button"
+          className="ghost"
+          onClick={() => picker.current?.click()}
+          disabled={importing}
+          title="手元の PDF を取り込む"
+          aria-label="手元の PDF を取り込む"
+        >
+          <FilePlus2 size={ICON} aria-hidden />
+          PDF
+        </button>
+        <input
+          ref={picker}
+          type="file"
+          accept="application/pdf,.pdf"
+          hidden
+          onChange={(event) => {
+            const file = event.target.files?.[0]
+            // 同じファイルをもう一度選べるように、値を落としてから上げる。
+            event.target.value = ''
+            if (file !== undefined) void uploadPaper(file)
+          }}
+        />
       </div>
 
       <PaperFilters query={query} filter={filter} tags={tags} onQueryChange={setQuery} onFilterChange={setFilter} />
