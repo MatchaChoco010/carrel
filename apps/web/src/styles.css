@@ -791,6 +791,12 @@ body {
 
 /* --- markdown --- */
 
+/* 論文の本文の大きさと行の高さは、端末ごとの設定で動かす。 */
+.paper-body .markdown {
+  font-size: var(--reading-font-size, 14px);
+  line-height: var(--reading-line-height, 1.8);
+}
+
 .markdown {
   /* 画面が広くても行が長くなりすぎないようにする。ただし狭いときは幅いっぱい
      に使うので、中央へ寄せずに左端から伸ばす。 */
