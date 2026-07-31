@@ -1,9 +1,10 @@
 import { ArrowLeft, Check, Copy, List } from 'lucide-react'
-import { useState } from 'react'
-import type { PaperDetail } from '../api.ts'
+import { useEffect, useMemo, useState } from 'react'
+import { api, type PaperDetail, type Reference } from '../api.ts'
 import { Markdown } from './Markdown.tsx'
 import { PaperMetaTable } from './PaperMetaTable.tsx'
-import { ReferencesPane } from './ReferencesPane.tsx'
+import { ReferenceList } from './ReferenceList.tsx'
+import { splitAtReferences } from '../references.ts'
 import { stripFrontMatterBlock } from '../frontMatterBlock.ts'
 import { copyText } from '../clipboard.ts'
 
@@ -24,8 +25,6 @@ export type PaperViewProps = {
 
 const ICON = 16
 
-type Pane = 'body' | 'references'
-
 export function PaperView({
   detail,
   lang,
@@ -37,10 +36,20 @@ export function PaperView({
   onTagsChange,
 }: PaperViewProps) {
   const { meta } = detail
-  const [pane, setPane] = useState<Pane>('body')
   const [copied, setCopied] = useState(false)
+  const [references, setReferences] = useState<Reference[] | null>(null)
+
+  useEffect(() => {
+    setReferences(null)
+    void api
+      .paperReferences(meta.slug)
+      .then((r) => setReferences(r.references))
+      .catch(() => setReferences(null))
+  }, [meta.slug])
 
   const text = lang === 'ja' ? (detail.bodyJa ?? '和訳はまだ無い') : detail.body
+  const body = useMemo(() => stripFrontMatterBlock(text), [text])
+  const split = useMemo(() => splitAtReferences(body), [body])
 
   return (
     <div className="paper-view">
@@ -73,26 +82,22 @@ export function PaperView({
         >
           {copied ? <Check size={ICON} aria-hidden /> : <Copy size={ICON} aria-hidden />} {meta.slug}
         </button>
-
-        <div className="panes">
-          <button type="button" className={pane === 'body' ? 'on' : ''} onClick={() => setPane('body')}>
-            本文
-          </button>
-          <button type="button" className={pane === 'references' ? 'on' : ''} onClick={() => setPane('references')}>
-            参考文献
-          </button>
-        </div>
       </nav>
 
       <article className="paper-body">
         <h1>{meta.title}</h1>
         {/* frontmatter が論文の正の情報なので、全項目を読めるようにする(0002)。 */}
         <PaperMetaTable meta={meta} onTagsChange={onTagsChange} />
-        {pane === 'references' ? (
-          <ReferencesPane slug={meta.slug} onOpenPaper={onOpenPaper} />
+        {/* 題と著者欄は frontmatter が担当するので、本文の側では隠す。 */}
+        {/* 参考文献を持たない論文では差し替えず、本文の節をそのまま出す。 */}
+        {split === null || references === null || references.length === 0 ? (
+          <Markdown text={body} slug={meta.slug} linkReferences />
         ) : (
-          // 題と著者欄は frontmatter が担当するので、本文の側では隠す。
-          <Markdown text={stripFrontMatterBlock(text)} slug={meta.slug} linkReferences />
+          <>
+            <Markdown text={split.before} slug={meta.slug} linkReferences />
+            <ReferenceList references={references} onOpenPaper={onOpenPaper} />
+            {split.after.length === 0 ? null : <Markdown text={split.after} slug={meta.slug} />}
+          </>
         )}
       </article>
     </div>

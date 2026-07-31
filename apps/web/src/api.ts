@@ -303,8 +303,6 @@ export const api = {
   /** references が null なら、参考文献の段階がまだ走っていない。 */
   paperReferences: (slug: string) =>
     getJson<{ references: Reference[] | null }>(`/api/papers/${encodeURIComponent(slug)}/references`),
-  buildReferences: (slug: string) =>
-    sendJson<{ job: Job }>('POST', `/api/papers/${encodeURIComponent(slug)}/references`, {}),
   setTags: (slug: string, tags: string[]) =>
     sendJson<{ slug: string; tags: string[] }>('PUT', `/api/papers/${encodeURIComponent(slug)}/tags`, { tags }),
   importPaper: (url: string) =>
