@@ -7,7 +7,7 @@ import { buildSlug } from '../data/slug.ts'
 import type { IndexDb } from '../db/index-db.ts'
 import { fetchOriginal, looksLikePdf } from './fetch.ts'
 import { readOriginalHead, type HeadPaths } from './head.ts'
-import { findMoreSources, resolveFromOriginal, resolveSource } from './resolve.ts'
+import { findArticlePages, findMoreSources, resolveFromOriginal, resolveSource } from './resolve.ts'
 import type { StagedOriginal } from './staging.ts'
 import type { IngestRecord, IngestStore } from './store.ts'
 import type { IngestStage, ResolvedSource } from './types.ts'
@@ -145,10 +145,14 @@ export class FetchAllFailed extends Error {
 }
 
 /**
- * 挙がった所在で取れなければ、別の所在を探してもう一度試す(#221)。
+ * 原本を取る。PDF を先に探し尽くし、それでも無いときだけ HTML にする(#243、0022)。
  *
- * 1 度目に挙がる所在は少なく、通信で落ちたり弾かれたりするとそこで終わってしまう。
- * 何が駄目だったかを渡して探し直すと、閲覧ページの奥にある PDF や別の置き場に届く。
+ * 1. 解決が挙げた所在を PDF として試す。
+ * 2. 取れなければ、失敗の理由を渡して別の PDF の所在を探す。
+ * 3. それでも無ければ、本文が載っている HTML のページを探して原本にする。
+ *
+ * 取れなかった PDF の所在をそのまま HTML として取らないのは、出版社の判定ページや
+ * 案内のページを原本にしてしまうためである。
  */
 async function fetchWithRetry(
   slug: string,
@@ -156,47 +160,39 @@ async function fetchWithRetry(
   deps: IngestDeps,
 ): Promise<{ url: string; path: string }> {
   const tried = candidates(source)
+  const asked = { title: source.title, authors: source.authors, year: source.year }
+  const failures: string[] = []
+
   try {
     return await fetchFirst(deps.dataDir, slug, tried, 'pdf')
   } catch (error) {
     if (!(error instanceof FetchAllFailed)) throw error
-
-    const more = await findMoreSources(
-      { title: source.title, authors: source.authors, year: source.year },
-      error.failures.join('\n'),
-      { codex: deps.codex, model: deps.model },
-    )
-    const fresh = more.filter((url) => !tried.includes(url))
-    if (fresh.length > 0) {
-      try {
-        return await fetchFirst(deps.dataDir, slug, fresh, 'pdf')
-      } catch (second) {
-        if (!(second instanceof FetchAllFailed)) throw second
-        return await fetchHtml(slug, source, [...tried, ...fresh], [...error.failures, ...second.failures], deps)
-      }
-    }
-    return await fetchHtml(slug, source, tried, error.failures, deps)
+    failures.push(...error.failures)
   }
-}
 
-/**
- * PDF が取れないときに、HTML の原本を取る(0022、0004)。
- *
- * 閲覧ページしか出さない出版社と、HTML でしか出ない論文がある。HTML の原本は照合を
- * 飛ばして本文だけを取り出す。
- */
-async function fetchHtml(
-  slug: string,
-  source: ResolvedSource,
-  tried: string[],
-  failures: string[],
-  deps: IngestDeps,
-): Promise<{ url: string; path: string }> {
+  const more = (await findMoreSources(asked, failures.join('\n'), { codex: deps.codex, model: deps.model })).filter(
+    (url) => !tried.includes(url),
+  )
+  if (more.length > 0) {
+    try {
+      return await fetchFirst(deps.dataDir, slug, more, 'pdf')
+    } catch (error) {
+      if (!(error instanceof FetchAllFailed)) throw error
+      failures.push(...error.failures)
+      tried.push(...more)
+    }
+  }
+
+  const articles = (
+    await findArticlePages(asked, failures.join('\n'), { codex: deps.codex, model: deps.model })
+  ).filter((url) => !tried.includes(url))
+  if (articles.length === 0) throw new FetchAllFailed(failures)
+
   try {
-    return await fetchFirst(deps.dataDir, slug, tried, 'html')
+    return await fetchFirst(deps.dataDir, slug, articles, 'html')
   } catch (error) {
     if (!(error instanceof FetchAllFailed)) throw error
-    throw new FetchAllFailed([...failures, ...error.failures.map((f) => `${f} (HTML としても取れない)`)])
+    throw new FetchAllFailed([...failures, ...error.failures.map((f) => `${f} (本文のページとしても取れない)`)])
   }
 }
 

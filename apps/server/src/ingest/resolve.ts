@@ -346,3 +346,63 @@ export async function findMoreSources(
   if (!Array.isArray(urls)) return []
   return urls.filter((u): u is string => typeof u === 'string' && /^https?:\/\//i.test(u.trim())).map((u) => u.trim())
 }
+
+/**
+ * PDF がどこからも取れないときに、本文が載っている HTML のページを探す(#243)。
+ *
+ * 原本は PDF が本命で、HTML は最後の受け皿である(0022)。取れなかった PDF の所在を
+ * そのまま HTML として取ると、出版社の判定ページや案内のページを原本にしてしまう。
+ * 本文が載っているページかどうかを、探す側に確かめさせる。
+ */
+const ARTICLE_INSTRUCTIONS = [
+  'あなたは論文の本文が読める HTML のページを探す。',
+  '既に試した所在と、その失敗の理由を渡す。同じ所在を挙げない。',
+  '挙げてよいのは、本文の節がそのページの HTML に入っているものだけである。',
+  '次のページは挙げない。',
+  '- 概要と書誌だけの閲覧ページ(本文が読めないもの)。',
+  '- 本文を JavaScript で描くページ(取得した HTML に本文が入らない)。',
+  '- 会話状態や合意の操作を求めるページ(dl.acm.org など)。',
+  'arXiv の HTML 版、著者や研究室が置いた本文のページ、出版社の全文ページは当たる。',
+  '見つからなければ空の配列を返す。当てずっぽうの URL を書かない。',
+  '要求された JSON だけを返す。',
+].join('\n')
+
+/** 本文が読める HTML のページを探す。無ければ空を返す。 */
+export async function findArticlePages(
+  source: { title: string; authors: string[]; year: number | null },
+  failures: string,
+  deps: MoreSourcesDeps,
+): Promise<string[]> {
+  const threadId = await startWorkThread(deps.codex, {
+    instructions: ARTICLE_INSTRUCTIONS,
+    model: deps.model,
+    webSearch: true,
+  })
+  const asked = [
+    `題名: ${source.title}`,
+    source.authors.length > 0 ? `著者: ${source.authors.join(', ')}` : null,
+    source.year === null ? null : `出版年: ${source.year}`,
+    '',
+    'PDF を試した所在と失敗の理由:',
+    failures,
+  ]
+    .filter((line): line is string => line !== null)
+    .join('\n')
+
+  const outcome = await runTurn(deps.codex, {
+    threadId,
+    input: textInput(asked),
+    effort: 'low',
+    outputSchema: MORE_SCHEMA,
+  })
+
+  let raw: unknown
+  try {
+    raw = JSON.parse(outcome.text)
+  } catch {
+    return []
+  }
+  const urls = (raw as Record<string, unknown>)['urls']
+  if (!Array.isArray(urls)) return []
+  return urls.filter((u): u is string => typeof u === 'string' && /^https?:\/\//i.test(u.trim())).map((u) => u.trim())
+}
