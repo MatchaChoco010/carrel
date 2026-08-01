@@ -163,6 +163,11 @@ export class JobQueue {
       })
       .catch((error: unknown) => {
         const message = error instanceof Error ? error.message : String(error)
+        // 投げられた場所も残す。文言だけでは、どの段階のどの行で落ちたのかを後から
+        // 追えない(#285)。一覧に出すのは文言だけで、こちらはログに残す。
+        if (error instanceof Error && error.stack !== undefined) {
+          console.error(`仕事が失敗した (${job.kind} ${job.target})`, error.stack)
+        }
         const failed = this.#store.recordFailure(job.id, message, this.#retryDelayMs, this.#maxAttempts)
         if (failed !== null) this.#onChange(failed)
       })
