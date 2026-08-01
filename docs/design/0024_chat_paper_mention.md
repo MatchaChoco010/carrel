@@ -1,7 +1,7 @@
 # チャットの論文参照を短く見せる
 
 - created: 2026-08-01
-- status: reviewing
+- status: approved
 - implementation: not-started
 
 ## 解決したい問題
