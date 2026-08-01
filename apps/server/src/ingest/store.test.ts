@@ -219,3 +219,50 @@ test('題を持たない記録だけを、埋め直しの対象にする(#271)',
     h.close()
   }
 })
+
+test('失敗したら、走っていた段階を閉じる(#280)', () => {
+  const h = harness()
+  try {
+    h.ingests.start({ slug: 'a2020-x', sourceUrl: 'u', arxivId: null, originalUrl: null })
+    h.ingests.advance('a2020-x', 'fetch')
+    h.ingests.fail('a2020-x', '原本を取得できなかった')
+
+    const open = h.ingests.stages('a2020-x').filter((s) => s.finishedAt === null)
+    assert.deepEqual(open, [])
+  } finally {
+    h.close()
+  }
+})
+
+test('やり直すときは、開いたままの段階を閉じてから始める(#280)', () => {
+  const h = harness()
+  try {
+    h.ingests.start({ slug: 'a2020-x', sourceUrl: 'u', arxivId: null, originalUrl: null })
+    h.ingests.advance('a2020-x', 'fetch')
+    h.ingests.fail('a2020-x', '取得に失敗した')
+    h.ingests.resume('a2020-x', 'convert')
+
+    // やり直した段階だけが開いている。
+    assert.deepEqual(
+      h.ingests.stages('a2020-x').filter((s) => s.finishedAt === null).map((s) => s.stage),
+      ['convert'],
+    )
+  } finally {
+    h.close()
+  }
+})
+
+test('終わったら、飛ばした段階も閉じる(#280)', () => {
+  const h = harness()
+  try {
+    h.ingests.start({ slug: 'a2020-x', sourceUrl: 'u', arxivId: null, originalUrl: null })
+    // 照合を飛ばす経路(0022)を真似て、開いたままの段階を残す。
+    h.ingests.startStage('a2020-x', 'verify')
+    h.ingests.advance('a2020-x', 'register')
+    h.ingests.finish('a2020-x')
+
+    assert.deepEqual(h.ingests.stages('a2020-x').filter((s) => s.finishedAt === null), [])
+  } finally {
+    h.close()
+  }
+})

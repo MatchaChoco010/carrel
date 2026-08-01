@@ -1,6 +1,7 @@
 import { Check, CircleDashed, Eraser, Loader2, Trash2, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api, type Ingest, type IngestStage } from '../api.ts'
+import { clockFor, stageElapsed, totalElapsed } from '../ingest-timing.ts'
 
 export type IngestsPaneProps = {
   ingests: Ingest[]
@@ -75,12 +76,14 @@ function pending(job: { id: number; target: string; createdAt: number }): Ingest
     sourceUrl: job.target,
     stage: 'resolve',
     status: 'inProgress',
+    title: null,
     startedAt: job.createdAt,
     updatedAt: job.createdAt,
     lastError: null,
     stages: [{ stage: 'resolve', startedAt: job.createdAt, finishedAt: null }],
   }
 }
+
 
 export function IngestsPane({ ingests, waiting, onChanged }: IngestsPaneProps) {
   const now = useNow(ingests.some((i) => i.status === 'inProgress') || waiting.length > 0)
@@ -126,7 +129,8 @@ export function IngestsPane({ ingests, waiting, onChanged }: IngestsPaneProps) {
       {rows.map(({ key, ingest }) => {
         const byStage = new Map(ingest.stages.map((s) => [s.stage, s]))
         const at = STAGES.indexOf(ingest.stage)
-        const total = ingest.stages.reduce((sum, s) => sum + ((s.finishedAt ?? now) - s.startedAt), 0)
+        const clock = clockFor(ingest, now)
+        const total = totalElapsed(ingest, now)
 
         return (
           <article key={key} className={`ingest ingest--${ingest.status}`} title={ingest.sourceUrl}>
@@ -154,8 +158,7 @@ export function IngestsPane({ ingests, waiting, onChanged }: IngestsPaneProps) {
                 const done = record !== undefined && record.finishedAt !== null
                 const running = ingest.status === 'inProgress' && index === at
                 const failed = ingest.status === 'failed' && index === at
-                const elapsed =
-                  record === undefined ? null : (record.finishedAt ?? now) - record.startedAt
+                const elapsed = record === undefined ? null : stageElapsed(record, clock)
 
                 return (
                   <li
@@ -180,6 +183,10 @@ export function IngestsPane({ ingests, waiting, onChanged }: IngestsPaneProps) {
               })}
             </ol>
 
+            {/* 失敗した取り込みは、題を添えて探し直せるようにする(#279)。 */}
+            {ingest.status === 'failed' && ingest.title !== null && (
+              <p className="ingest__title">{ingest.title}</p>
+            )}
             {ingest.lastError === null ? null : <p className="error">{ingest.lastError}</p>}
           </article>
         )
