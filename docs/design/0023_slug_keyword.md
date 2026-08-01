@@ -1,7 +1,7 @@
 # slug の語幹を題の語から作る
 
 - created: 2026-08-01
-- status: ready for review
+- status: reviewing
 - implementation: not-started
 
 ## 解決したい問題
