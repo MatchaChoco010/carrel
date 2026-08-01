@@ -12,6 +12,8 @@ const RECORD: IngestRecord = {
   sourceUrl: 'https://example.org/paper',
   arxivId: null,
   originalUrl: 'https://example.org/paper.pdf',
+  title: 'Interactive Cloth Rendering',
+  doi: null,
   stage: 'fetch',
   status: 'failed',
   startedAt: 0,

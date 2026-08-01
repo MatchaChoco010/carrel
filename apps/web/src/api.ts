@@ -305,7 +305,16 @@ export const api = {
     return getJson<{ hits: ChatSearchHit[] }>(`/api/chats/search?${params.toString()}`)
   },
   chat: (id: string) =>
-    getJson<{ meta: ChatMeta; messages: ChatMessage[]; id: string; path: string; running: boolean; state: ChatState }>(
+    getJson<{
+      meta: ChatMeta
+      messages: ChatMessage[]
+      id: string
+      path: string
+      running: boolean
+      /** 書いている途中の応答の、そこまでの本文(#262)。走っていなければ null。 */
+      partial: string | null
+      state: ChatState
+    }>(
       `/api/chats/one?id=${encodeURIComponent(id)}`,
     ),
   reloadChat: (id: string) => sendJson<{ codexThreadId: string }>('POST', '/api/chats/reload', { id }),

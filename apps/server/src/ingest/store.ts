@@ -8,6 +8,9 @@ export type IngestRecord = {
   sourceUrl: string
   arxivId: string | null
   originalUrl: string | null
+  /** 解決が読み取った題。索引に載る前でも同じ論文かを引けるようにする(#263)。 */
+  title: string | null
+  doi: string | null
   stage: IngestStage
   status: IngestStatus
   startedAt: number
@@ -20,6 +23,8 @@ type Row = {
   source_url: string
   arxiv_id: string | null
   original_url: string | null
+  title: string | null
+  doi: string | null
   stage: string
   status: string
   started_at: number
@@ -33,6 +38,8 @@ function toRecord(row: Row): IngestRecord {
     sourceUrl: row.source_url,
     arxivId: row.arxiv_id,
     originalUrl: row.original_url,
+    title: row.title,
+    doi: row.doi,
     stage: row.stage as IngestStage,
     status: row.status as IngestStatus,
     startedAt: row.started_at,
@@ -57,7 +64,8 @@ export class IngestStore {
    * 現在時刻にすると、解決にかかった時間が記録から抜け落ちる(#238)。
    */
   start(
-    record: Omit<IngestRecord, 'stage' | 'status' | 'startedAt' | 'updatedAt' | 'lastError'>,
+    record: Omit<IngestRecord, 'stage' | 'status' | 'startedAt' | 'updatedAt' | 'lastError' | 'title' | 'doi'> &
+      Partial<Pick<IngestRecord, 'title' | 'doi'>>,
     at?: number,
   ): IngestRecord {
     const now = at ?? this.#now()
@@ -66,18 +74,29 @@ export class IngestStore {
     this.#db.prepare('delete from ingest_stages where slug = ?').run(record.slug)
     const row = this.#db
       .prepare(
-        `insert into ingests (slug, source_url, arxiv_id, original_url, stage, status, started_at, updated_at, last_error)
-         values (?, ?, ?, ?, 'resolve', 'inProgress', ?, ?, null)
+        `insert into ingests (slug, source_url, arxiv_id, original_url, title, doi, stage, status, started_at, updated_at, last_error)
+         values (?, ?, ?, ?, ?, ?, 'resolve', 'inProgress', ?, ?, null)
          on conflict (slug) do update set
            source_url = excluded.source_url,
            arxiv_id = excluded.arxiv_id,
            original_url = excluded.original_url,
+           title = excluded.title,
+           doi = excluded.doi,
            status = 'inProgress',
            updated_at = excluded.updated_at,
            last_error = null
          returning *`,
       )
-      .get(record.slug, record.sourceUrl, record.arxivId, record.originalUrl, now, now) as Row
+      .get(
+        record.slug,
+        record.sourceUrl,
+        record.arxivId,
+        record.originalUrl,
+        record.title ?? null,
+        record.doi ?? null,
+        now,
+        now,
+      ) as Row
     return toRecord(row)
   }
 
@@ -159,6 +178,20 @@ export class IngestStore {
       .prepare('select * from ingests where source_url = ? or original_url = ? limit 1')
       .get(url, url) as Row | undefined
     return row === undefined ? null : toRecord(row)
+  }
+
+  /**
+   * まだ登録まで進んでいない取り込みの、突き合わせに使う情報(#263)。
+   *
+   * 索引に載るのは登録まで進んだ論文だけなので、途中で失敗した取り込みは索引から引けない。
+   * 同じ論文をもう一度入れたときに連番が付くのを避けるため、こちらからも引けるようにする。
+   */
+  pendingIdentities(): Array<{ slug: string; title: string; authors: string[]; doi: string | null; arxivId: string | null }> {
+    const rows = this.#db
+      .prepare(`select slug, title, doi, arxiv_id from ingests where status <> 'done' and title is not null`)
+      .all() as Array<{ slug: string; title: string; doi: string | null; arxiv_id: string | null }>
+    // 著者は記録に持たない。題と識別子だけで突き合わせる。
+    return rows.map((r) => ({ slug: r.slug, title: r.title, authors: [], doi: r.doi, arxivId: r.arxiv_id }))
   }
 
   /** まだ全段階が終わっていない論文。 */
