@@ -27,6 +27,8 @@ export type MarkdownProps = {
    * 描き直しのたびに作り直すと本文を組み立て直すことになるので、呼ぶ側で持ち回る。
    */
   mentions?: Map<string, Mention> | undefined
+  /** 参照から論文の詳細へ移る(0024)。描き直しをまたぐので、呼ぶ側で持ち回る。 */
+  onOpenPaper?: ((slug: string) => void) | undefined
 }
 
 /**
@@ -41,7 +43,7 @@ function scrollToAnchor(event: MouseEvent<HTMLAnchorElement>, id: string): void 
   target.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
-function MarkdownView({ text, slug, chatId, linkReferences = false, mentions }: MarkdownProps) {
+function MarkdownView({ text, slug, chatId, linkReferences = false, mentions, onOpenPaper }: MarkdownProps) {
   const source = useMemo(() => {
     const normalized = normalizeMathDelimiters(text)
     return linkReferences ? linkCitations(normalized) : normalized
@@ -83,7 +85,11 @@ function MarkdownView({ text, slug, chatId, linkReferences = false, mentions }: 
               const mentioned = href.slice(MENTION_SCHEME.length)
               const mention = mentions?.get(mentioned)
               // 対応表から引けなければ、書き手が打った形をそのまま出す。
-              return mention === undefined ? <>@{mentioned}</> : <PaperMention mention={mention} />
+              return mention === undefined ? (
+                <>@{mentioned}</>
+              ) : (
+                <PaperMention mention={mention} onOpen={onOpenPaper} />
+              )
             }
             const internal = typeof href === 'string' && href.startsWith('#')
             return (

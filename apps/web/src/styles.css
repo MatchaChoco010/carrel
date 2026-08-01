@@ -2060,4 +2060,21 @@ body {
   padding-top: 4px;
   border-top: 1px solid var(--border);
   word-break: break-all;
+  text-align: left;
+}
+
+/* 押すと論文の詳細へ移る(0024)。押せることは、指したときの色で示す。 */
+.mention__slug--open {
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--border);
+  font: inherit;
+  font-size: inherit;
+  padding: 4px 0 0;
+  cursor: pointer;
+}
+
+.mention__slug--open:hover,
+.mention__slug--open:focus-visible {
+  color: var(--accent);
 }
