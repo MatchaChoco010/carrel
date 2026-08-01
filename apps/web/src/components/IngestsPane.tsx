@@ -119,7 +119,7 @@ export function IngestsPane({ ingests, waiting, onChanged }: IngestsPaneProps) {
         <div className="ingests__actions">
           <button type="button" onClick={clear} disabled={busy}>
             {busy ? <Loader2 size={ICON} className="spin" aria-hidden /> : <Eraser size={ICON} aria-hidden />}
-            済んだ {done} 件の記録を消す
+            完了した {done} 件の記録を消す
           </button>
         </div>
       )}

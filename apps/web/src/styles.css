@@ -1068,6 +1068,33 @@ body {
   justify-content: flex-end;
 }
 
+/* 記録を消すボタン。設定の欄のボタンと同じ見た目にする。 */
+.jobs__actions button,
+.ingests__actions button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  padding: 5px 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.jobs__actions button:hover,
+.ingests__actions button:hover {
+  border-color: var(--text-muted);
+}
+
+.jobs__actions button:disabled,
+.ingests__actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* 失敗した取り込みを捨てるボタン。題の行に小さく置く。 */
 .ingest__discard {
   background: transparent;
