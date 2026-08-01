@@ -194,6 +194,19 @@ export class IngestStore {
     return rows.map((r) => ({ slug: r.slug, title: r.title, authors: [], doi: r.doi, arxivId: r.arxiv_id }))
   }
 
+  /** 題を持たない、まだ登録まで進んでいない取り込み(#271)。 */
+  missingMetadata(): string[] {
+    const rows = this.#db
+      .prepare(`select slug from ingests where status <> 'done' and title is null`)
+      .all() as Array<{ slug: string }>
+    return rows.map((r) => r.slug)
+  }
+
+  /** 記録に題と DOI を入れる。突き合わせの材料が後から分かったときに使う(#271)。 */
+  setMetadata(slug: string, title: string, doi: string | null): void {
+    this.#db.prepare('update ingests set title = ?, doi = ? where slug = ?').run(title, doi, slug)
+  }
+
   /** まだ全段階が終わっていない論文。 */
   incompleteSlugs(): Set<string> {
     const rows = this.#db.prepare(`select slug from ingests where status <> 'done'`).all() as Array<{ slug: string }>

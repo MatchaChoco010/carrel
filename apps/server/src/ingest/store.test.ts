@@ -195,3 +195,27 @@ test('題を持たない取り込みは、突き合わせの相手にしない(#
     h.close()
   }
 })
+
+test('題を持たない記録だけを、埋め直しの対象にする(#271)', () => {
+  const h = harness()
+  try {
+    h.ingests.start({ slug: 'a2020-x', sourceUrl: 'u1', arxivId: null, originalUrl: null })
+    h.ingests.fail('a2020-x', '取得に失敗した')
+    h.ingests.start({ slug: 'b2020-y', sourceUrl: 'u2', arxivId: null, originalUrl: null, title: 'T', doi: null })
+    h.ingests.fail('b2020-y', '取得に失敗した')
+    h.ingests.start({ slug: 'c2020-z', sourceUrl: 'u3', arxivId: null, originalUrl: null })
+    h.ingests.finish('c2020-z')
+
+    // 題を持つものと、登録まで進んだものは外れる。
+    assert.deepEqual(h.ingests.missingMetadata(), ['a2020-x'])
+
+    h.ingests.setMetadata('a2020-x', 'A Paper', '10.1145/3811279')
+    assert.deepEqual(h.ingests.missingMetadata(), [])
+    assert.deepEqual(h.ingests.pendingIdentities(), [
+      { slug: 'a2020-x', title: 'A Paper', authors: [], doi: '10.1145/3811279', arxivId: null },
+      { slug: 'b2020-y', title: 'T', authors: [], doi: null, arxivId: null },
+    ])
+  } finally {
+    h.close()
+  }
+})

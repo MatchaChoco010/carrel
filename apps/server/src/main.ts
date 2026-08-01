@@ -13,6 +13,7 @@ import { enqueueEmbed, enqueueRegister, registerEmbed, registerRegister } from '
 import { buildSegmenter } from './search/segment.ts'
 import { ChunkStore } from './search/store.ts'
 import { enqueueBibliography, registerBibliography } from './bibliography/job.ts'
+import { backfillIngestMetadata } from './ingest/pipeline.ts'
 import { sweepStaged } from './ingest/staging.ts'
 import { enqueueReferences, registerReferences } from './references/job.ts'
 import { enqueueTranslate, registerTranslate } from './translate/job.ts'
@@ -95,6 +96,10 @@ async function main(): Promise<void> {
       `チャット ${scanned.chatsIndexed} 件を読み込み ${scanned.chatsRemoved} 件を除去`,
   )
   collection.startWatching()
+
+  // 題を持たない取り込みの記録を、論文のディレクトリから埋め直す(#271)。
+  const backfilled = await backfillIngestMetadata(dataDir, ingests)
+  if (backfilled > 0) console.log(`取り込みの記録に題を入れた: ${backfilled} 件`)
 
   const codex = new CodexService({
     onRateLimits: (view) => {
