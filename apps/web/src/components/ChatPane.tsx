@@ -32,6 +32,8 @@ export type ChatPaneProps = {
   /** 補完に使う slug の一覧。 */
   /** 起動時に引いた論文の一覧。`@` の補完が読む(0024)。 */
   papers: PaperIndexEntry[]
+  /** 本文の参照から論文の詳細へ移る(0024)。 */
+  onOpenPaper: (slug: string) => void
   /** ターンの進みの購読を親から受ける。 */
   subscribe: (handler: (event: { type: string; payload: unknown }) => void) => () => void
 }
@@ -73,7 +75,7 @@ const PHASE_LABEL: Record<TurnPhase, string> = {
 /** 選んだ画像と、送るまでの間だけ使う見せかけの場所。 */
 type Attachment = { file: File; preview: string }
 
-export function ChatPane({ id, onOpen, limits, papers, subscribe }: ChatPaneProps) {
+export function ChatPane({ id, onOpen, limits, papers, onOpenPaper, subscribe }: ChatPaneProps) {
   const slugSpellings = useMemo(() => papers.map((paper) => paper.slug).sort(), [papers])
   // 本文の `@slug` を短く出すための対応表(0024)。発言ごとに作り直さないよう、ここで持つ。
   const mentions = useMemo(() => mentionsOf(papers), [papers])
@@ -453,7 +455,12 @@ export function ChatPane({ id, onOpen, limits, papers, subscribe }: ChatPaneProp
               setSelected((previous) => (previous === index ? null : index))
             }}
           >
-            <Markdown text={message.text} chatId={shown ?? undefined} mentions={mentions} />
+            <Markdown
+              text={message.text}
+              chatId={shown ?? undefined}
+              mentions={mentions}
+              onOpenPaper={onOpenPaper}
+            />
             {/* 最初の turn より後の発言から分岐できる(0012)。 */}
             {id !== null && index >= 2 && (
               <button
@@ -471,7 +478,12 @@ export function ChatPane({ id, onOpen, limits, papers, subscribe }: ChatPaneProp
         {turn !== null && (
           <article className="turn turn--assistant">
             {turn.delta.length === 0 ? null : (
-              <Markdown text={turn.delta} chatId={shown ?? undefined} mentions={mentions} />
+              <Markdown
+                text={turn.delta}
+                chatId={shown ?? undefined}
+                mentions={mentions}
+                onOpenPaper={onOpenPaper}
+              />
             )}
             {/* 応答が伸びている間も、伸びが止まって見える間も、いまどこにいるかを示し続ける。 */}
             <p className="turn__working">

@@ -2060,4 +2060,27 @@ body {
   padding-top: 4px;
   border-top: 1px solid var(--border);
   word-break: break-all;
+  text-align: left;
+}
+
+/* 押すと論文の詳細へ移る(0024)。題も slug も同じ論文を指すので、まとめて 1 つの的にする。
+   押せることは、指したときの色で示す。 */
+.mention__open {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mention__open:hover .mention__title,
+.mention__open:focus-visible .mention__title,
+.mention__open:hover .mention__slug,
+.mention__open:focus-visible .mention__slug {
+  color: var(--accent);
 }

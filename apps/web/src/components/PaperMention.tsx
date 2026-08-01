@@ -4,6 +4,8 @@ import { authorLine, type Mention } from '../paper-mention.ts'
 
 export type PaperMentionProps = {
   mention: Mention
+  /** ツールチップの slug を押したときに、その論文の詳細を開く(0024)。 */
+  onOpen?: ((slug: string) => void) | undefined
 }
 
 /** ツールチップと画面の端の間に空ける幅(px)。 */
@@ -31,7 +33,7 @@ function place(anchor: DOMRect, card: DOMRect): Placement {
  * ツールチップを画面の直下ではなく `document.body` へ出すのは、会話の欄と表がそれぞれ
  * 中でスクロールするためである。その中に置くと、枠の縁で切られて読めなくなる。
  */
-export function PaperMention({ mention }: PaperMentionProps) {
+export function PaperMention({ mention, onOpen }: PaperMentionProps) {
   const [open, setOpen] = useState(false)
   const [at, setAt] = useState<Placement | null>(null)
   const anchor = useRef<HTMLButtonElement | null>(null)
@@ -48,6 +50,11 @@ export function PaperMention({ mention }: PaperMentionProps) {
   }, [hold])
 
   useEffect(() => () => hold(), [hold])
+
+  const go = useCallback((): void => {
+    setOpen(false)
+    onOpen?.(mention.slug)
+  }, [onOpen, mention.slug])
 
   // 出してから中身の大きさが決まるので、置き場所は描いた後に測って決める。
   useEffect(() => {
@@ -118,9 +125,20 @@ export function PaperMention({ mention }: PaperMentionProps) {
               if (event.pointerType === 'mouse') release()
             }}
           >
-            <span className="mention__title">{mention.title}</span>
-            <span className="mention__authors">{authorLine(mention)}</span>
-            <span className="mention__slug">@{mention.slug}</span>
+            {onOpen === undefined ? (
+              <>
+                <span className="mention__title">{mention.title}</span>
+                <span className="mention__authors">{authorLine(mention)}</span>
+                <span className="mention__slug">@{mention.slug}</span>
+              </>
+            ) : (
+              // 題も slug も同じ論文を指すので、どちらを押しても移れる。
+              <button type="button" className="mention__open" onClick={go}>
+                <span className="mention__title">{mention.title}</span>
+                <span className="mention__authors">{authorLine(mention)}</span>
+                <span className="mention__slug">@{mention.slug}</span>
+              </button>
+            )}
           </span>,
           document.body,
         )}

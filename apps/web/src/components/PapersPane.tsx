@@ -14,6 +14,13 @@ export type PapersPaneProps = {
   onChanged: () => void
   /** 押した結果を知らせる(#229)。 */
   onNotify: (text: string, kind?: 'info' | 'error') => void
+  /**
+   * 開いている論文の履歴。末尾が今の論文で、参考文献から移るたびに伸びる(0015)。
+   *
+   * チャットの参照からも積むので、持ち主は画面全体である(0024)。
+   */
+  trail: string[]
+  onTrailChange: (trail: string[]) => void
 }
 
 const ICON = 16
@@ -22,15 +29,22 @@ const ICON = 16
 const PAGE = 20
 const DEBOUNCE = 250
 
-export function PapersPane({ lang, onLangChange, tags, revision, onChanged, onNotify }: PapersPaneProps) {
+export function PapersPane({
+  lang,
+  onLangChange,
+  tags,
+  revision,
+  onChanged,
+  onNotify,
+  trail,
+  onTrailChange,
+}: PapersPaneProps) {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<SearchFilter>({})
   const [hits, setHits] = useState<SearchHit[]>([])
   const [details, setDetails] = useState<Map<string, PaperDetail>>(new Map())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  /** 開いている論文の履歴。末尾が今の論文で、参考文献から移るたびに伸びる(0015)。 */
-  const [trail, setTrail] = useState<string[]>([])
   const [importing, setImporting] = useState(false)
   /** いま求めている件数。一覧の末尾まで送るたびに増える(#222)。 */
   const [limit, setLimit] = useState(PAGE)
@@ -182,10 +196,10 @@ export function PapersPane({ lang, onLangChange, tags, revision, onChanged, onNo
         detail={opened}
         lang={lang}
         onLangChange={onLangChange}
-        onBack={() => setTrail(trail.slice(0, -1))}
+        onBack={() => onTrailChange(trail.slice(0, -1))}
         backToPaper={trail.length > 1}
-        onClose={() => setTrail([])}
-        onOpenPaper={(slug) => setTrail([...trail, slug])}
+        onClose={() => onTrailChange([])}
+        onOpenPaper={(slug) => onTrailChange([...trail, slug])}
         onTagsChange={(next) => void setTags(opened.meta.slug, next)}
       />
     )
@@ -260,7 +274,7 @@ export function PapersPane({ lang, onLangChange, tags, revision, onChanged, onNo
                 detail={detail}
                 lang={lang}
                 hit={hit.path.length > 0 ? { path: hit.path, excerpt: hit.excerpt } : undefined}
-                onOpen={(slug) => setTrail([slug])}
+                onOpen={(slug) => onTrailChange([slug])}
                 onTagsChange={(slug, next) => void setTags(slug, next)}
                 onDelete={(slug) => void remove(slug)}
               />

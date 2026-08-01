@@ -75,6 +75,12 @@ export function App() {
   const [chatOpen, setChatOpen] = useState(false)
   // 取り込みや削除の後に一覧を読み直すための番号。
   const [revision, setRevision] = useState(0)
+  /**
+   * 開いている論文の履歴。末尾が今の論文で、参考文献から移るたびに伸びる(0015)。
+   *
+   * チャットの参照からも積むので、論文の一覧ではなくここで持つ(0024)。
+   */
+  const [trail, setTrail] = useState<string[]>([])
   const narrow = useIsNarrow()
   const panes = useRef<HTMLElement | null>(null)
   const split = useSplit(panes)
@@ -82,6 +88,19 @@ export function App() {
   // 読みやすさはこの端末に持つので、設定の欄ではなくここで受けて配る。
   const [reading, setReading] = useReading()
   const { toasts, notify, dismiss } = useToasts()
+
+  /**
+   * チャットの参照から論文の詳細を開く(0024)。
+   *
+   * 参考文献から移るときと同じ履歴に積むので、既に論文を開いていれば「戻る」で返れる。
+   * 一覧を見ているときは履歴を新しく張る。
+   */
+  const openPaper = useCallback((slug: string): void => {
+    openTab('papers')
+    setTrail((previous) => (previous.length === 0 ? [slug] : [...previous, slug]))
+    // 狭い画面ではチャットが前面に出ているので、畳んで論文を見せる。
+    setChatOpen(false)
+  }, [openTab])
 
   const reloadJobs = useCallback(() => {
     void api.jobs().then(setJobs).catch(() => setJobs(null))
@@ -259,6 +278,8 @@ export function App() {
                   revision={revision}
                   onChanged={() => setRevision((n) => n + 1)}
                   onNotify={notify}
+                  trail={trail}
+                  onTrailChange={setTrail}
                 />
               </div>
             )}
@@ -323,6 +344,7 @@ export function App() {
               onOpen={setActiveChat}
               limits={codex?.rateLimits ?? null}
               papers={papers}
+              onOpenPaper={openPaper}
               subscribe={subscribe}
             />
           </div>
