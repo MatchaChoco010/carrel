@@ -68,7 +68,8 @@ const OUTPUT_SCHEMA = {
     doi: { type: ['string', 'null'], description: '出版元の DOI。10. で始まる形。無ければ null。' },
     slugKeyword: {
       type: ['string', 'null'],
-      description: '論文に定着した略称。無ければタイトルの内容語を 1〜3 語。',
+      description:
+        '論文自身が題の中で与えている略称(コロンの前など)。題に出てこない語を作らない。無ければ null。',
     },
   },
   required: [
@@ -222,7 +223,8 @@ const HEAD_SCHEMA = {
     abstract: { type: ['string', 'null'], description: 'abstract の本文。無ければ null。' },
     slugKeyword: {
       type: ['string', 'null'],
-      description: '論文に定着した略称。無ければタイトルの内容語を 1〜3 語。',
+      description:
+        '論文自身が題の中で与えている略称(コロンの前など)。題に出てこない語を作らない。無ければ null。',
     },
   },
   required: ['title', 'authors', 'year', 'abstract', 'slugKeyword'],
