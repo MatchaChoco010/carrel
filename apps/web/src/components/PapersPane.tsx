@@ -12,6 +12,8 @@ export type PapersPaneProps = {
   /** 索引が変わったことを知らせる。取り込みや削除の後に再読み込みする。 */
   revision: number
   onChanged: () => void
+  /** 押した結果を知らせる(#229)。 */
+  onNotify: (text: string, kind?: 'info' | 'error') => void
 }
 
 const ICON = 16
@@ -20,7 +22,7 @@ const ICON = 16
 const PAGE = 20
 const DEBOUNCE = 250
 
-export function PapersPane({ lang, onLangChange, tags, revision, onChanged }: PapersPaneProps) {
+export function PapersPane({ lang, onLangChange, tags, revision, onChanged, onNotify }: PapersPaneProps) {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<SearchFilter>({})
   const [hits, setHits] = useState<SearchHit[]>([])
@@ -109,11 +111,13 @@ export function PapersPane({ lang, onLangChange, tags, revision, onChanged }: Pa
     try {
       const result = await api.importPaper(target)
       if (result.error !== undefined) {
-        setError(result.error)
+        onNotify(result.error, 'error')
       } else if (result.kind === 'duplicate') {
-        setError(`既に取り込んでいる: ${result.slug ?? ''}`)
+        onNotify(`既に取り込んでいる: ${result.slug ?? ''}`)
+        setUrl('')
       } else if (result.kind === 'resumed' || result.kind === 'restarted') {
         // 失敗した取り込みを押し直したときは、そこから続く(#220)。進みはジョブの欄に出る。
+        onNotify(`取り込みを続きから動かし直した: ${result.slug ?? ''}`)
         setUrl('')
       } else {
         // 解決も取得も仕事の中で行うので、ここでは積んだところまでしか分からない。

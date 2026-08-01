@@ -51,7 +51,21 @@ function estimateHeight(text: string): number {
   return 24 + Math.ceil(text.length / 90) * 22
 }
 
-type Turn = { id: string; delta: string }
+/**
+ * 出している応答の状態(#240)。
+ *
+ * 送ってから最初の字が返るまでには、スレッドの用意といった待ちが入る。何も出さないと、
+ * 届いていないのか待たされているのかが分からない。
+ */
+type TurnPhase = 'sending' | 'waiting' | 'writing'
+
+type Turn = { id: string; delta: string; phase: TurnPhase }
+
+const PHASE_LABEL: Record<TurnPhase, string> = {
+  sending: '送っています',
+  waiting: '前の応答が終わるのを待っています',
+  writing: '応答を作っています',
+}
 
 /** 選んだ画像と、送るまでの間だけ使う見せかけの場所。 */
 type Attachment = { file: File; preview: string }
@@ -202,7 +216,7 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
         setState(r.state)
         // 応答を作っているかは会話ごとに違う。開いた会話のそれに合わせる。
         // 書いている途中の応答を持っているときは、その中身を落とさずに残す。
-        setTurn((previous) => (r.running ? (previous ?? { id: r.id, delta: '' }) : null))
+        setTurn((previous) => (r.running ? (previous ?? { id: r.id, delta: '', phase: 'writing' }) : null))
         setArchived(r.meta.archived)
         setRecorded({ model: r.meta.model, effort: r.meta.effort })
         setError(null)
@@ -210,9 +224,15 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
   }, [])
 
+  const shownId = useRef<string | null>(null)
   useEffect(() => {
+    const before = shownId.current
+    shownId.current = id
     // 開いていた会話の応答は、そちらの会話のものである。読み直すまで出さない。
-    setTurn(null)
+    //
+    // ただし、新しい会話が最初の発言で場所を得ただけのときは消さない。同じ会話の続きで
+    // あり、送った直後に出している印がここで消えると、応答が返るまで何も出なくなる(#240)。
+    if (before !== null || id === null) setTurn(null)
     // 新しい会話に切り替えたら、開いていた会話の表示を片付ける。
     if (id === null) {
       setMessages([])
@@ -230,14 +250,25 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
   useEffect(
     () =>
       subscribe((event) => {
-        const payload = event.payload as { id?: string; delta?: string; message?: string }
+        const payload = event.payload as { id?: string; delta?: string; message?: string; waiting?: boolean }
         if (id === null || payload.id !== id) return
         switch (event.type) {
+          case 'chat.turn.queued':
+            setTurn((previous) => ({
+              id,
+              delta: previous?.delta ?? '',
+              phase: payload.waiting === true ? 'waiting' : 'sending',
+            }))
+            return
           case 'chat.turn.started':
-            setTurn({ id, delta: '' })
+            setTurn({ id, delta: '', phase: 'writing' })
             return
           case 'chat.turn.delta':
-            setTurn((previous) => ({ id, delta: (previous?.delta ?? '') + (payload.delta ?? '') }))
+            setTurn((previous) => ({
+              id,
+              delta: (previous?.delta ?? '') + (payload.delta ?? ''),
+              phase: 'writing',
+            }))
             return
           // 描いている途中の応答は、記録を読み終えてから外す。先に外すと本文が
           // いったん縮み、末尾を見ていたはずの位置が自分の発言の下へ落ちる。
@@ -364,13 +395,18 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
     drop()
     // 送った発言はターンの完了で読み直すまで手元で見せる。
     setMessages((previous) => [...previous, { role: 'user', at: new Date().toISOString(), text }])
+    // 届いた合図を待たずに出す。新しい会話では識別子がまだ無く、合図を受け取れない。
+    setTurn((previous) => previous ?? { id: id ?? '', delta: '', phase: 'sending' })
     void api
       .sendChatMessage(id, text, model, effort, images)
       .then((r) => {
         // 初めての発言では、ここで会話の場所が決まる。
         if (id === null) onOpen(r.id)
       })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+      .catch((e: unknown) => {
+        setError(e instanceof Error ? e.message : String(e))
+        setTurn(null)
+      })
   }
 
   return (
@@ -429,10 +465,10 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
         {turn !== null && (
           <article className="turn turn--assistant">
             {turn.delta.length === 0 ? null : <Markdown text={turn.delta} chatId={shown ?? undefined} />}
-            {/* 応答が伸びている間も、伸びが止まって見える間も、作っていることを示し続ける。 */}
+            {/* 応答が伸びている間も、伸びが止まって見える間も、いまどこにいるかを示し続ける。 */}
             <p className="turn__working">
               <Loader2 size={ICON} className="spin" aria-hidden />
-              応答を作っています
+              {PHASE_LABEL[turn.phase]}
               <span className="turn__dots" aria-hidden>
                 <i />
                 <i />
