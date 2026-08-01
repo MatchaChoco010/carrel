@@ -5,16 +5,14 @@ export type SlugSource = {
   year: number | null
   /** 論文の題。語幹はここから作る。 */
   title: string
-  /** 取り込みが提案した語幹。題に出てこない語は使わない(0023)。 */
-  keyword: string | null
   /**
-   * 提案された語に、規則が飛ばす語をあえて含めたか(0023)。
+   * 規則が飛ばす語のうち、落とさずに拾う語(0023)。
    *
    * `von Mises-Fisher` の `von` のように、姓の前置きが固有名詞の一部であることがある。
-   * 語の並びだけからは決まらないので、題を読んでいる取り込みの側が明示する。明示が
-   * 無ければ規則どおりに飛ばす。
+   * 語の並びだけからは決まらないので、題を読んでいる取り込みの側が名指しする。名指しが
+   * 無ければ規則どおりに飛ばす。語幹そのものは指せない。
    */
-  keywordKeepsSkipped?: boolean
+  keepWords?: string[]
   /** 語幹を作れないときのフォールバックに使う、その論文に固有の文字列。 */
   identity: string
 }
@@ -123,18 +121,6 @@ function pack(list: string[]): string {
 }
 
 /**
- * 提案された語を語幹の形にする(0023)。
- *
- * 明示が無ければ、提案された語にも規則の飛ばしを当てる。上限は明示の有無によらず効かせる。
- */
-function packProposed(keyword: string, keepsSkipped: boolean): string {
-  const all = words(keyword)
-  if (keepsSkipped) return pack(all)
-  const content = all.filter((word) => !STOP_WORDS.has(word))
-  return pack(content.length > 0 ? content : all)
-}
-
-/**
  * 題から slug の語幹を作る(0002)。
  *
  * コロンより前が 2 語までなら、それを論文が与えた略称として使う(`NeRF: ...` → `nerf`)。
@@ -142,7 +128,7 @@ function packProposed(keyword: string, keepsSkipped: boolean): string {
  * 満たなくなるときは題をそのまま使う。`Attention Is All You Need` のような題で、
  * 元の題を思い出せない語幹になるのを避けるためである。
  */
-export function keywordFromTitle(title: string): string {
+export function keywordFromTitle(title: string, keepWords: string[] = []): string {
   const colon = title.indexOf(':')
   if (colon > 0) {
     const head = words(title.slice(0, colon))
@@ -150,21 +136,16 @@ export function keywordFromTitle(title: string): string {
     if (head.length > 0 && head.length <= SHORT_NAME_WORDS && joined.length <= SHORT_NAME_CHARS) return joined
   }
 
+  const keep = new Set(keepWords.flatMap((word) => words(word)))
   const all = words(title)
-  const content = all.filter((word) => !STOP_WORDS.has(word))
+  const content = all.filter((word) => !STOP_WORDS.has(word) || keep.has(word))
   return pack(content.length >= 2 ? content : all)
 }
 
-/**
- * 取り込みが提案した語を使ってよいかを見る(#247)。
- *
- * 題に出てこない語は、頭文字をつないで作られた略称のことがある。そうした語は題の
- * 記憶から打っても当たらないので、語幹には使わない。
- */
-export function keywordInTitle(keyword: string, title: string): boolean {
+/** 名指しされた語のうち、題に出てくるものだけを残す(0023)。 */
+export function wordsInTitle(keepWords: string[], title: string): string[] {
   const inTitle = new Set(words(title))
-  const parts = words(keyword)
-  return parts.length > 0 && parts.every((part) => inTitle.has(part))
+  return keepWords.filter((word) => words(word).every((part) => inTitle.has(part)))
 }
 
 function shortHash(identity: string): string {
@@ -187,8 +168,7 @@ export function buildSlug(source: SlugSource, isTaken: SlugTaken): string {
 function baseSlug(source: SlugSource): string {
   const lastName = source.authors.map(lastNameOf).find((name) => name.length > 0) ?? ''
   const year = source.year !== null && Number.isInteger(source.year) ? String(source.year) : ''
-  const proposed = source.keyword !== null && keywordInTitle(source.keyword, source.title) ? source.keyword : null
-  const keyword = proposed === null ? keywordFromTitle(source.title) : packProposed(proposed, source.keywordKeepsSkipped === true)
+  const keyword = keywordFromTitle(source.title, wordsInTitle(source.keepWords ?? [], source.title))
 
   if (lastName.length === 0 || year.length === 0) {
     return `unknown${year.length > 0 ? year : '0000'}-${shortHash(source.identity)}`

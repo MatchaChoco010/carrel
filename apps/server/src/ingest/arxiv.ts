@@ -98,8 +98,7 @@ export function parseArxivEntry(xml: string, arxivId: string): ResolvedSource | 
     abstract: text(entry, 'summary'),
     arxivId,
     doi: text(entry, 'arxiv:doi'),
-    slugKeyword: null,
-    slugKeywordKeepsSkipped: false,
+    slugKeepWords: [],
     via: 'arxiv',
   }
 }
