@@ -1011,6 +1011,14 @@ body {
   font-size: 13px;
 }
 
+/* 失敗した取り込みに添える論文の題(#279)。写して探し直すために、選びやすい形で置く。 */
+.ingest__title {
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  user-select: text;
+}
+
 .ingest__total {
   display: inline-flex;
   align-items: center;
