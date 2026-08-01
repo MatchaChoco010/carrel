@@ -118,12 +118,6 @@ export function App() {
       .catch(() => setPapers([]))
   }, [])
 
-  useEffect(() => {
-    void api.codexStatus().then(setCodex).catch(() => setCodex(null))
-    void api.indexStatus().then(setIndex).catch(() => setIndex(null))
-    reloadJobs()
-  }, [reloadJobs])
-
   const subscribe = useCallback((handler: (event: ServerEvent) => void) => {
     listeners.current.add(handler)
     return () => {
@@ -165,6 +159,22 @@ export function App() {
   )
 
   const connection = useServerEvents(onEvent)
+
+  /**
+   * 繋がったときに、いまの状態をすべて読み直す(#266)。
+   *
+   * 画面はサーバーからの通知でしか一覧を読み直さないので、切れている間に変わったものを
+   * 取りこぼす。サーバーの入れ替えや端末が眠っている間に取り込みが終わると、次の通知が
+   * 来るまで古い一覧のままになる。繋ぎ直しも同じ扱いにする。
+   */
+  useEffect(() => {
+    if (connection !== 'open') return
+    void api.codexStatus().then(setCodex).catch(() => setCodex(null))
+    void api.indexStatus().then(setIndex).catch(() => setIndex(null))
+    reloadJobs()
+    setRevision((n) => n + 1)
+  }, [connection, reloadJobs])
+
   const running = jobs?.counts.running ?? 0
 
   /**

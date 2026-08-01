@@ -436,6 +436,11 @@ body {
   height: 120px;
 }
 
+/* 先頭にいるかを見るための目印。場所を取らせない(#273)。 */
+.paper-list__head {
+  height: 0;
+}
+
 .paper-list {
   display: flex;
   flex-direction: column;

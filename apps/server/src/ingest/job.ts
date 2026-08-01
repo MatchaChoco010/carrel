@@ -55,6 +55,7 @@ export function registerResolve(queue: JobQueue, deps: ResolveDeps): void {
           ingests: deps.ingests,
           codex: deps.codex,
           model: deps.model(),
+          head: deps.head,
         })
 
     const arxivId = extractArxivId(url)
