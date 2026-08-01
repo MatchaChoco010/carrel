@@ -19,6 +19,7 @@ import {
   type RateLimitView,
   type SavedPrompt,
 } from '../api.ts'
+import { turnAfterLoad, type Turn, type TurnPhase } from '../chat-turn.ts'
 import { mentionsOf } from '../paper-mention.ts'
 import { Markdown } from './Markdown.tsx'
 import { SlugSuggest } from './SlugSuggest.tsx'
@@ -57,15 +58,11 @@ function estimateHeight(text: string): number {
 }
 
 /**
- * 出している応答の状態(#240)。
+ * 出している応答の見え方(#240)。
  *
  * 送ってから最初の字が返るまでには、スレッドの用意といった待ちが入る。何も出さないと、
  * 届いていないのか待たされているのかが分からない。
  */
-type TurnPhase = 'sending' | 'waiting' | 'writing'
-
-type Turn = { id: string; delta: string; phase: TurnPhase }
-
 const PHASE_LABEL: Record<TurnPhase, string> = {
   sending: '送っています',
   waiting: '前の応答が終わるのを待っています',
@@ -214,7 +211,8 @@ export function ChatPane({ id, onOpen, limits, papers, onOpenPaper, subscribe }:
 
   const efforts = useMemo(() => models.find((m) => m.id === model)?.efforts ?? [], [models, model])
 
-  const load = useCallback((target: string) => {
+  /** 会話を読み込む。`restore` の意味は `turnAfterLoad` を参照(#262)。 */
+  const load = useCallback((target: string, restore = false) => {
     return api
       .chat(target)
       .then((r) => {
@@ -223,8 +221,7 @@ export function ChatPane({ id, onOpen, limits, papers, onOpenPaper, subscribe }:
         setShown(r.id)
         setState(r.state)
         // 応答を作っているかは会話ごとに違う。開いた会話のそれに合わせる。
-        // 書いている途中の応答を持っているときは、その中身を落とさずに残す。
-        setTurn((previous) => (r.running ? (previous ?? { id: r.id, delta: '', phase: 'writing' }) : null))
+        setTurn((previous) => turnAfterLoad(previous, r, restore))
         setArchived(r.meta.archived)
         setRecorded({ model: r.meta.model, effort: r.meta.effort })
         setError(null)
@@ -252,7 +249,7 @@ export function ChatPane({ id, onOpen, limits, papers, onOpenPaper, subscribe }:
       setError(null)
       return
     }
-    void load(id)
+    void load(id, true)
   }, [id, load])
 
   useEffect(
