@@ -168,6 +168,9 @@ async function fetchWithRetry(
 
 /** 解決と取得までを行う。 */
 export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<IngestResult> {
+  // 解決は web を探すので数十秒かかる。記録ができるのはその後なので、始まりの時刻を
+  // ここで取っておき、解決の段階の始まりとして刻む(#238)。
+  const startedAt = Date.now()
   const outcome = await resolveSource(url, {
     codex: deps.codex,
     model: deps.model,
@@ -198,13 +201,16 @@ export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<Inge
     (candidate) => taken.has(candidate),
   )
 
-  deps.ingests.start({
-    slug,
-    sourceUrl,
-    arxivId: source.arxivId,
-    originalUrl: source.originalUrl,
-  })
-  deps.ingests.startStage(slug, 'resolve')
+  deps.ingests.start(
+    {
+      slug,
+      sourceUrl,
+      arxivId: source.arxivId,
+      originalUrl: source.originalUrl,
+    },
+    startedAt,
+  )
+  deps.ingests.startStage(slug, 'resolve', startedAt)
 
   try {
     // abstract を paper.md へ書かないのは、本文を照合が確定させるためである。
@@ -261,6 +267,7 @@ function findByTitle(index: IndexDb, title: string): string | null {
  * 始まらなかったときは、預かった原本も置き場に残さない。
  */
 export async function ingestFromUpload(staged: StagedOriginal, deps: UploadIngestDeps): Promise<IngestResult> {
+  const startedAt = Date.now()
   const outcome = await resolveFromOriginal(staged.path, {
     codex: deps.codex,
     model: deps.model,
@@ -292,13 +299,16 @@ export async function ingestFromUpload(staged: StagedOriginal, deps: UploadInges
 
   // 記録には手元から入れたことと選んだファイルの名前を残す。識別子を含めるのは、同じ名前の
   // ファイルを別の論文で選んだときに、URL の突き合わせで同じものに見えないためである(0021)。
-  deps.ingests.start({
-    slug,
-    sourceUrl: `upload:${staged.id}/${staged.name}`,
-    arxivId: null,
-    originalUrl: null,
-  })
-  deps.ingests.startStage(slug, 'resolve')
+  deps.ingests.start(
+    {
+      slug,
+      sourceUrl: `upload:${staged.id}/${staged.name}`,
+      arxivId: null,
+      originalUrl: null,
+    },
+    startedAt,
+  )
+  deps.ingests.startStage(slug, 'resolve', startedAt)
 
   try {
     await writePaper(deps.dataDir, toMeta(slug, source, null), '')
