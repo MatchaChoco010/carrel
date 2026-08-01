@@ -56,10 +56,22 @@ export async function startConversationThread(
  *
  * Codex の保存領域はマシンの入れ替えや掃除で失われる(0006)。また app-server を
  * 起動し直すとスレッドは記憶から降りるので、ターンを流す前に一度ここを通す。
+ *
+ * **道具の宣言は読み込み直しのたびに渡す(#277)。** スレッドの中身は Codex 側に
+ * 残るが、MCP の接続は app-server の生存に紐づく。渡さないと、読み込み直した会話は
+ * 以後ずっと pct の道具を持たない。
  */
-export async function resumeThread(client: CodexClient, threadId: string): Promise<boolean> {
+export async function resumeThread(
+  client: CodexClient,
+  threadId: string,
+  options: { mcpUrl?: string } = {},
+): Promise<boolean> {
   try {
-    await client.request(METHODS.threadResume, { threadId })
+    const params: Record<string, unknown> = { threadId }
+    if (options.mcpUrl !== undefined) {
+      params.config = { mcp_servers: { [MCP_SERVER_NAME]: { url: options.mcpUrl } } }
+    }
+    await client.request(METHODS.threadResume, params)
     return true
   } catch {
     return false

@@ -127,7 +127,7 @@ export class ChatSessions {
   async #isAlive(threadId: string): Promise<boolean> {
     const known = this.#alive.get(threadId)
     if (known !== undefined) return known
-    const alive = await resumeThread(this.#deps.codex, threadId)
+    const alive = await resumeThread(this.#deps.codex, threadId, { mcpUrl: this.#deps.mcpUrl })
     this.#alive.set(threadId, alive)
     return alive
   }
