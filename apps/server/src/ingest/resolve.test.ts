@@ -45,7 +45,7 @@ const AGENT_JSON = JSON.stringify({
   abstract: '要旨',
   arxivId: null,
   doi: '10.1145/3528223.3530127',
-  slugKeyword: 'instant-ngp',
+  slugKeepWords: [],
 })
 
 test('既に同じ URL で取り込んだ論文は重複として返る', async () => {
@@ -88,7 +88,7 @@ test('未知の出所はエージェントが解決する', async () => {
   assert.equal(outcome.source.originalUrl, 'https://example.org/paper.pdf')
   assert.equal(outcome.source.title, 'Instant Neural Graphics Primitives')
   assert.equal(outcome.source.venue, 'SIGGRAPH')
-  assert.equal(outcome.source.slugKeyword, 'instant-ngp')
+  assert.deepEqual(outcome.source.slugKeepWords, [])
   assert.equal(outcome.source.doi, '10.1145/3528223.3530127')
   assert.deepEqual(outcome.source.alternateUrls, ['https://arxiv.org/pdf/2201.05989'])
 })
