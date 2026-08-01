@@ -2000,3 +2000,87 @@ body {
   padding: 0 2px;
   color: var(--text-dim);
 }
+
+/* 会話の本文に出す論文の参照(0024)。引用と同じ「本文の中の控えめな参照」の見た目にし、
+   外へ飛ぶリンク(アクセント色に実線の下線)とは区別する。 */
+.mention {
+  display: inline;
+}
+
+.mention__name {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--text);
+  text-decoration: underline dotted var(--text-muted);
+  text-underline-offset: 2px;
+  cursor: pointer;
+  /* 姓と年の間で折り返すと、参照が 2 行に割れて読めなくなる。 */
+  white-space: nowrap;
+}
+
+.mention__name:hover,
+.mention__name:focus-visible {
+  color: var(--accent);
+  text-decoration-color: var(--accent);
+}
+
+/* 会話の欄と表が中でスクロールするので、body へ出して縁で切られないようにする。 */
+.mention__card {
+  position: fixed;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* 題は長いので折り返す。狭い画面でも枠から出ないように上限を置く。 */
+  width: max-content;
+  max-width: min(360px, 70vw);
+  padding: 8px 10px;
+  background: var(--overlay);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: left;
+}
+
+
+.mention__title {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.mention__authors {
+  color: var(--text-muted);
+}
+
+.mention__slug {
+  color: var(--text-muted);
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+  word-break: break-all;
+  text-align: left;
+}
+
+/* 押すと論文の詳細へ移る(0024)。題も slug も同じ論文を指すので、まとめて 1 つの的にする。
+   押せることは、指したときの色で示す。 */
+.mention__open {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mention__open:hover .mention__title,
+.mention__open:focus-visible .mention__title,
+.mention__open:hover .mention__slug,
+.mention__open:focus-visible .mention__slug {
+  color: var(--accent);
+}

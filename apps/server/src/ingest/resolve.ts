@@ -11,8 +11,15 @@ import type { ResolvedSource, ResolveOutcome, SourceKind } from './types.ts'
 export type KnownPapers = {
   byArxivId: (arxivId: string) => string | null
   bySourceUrl: (url: string) => string | null
-  /** 題での突き合わせ。手元から入れた原本には URL が無いので、これで重複を判じる(0021)。 */
-  byTitle: (title: string) => string | null
+  /**
+   * 書誌での突き合わせ(#245)。
+   *
+   * DOI が一致すれば同じ出版物である。DOI が無い論文でも、題と筆頭著者が一致すれば
+   * 同じ論文とみなす。手元から入れた原本には URL が無いので、この口だけが頼りになる(0021)。
+   */
+  samePaper: (identity: { title: string; authors: string[]; doi: string | null; arxivId: string | null }) =>
+    | string
+    | null
 }
 
 /**
@@ -66,9 +73,11 @@ const OUTPUT_SCHEMA = {
     abstract: { type: ['string', 'null'] },
     arxivId: { type: ['string', 'null'] },
     doi: { type: ['string', 'null'], description: '出版元の DOI。10. で始まる形。無ければ null。' },
-    slugKeyword: {
-      type: ['string', 'null'],
-      description: '論文に定着した略称。無ければタイトルの内容語を 1〜3 語。',
+    slugKeepWords: {
+      type: 'array',
+      items: { type: 'string' },
+      description:
+        '題の中の語のうち、冠詞・前置詞・姓の前置き(von など)でありながら固有名詞の一部であるもの。例: von Mises-Fisher の von。無ければ空の配列。',
     },
   },
   required: [
@@ -82,9 +91,16 @@ const OUTPUT_SCHEMA = {
     'abstract',
     'arxivId',
     'doi',
-    'slugKeyword',
+    'slugKeepWords',
   ],
   additionalProperties: false,
+}
+
+/** 文字列の配列として受け取る。空の要素は捨てる。 */
+function asWords(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((v): v is string => typeof v === 'string' && v.trim().length > 0).map((v) => v.trim())
+    : []
 }
 
 function asString(value: unknown): string | null {
@@ -125,7 +141,7 @@ function parseAgentResult(text: string): ResolvedSource | null {
     abstract: asString(r['abstract']),
     arxivId: asString(r['arxivId']),
     doi: normalizeDoi(asString(r['doi'])),
-    slugKeyword: asString(r['slugKeyword']),
+    slugKeepWords: asWords(r['slugKeepWords']),
     via: 'agent',
   }
 }
@@ -195,6 +211,16 @@ export async function resolveSource(sourceUrl: string, deps: ResolveDeps): Promi
     if (byId !== null) return { kind: 'duplicate', slug: byId, reason: 'arxivId' }
   }
 
+  // 出所の文字列が違っても、書誌で同じ論文だと分かることがある(#245)。題名で入れた
+  // 論文と URL で入れた論文は、出所が一致しない。
+  const same = deps.known.samePaper({
+    title: source.title,
+    authors: source.authors,
+    doi: source.doi,
+    arxivId: source.arxivId,
+  })
+  if (same !== null) return { kind: 'duplicate', slug: same, reason: 'bibliography' }
+
   return { kind: 'resolved', source, sourceUrl }
 }
 
@@ -220,12 +246,14 @@ const HEAD_SCHEMA = {
     authors: { type: 'array', items: { type: 'string' }, description: '著者。順序を保つ。' },
     year: { type: ['integer', 'null'], description: '紙面から読める出版年。無ければ null。' },
     abstract: { type: ['string', 'null'], description: 'abstract の本文。無ければ null。' },
-    slugKeyword: {
-      type: ['string', 'null'],
-      description: '論文に定着した略称。無ければタイトルの内容語を 1〜3 語。',
+    slugKeepWords: {
+      type: 'array',
+      items: { type: 'string' },
+      description:
+        '題の中の語のうち、冠詞・前置詞・姓の前置き(von など)でありながら固有名詞の一部であるもの。例: von Mises-Fisher の von。無ければ空の配列。',
     },
   },
-  required: ['title', 'authors', 'year', 'abstract', 'slugKeyword'],
+  required: ['title', 'authors', 'year', 'abstract', 'slugKeepWords'],
   additionalProperties: false,
 }
 
@@ -258,8 +286,13 @@ export async function resolveFromOriginal(pdf: string, deps: ResolveOriginalDeps
     const source = parseHeadResult(outcome.text)
     if (source === null) throw new Error('原本の先頭から書誌を読み取れなかった')
 
-    const byTitle = deps.known.byTitle(source.title)
-    if (byTitle !== null) return { kind: 'duplicate', slug: byTitle, reason: 'title' }
+    const same = deps.known.samePaper({
+      title: source.title,
+      authors: source.authors,
+      doi: null,
+      arxivId: null,
+    })
+    if (same !== null) return { kind: 'duplicate', slug: same, reason: 'bibliography' }
 
     return { kind: 'resolved', source, sourceUrl: null }
   } finally {
@@ -296,7 +329,7 @@ function parseHeadResult(text: string): ResolvedSource | null {
     abstract: asString(r['abstract']),
     arxivId: null,
     doi: null,
-    slugKeyword: asString(r['slugKeyword']),
+    slugKeepWords: asWords(r['slugKeepWords']),
     via: 'original',
   }
 }

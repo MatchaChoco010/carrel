@@ -3,11 +3,82 @@ import { createHash } from 'node:crypto'
 export type SlugSource = {
   authors: string[]
   year: number | null
-  /** 論文の略称、または本文から取れる短い語。 */
-  keyword: string | null
+  /** 論文の題。語幹はここから作る。 */
+  title: string
+  /**
+   * 規則が飛ばす語のうち、落とさずに拾う語(0023)。
+   *
+   * `von Mises-Fisher` の `von` のように、姓の前置きが固有名詞の一部であることがある。
+   * 語の並びだけからは決まらないので、題を読んでいる取り込みの側が名指しする。名指しが
+   * 無ければ規則どおりに飛ばす。語幹そのものは指せない。
+   */
+  keepWords?: string[]
   /** 語幹を作れないときのフォールバックに使う、その論文に固有の文字列。 */
   identity: string
 }
+
+/**
+ * 語幹に入れない語。
+ *
+ * 冠詞・前置詞・接続詞は、どの論文の題にも出るので当たりを絞れない。動詞と代名詞は
+ * 落とさない。`Attention Is All You Need` のように、それらが題の中身である場合がある。
+ */
+const STOP_WORDS = new Set([
+  'a',
+  'an',
+  'the',
+  'and',
+  'or',
+  'of',
+  'for',
+  'with',
+  'without',
+  'using',
+  'via',
+  'in',
+  'on',
+  'to',
+  'from',
+  'by',
+  'at',
+  'as',
+  'into',
+  'onto',
+  'over',
+  'under',
+  'between',
+  'toward',
+  'towards',
+  'through',
+  'during',
+  'per',
+  // 姓の前置き。単体では論文を絞れず、名前の途中で切れた語幹になる。
+  'von',
+  'van',
+  'de',
+  'der',
+  'den',
+  'di',
+  'da',
+  'du',
+  'la',
+  'le',
+  'el',
+])
+
+/** コロンの前を略称として使う上限。`Mip-NeRF 360` のような形まで含める。 */
+const SHORT_NAME_WORDS = 3
+const SHORT_NAME_CHARS = 16
+
+/**
+ * 語幹に入れる語の数と長さの上限(0023)。
+ *
+ * `SOFT_CHARS` に達したところで止めるが、そこを跨ぐ 1 語は `MAX_CHARS` 以内なら入れる。
+ * 一律に切ると `hypersphere` のような長い語 1 つで枠が埋まり、入る語が減る。
+ */
+const MAX_WORDS = 5
+const SOFT_CHARS = 32
+const MAX_CHARS = 48
 
 /** 姓を ASCII の小文字に落とす。合成済みの発音記号は分解して取り除く。 */
 export function normalizeName(name: string): string {
@@ -44,19 +115,60 @@ function words(value: string): string[] {
 }
 
 /**
- * slug の語幹を作る。
+ * 題を語のまとまりに割る(0023)。
  *
- * タイトルをそのまま渡された場合に備えて、コロンより前が 2 語までならそちらを
- * 使う。`NeRF: Representing Scenes as ...` のように、略称をコロンの前に置く
- * 書き方が多いため。
+ * ハイフンで繋がれた複合語(`real-time`、`block-compressed`)は 1 つにする。途中で
+ * 割ると `block` のように題に無い意味の語が語幹の末尾に残り、補完で当たらなくなる。
  */
-export function normalizeKeyword(keyword: string): string {
-  const colon = keyword.indexOf(':')
-  if (colon > 0) {
-    const head = words(keyword.slice(0, colon))
-    if (head.length > 0 && head.length <= 2) return head.join('-')
+function units(value: string): string[] {
+  return value
+    .normalize('NFKD')
+    .replace(/\p{M}+/gu, '')
+    .toLowerCase()
+    .split(/[^a-z0-9-]+/)
+    .map((unit) => words(unit).join('-'))
+    .filter((unit) => unit.length > 0)
+}
+
+/** 語を上限まで詰める。目安に達したら、そこを跨ぐ 1 語まで入れて終える(0023)。 */
+function pack(list: string[]): string {
+  const taken: string[] = []
+  for (const unit of list) {
+    if (taken.length >= MAX_WORDS) break
+    const candidate = [...taken, unit].join('-')
+    if (candidate.length > MAX_CHARS) break
+    taken.push(unit)
+    if (candidate.length >= SOFT_CHARS) break
   }
-  return words(keyword).slice(0, 3).join('-')
+  return taken.join('-')
+}
+
+/**
+ * 題から slug の語幹を作る(0002)。
+ *
+ * コロンより前が短ければ、それを論文が与えた略称として使う(`NeRF: ...` → `nerf`)。
+ * そうでなければ題の語を先頭から取る。冠詞や前置詞は飛ばすが、飛ばした結果 2 語に
+ * 満たなくなるときは題をそのまま使う。`Attention Is All You Need` のような題で、
+ * 元の題を思い出せない語幹になるのを避けるためである。
+ */
+export function keywordFromTitle(title: string, keepWords: string[] = []): string {
+  const colon = title.indexOf(':')
+  if (colon > 0) {
+    const head = words(title.slice(0, colon))
+    const joined = head.join('-')
+    if (head.length > 0 && head.length <= SHORT_NAME_WORDS && joined.length <= SHORT_NAME_CHARS) return joined
+  }
+
+  const keep = new Set(keepWords.flatMap((word) => words(word)))
+  const all = units(title)
+  const content = all.filter((unit) => unit.split('-').some((word) => !STOP_WORDS.has(word) || keep.has(word)))
+  return pack(content.length >= 2 ? content : all)
+}
+
+/** 名指しされた語のうち、題に出てくるものだけを残す(0023)。 */
+export function wordsInTitle(keepWords: string[], title: string): string[] {
+  const inTitle = new Set(words(title))
+  return keepWords.filter((word) => words(word).every((part) => inTitle.has(part)))
 }
 
 function shortHash(identity: string): string {
@@ -79,7 +191,7 @@ export function buildSlug(source: SlugSource, isTaken: SlugTaken): string {
 function baseSlug(source: SlugSource): string {
   const lastName = source.authors.map(lastNameOf).find((name) => name.length > 0) ?? ''
   const year = source.year !== null && Number.isInteger(source.year) ? String(source.year) : ''
-  const keyword = source.keyword !== null ? normalizeKeyword(source.keyword) : ''
+  const keyword = keywordFromTitle(source.title, wordsInTitle(source.keepWords ?? [], source.title))
 
   if (lastName.length === 0 || year.length === 0) {
     return `unknown${year.length > 0 ? year : '0000'}-${shortHash(source.identity)}`
