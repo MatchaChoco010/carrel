@@ -51,6 +51,11 @@ export function PaperMention({ mention, onOpen }: PaperMentionProps) {
 
   useEffect(() => () => hold(), [hold])
 
+  const go = useCallback((): void => {
+    setOpen(false)
+    onOpen?.(mention.slug)
+  }, [onOpen, mention.slug])
+
   // 出してから中身の大きさが決まるので、置き場所は描いた後に測って決める。
   useEffect(() => {
     if (!open) {
@@ -120,20 +125,18 @@ export function PaperMention({ mention, onOpen }: PaperMentionProps) {
               if (event.pointerType === 'mouse') release()
             }}
           >
-            <span className="mention__title">{mention.title}</span>
-            <span className="mention__authors">{authorLine(mention)}</span>
             {onOpen === undefined ? (
-              <span className="mention__slug">@{mention.slug}</span>
+              <>
+                <span className="mention__title">{mention.title}</span>
+                <span className="mention__authors">{authorLine(mention)}</span>
+                <span className="mention__slug">@{mention.slug}</span>
+              </>
             ) : (
-              <button
-                type="button"
-                className="mention__slug mention__slug--open"
-                onClick={() => {
-                  setOpen(false)
-                  onOpen(mention.slug)
-                }}
-              >
-                @{mention.slug}
+              // 題も slug も同じ論文を指すので、どちらを押しても移れる。
+              <button type="button" className="mention__open" onClick={go}>
+                <span className="mention__title">{mention.title}</span>
+                <span className="mention__authors">{authorLine(mention)}</span>
+                <span className="mention__slug">@{mention.slug}</span>
               </button>
             )}
           </span>,
