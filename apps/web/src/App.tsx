@@ -1,6 +1,13 @@
 import { FileText, ListTodo, MessagesSquare, Rss, Settings, type LucideIcon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { api, type CodexStatus, type IndexStatus, type Ingest, type JobsResponse } from './api.ts'
+import {
+  api,
+  type CodexStatus,
+  type IndexStatus,
+  type Ingest,
+  type JobsResponse,
+  type PaperIndexEntry,
+} from './api.ts'
 import { ChatPane } from './components/ChatPane.tsx'
 import { ChatsPane } from './components/ChatsPane.tsx'
 import { SettingsPane } from './components/SettingsPane.tsx'
@@ -59,7 +66,8 @@ export function App() {
   const [index, setIndex] = useState<IndexStatus | null>(null)
   const [ingests, setIngests] = useState<Ingest[]>([])
   const [unread, setUnread] = useState(0)
-  const [slugs, setSlugs] = useState<string[]>([])
+  // 起動時に一度引く論文の一覧。参照の短縮と `@` の補完が読む(0024)。
+  const [papers, setPapers] = useState<PaperIndexEntry[]>([])
   // 右の欄で開いている会話。左の一覧から選ぶ。
   const [activeChat, setActiveChat] = useState<string | null>(null)
   // チャット欄がターンの進みを受け取るための購読先。
@@ -87,8 +95,8 @@ export function App() {
       .catch(() => setUnread(0))
     void api
       .slugs()
-      .then((r) => setSlugs(r.slugs))
-      .catch(() => setSlugs([]))
+      .then((r) => setPapers(r.slugs))
+      .catch(() => setPapers([]))
   }, [])
 
   useEffect(() => {
@@ -314,7 +322,7 @@ export function App() {
               id={activeChat}
               onOpen={setActiveChat}
               limits={codex?.rateLimits ?? null}
-              slugs={slugs}
+              papers={papers}
               subscribe={subscribe}
             />
           </div>

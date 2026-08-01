@@ -310,8 +310,8 @@ export function createApp(deps: AppDeps): Hono {
     }
   })
 
-  // `@` の補完に使う。本文は要らないので slug だけを返す。
-  app.get('/api/papers/slugs', (c) => c.json({ slugs: [...deps.index.allSlugs()].sort() }))
+  // `@` の補完と、チャットの参照の短縮に使う(0024)。本文は要らない。
+  app.get('/api/papers/slugs', (c) => c.json({ slugs: deps.index.slugIndex() }))
 
   app.get('/api/codex/models', async (c) => c.json({ models: await deps.models() }))
 

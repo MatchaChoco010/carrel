@@ -15,6 +15,7 @@ import {
   type ChatMessage,
   type ChatState,
   type CodexModel,
+  type PaperIndexEntry,
   type RateLimitView,
   type SavedPrompt,
 } from '../api.ts'
@@ -28,7 +29,8 @@ export type ChatPaneProps = {
   /** 制限に達していると送れない。回復時刻を出す(0003)。 */
   limits: RateLimitView | null
   /** 補完に使う slug の一覧。 */
-  slugs: string[]
+  /** 起動時に引いた論文の一覧。`@` の補完が読む(0024)。 */
+  papers: PaperIndexEntry[]
   /** ターンの進みの購読を親から受ける。 */
   subscribe: (handler: (event: { type: string; payload: unknown }) => void) => () => void
 }
@@ -70,7 +72,8 @@ const PHASE_LABEL: Record<TurnPhase, string> = {
 /** 選んだ画像と、送るまでの間だけ使う見せかけの場所。 */
 type Attachment = { file: File; preview: string }
 
-export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps) {
+export function ChatPane({ id, onOpen, limits, papers, subscribe }: ChatPaneProps) {
+  const slugSpellings = useMemo(() => papers.map((paper) => paper.slug).sort(), [papers])
   const [messages, setMessages] = useState<ChatMessage[]>([])
   // いま出ている発言がどの会話のものか。場所が変わっても、届くまでは前の会話の
   // 発言が出ているので、末尾へ送る判断はこちらで行う。
@@ -548,7 +551,7 @@ export function ChatPane({ id, onOpen, limits, slugs, subscribe }: ChatPaneProps
           </ul>
         )}
         <SlugSuggest
-          slugs={slugs}
+          slugs={slugSpellings}
           value={draft}
           onChange={setDraft}
           inputRef={input}
