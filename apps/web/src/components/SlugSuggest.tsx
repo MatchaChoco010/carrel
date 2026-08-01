@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type KeyboardEvent, type RefObject } from 'react'
+import { completeSlug, slugTokenAt } from '../slug-token.ts'
 
 export type SlugSuggestProps = {
   slugs: string[]
@@ -18,8 +19,6 @@ const LIMIT = 8
 const MIN_HEIGHT = 96
 const MAX_HEIGHT = 320
 
-/** 入力中の `@` から後ろの、まだ空白に達していない部分。 */
-const TYPING = /@([a-z0-9-]*)$/
 
 export function SlugSuggest({
   slugs,
@@ -31,6 +30,8 @@ export function SlugSuggest({
   onSend,
 }: SlugSuggestProps) {
   const [at, setAt] = useState(0)
+  // カーソルの位置。本文の途中の `@` でも補完を出すために見る(#231)。
+  const [caret, setCaret] = useState(0)
   // Escape を押したかどうか。押すまでは Tab を入力欄の中で受け、押した後は
   // 隣の部品へ抜けさせる。文章を書いている間に焦点が飛ばないようにするため。
   //
@@ -38,16 +39,29 @@ export function SlugSuggest({
   // であって、次に欄を使うときまで持ち越すものではない。
   const [escaped, setEscaped] = useState(false)
 
-  const typing = useMemo(() => {
-    const match = TYPING.exec(value)
-    return match === null ? null : (match[1] as string)
-  }, [value])
+  const token = useMemo(() => slugTokenAt(value, caret), [value, caret])
 
   const candidates = useMemo(() => {
-    if (typing === null || escaped) return []
+    if (token === null || escaped) return []
     // slug は人間が読める形なので、著者名や略称の断片から絞り込める(0006)。
-    return slugs.filter((slug) => slug.includes(typing)).slice(0, LIMIT)
-  }, [slugs, typing, escaped])
+    return slugs.filter((slug) => slug.includes(token.text)).slice(0, LIMIT)
+  }, [slugs, token, escaped])
+
+  /**
+   * カーソルの位置を追う(#231)。
+   *
+   * 打つ以外にも、矢印で動かす、押して選び直す、といった動きでカーソルは動く。React の
+   * 合成イベントでは拾えない経路があるので、文書全体の選択の変化を見る。
+   */
+  useEffect(() => {
+    const node = inputRef.current
+    if (node === null) return
+    const update = (): void => {
+      if (document.activeElement === node) setCaret(node.selectionStart)
+    }
+    document.addEventListener('selectionchange', update)
+    return () => document.removeEventListener('selectionchange', update)
+  }, [inputRef])
 
   // 内容に合わせて縦に伸ばす。長文を書いている途中で数行しか見えなくなるのを避ける。
   useEffect(() => {
@@ -58,9 +72,19 @@ export function SlugSuggest({
   }, [value, inputRef])
 
   const complete = (slug: string): void => {
-    onChange(value.replace(TYPING, `@${slug} `))
+    if (token === null) return
+    const done = completeSlug(value, token, slug)
+    onChange(done.value)
     setAt(0)
-    inputRef.current?.focus()
+    setCaret(done.caret)
+    const node = inputRef.current
+    node?.focus()
+    // 値の反映は次の描画なので、位置の復元もそこへ回す。
+    requestAnimationFrame(() => {
+      if (node === null) return
+      node.selectionStart = done.caret
+      node.selectionEnd = done.caret
+    })
   }
 
   const insertTab = (node: HTMLTextAreaElement): void => {
@@ -145,9 +169,13 @@ export function SlugSuggest({
         value={value}
         onChange={(e) => {
           setEscaped(false)
+          setCaret(e.target.selectionStart)
           onChange(e.target.value)
         }}
-        onFocus={() => setEscaped(false)}
+        onFocus={(e) => {
+          setEscaped(false)
+          setCaret(e.currentTarget.selectionStart)
+        }}
         onPointerDown={() => setEscaped(false)}
         onKeyDown={onKeyDown}
         placeholder="@ で論文を指して質問する(送信は送るボタン。Escape で欄を離れる)"
