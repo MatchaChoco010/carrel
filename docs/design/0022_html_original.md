@@ -2,7 +2,7 @@
 
 - created: 2026-08-01
 - status: ai-approved
-- implementation: not-started
+- implementation: done (2026-08-01)
 
 ## 解決したい問題
 
