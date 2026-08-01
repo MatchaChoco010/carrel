@@ -193,7 +193,11 @@ async function main(): Promise<void> {
     indexPaper: (paper: Paper) => index.upsertPaper(paper, true),
     markEmbedded: (slug: string) => index.markEmbeddingFresh(slug),
   }
-  registerRegister(jobs, { ...registerDeps, ingests })
+  registerRegister(jobs, {
+    ...registerDeps,
+    ingests,
+    onRegistered: (slug) => hub.broadcast({ type: 'paper.changed', payload: { slug } }),
+  })
   registerEmbed(jobs, registerDeps)
 
   registerReferences(jobs, {

@@ -35,7 +35,19 @@ export function enqueueRegister(queue: JobQueue, slug: string): Job {
   return queue.enqueue({ kind: REGISTER_JOB, target: slug, resource: 'gpu', priority: 'foreground' })
 }
 
-export function registerRegister(queue: JobQueue, deps: RegisterDeps & { ingests: IngestStore }): void {
+export function registerRegister(
+  queue: JobQueue,
+  deps: RegisterDeps & {
+    ingests: IngestStore
+    /**
+     * 取り込みが終わって、その論文が引けるようになったことを知らせる(#266)。
+     *
+     * ここは索引を直に触るのでコレクションの走査を通らず、そちらの知らせは飛ばない。
+     * 画面はこれを受けて一覧を読み直す。
+     */
+    onRegistered?: (slug: string) => void
+  },
+): void {
   queue.register(REGISTER_JOB, async (job) => {
     const slug = job.target
     try {
@@ -43,6 +55,7 @@ export function registerRegister(queue: JobQueue, deps: RegisterDeps & { ingests
       // 全段階が成功したので、ここで初めて検索の対象になる(0004)。
       // registerPaper の最後は同期処理なので、ここまで監視の処理は割り込めない。
       deps.ingests.finish(slug)
+      deps.onRegistered?.(slug)
     } catch (error) {
       deps.ingests.fail(slug, error instanceof Error ? error.message : String(error))
       throw error
