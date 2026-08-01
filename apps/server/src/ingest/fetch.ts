@@ -1,9 +1,8 @@
 import { createWriteStream } from 'node:fs'
 import { mkdir, rm } from 'node:fs/promises'
-import { join } from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import { Transform } from 'node:stream'
-import { paperDir, paperOriginalPdf } from '../data/layout.ts'
+import { paperDir, paperOriginalHtml, paperOriginalPdf } from '../data/layout.ts'
 import type { SourceKind } from './types.ts'
 
 /**
@@ -43,7 +42,7 @@ export async function fetchOriginal(
   const contentType = response.headers.get('content-type')
   await mkdir(paperDir(dataDir, slug), { recursive: true })
 
-  const path = kind === 'pdf' ? paperOriginalPdf(dataDir, slug) : join(paperDir(dataDir, slug), 'original.html')
+  const path = kind === 'pdf' ? paperOriginalPdf(dataDir, slug) : paperOriginalHtml(dataDir, slug)
 
   // 書きながら数える。丸ごとメモリに載せると、大きな原本でそのぶんの山ができる。
   let bytes = 0

@@ -15,6 +15,15 @@ export type ConverterPaths = {
   llamaLibDir: string
 }
 
+export type RunHtmlOptions = {
+  html: string
+  /** 図の相対の場所を解くための、原本の URL。 */
+  baseUrl: string | null
+  outDir: string
+  paths: { python: string; script: string }
+  signal?: AbortSignal
+}
+
 export type RunConvertOptions = {
   pdf: string
   /** 成果物を書く場所。document.json / assets/ / pages/ ができる。 */
@@ -121,6 +130,38 @@ export function runConverter(options: RunConvertOptions): Promise<ConvertedDocum
     child.on('close', (code) => {
       if (code !== 0) {
         reject(new Error(`変換器が異常終了した (code=${code})\n${tail.trimEnd()}`))
+        return
+      }
+      readFile(join(outDir, 'document.json'), 'utf8')
+        .then((text) => resolve(parseDocument(text)))
+        .catch(reject)
+    })
+  })
+}
+
+/**
+ * HTML の原本を変換する(0022)。
+ *
+ * GPU も変換器も使わない。本文の塊を選んで markdown にし、PDF の変換と同じ形の
+ * 成果物を書く。
+ */
+export function runHtmlConverter(options: RunHtmlOptions): Promise<ConvertedDocument> {
+  const { html, baseUrl, outDir, paths, signal } = options
+  const args = [paths.script, html, outDir, ...(baseUrl === null ? [] : ['--base-url', baseUrl])]
+  return new Promise((resolve, reject) => {
+    const child = spawn(paths.python, args, { stdio: ['ignore', 'pipe', 'pipe'], signal })
+
+    let tail = ''
+    const keepTail = (chunk: Buffer): void => {
+      tail = `${tail}${chunk.toString('utf8')}`.slice(-4000)
+    }
+    child.stdout.on('data', keepTail)
+    child.stderr.on('data', keepTail)
+
+    child.on('error', reject)
+    child.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(`HTML の変換が異常終了した (code=${code})\n${tail.trimEnd()}`))
         return
       }
       readFile(join(outDir, 'document.json'), 'utf8')

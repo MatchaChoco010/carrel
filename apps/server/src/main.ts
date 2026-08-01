@@ -4,7 +4,7 @@ import type { Server } from 'node:http'
 import { join, relative } from 'node:path'
 import { WebSocketServer } from 'ws'
 import { CodexService } from './codex/service.ts'
-import { enqueueConvert, registerConvert } from './convert/job.ts'
+import { enqueueConvert, originalKind, registerConvert } from './convert/job.ts'
 import { createEmbedder } from './search/embed.ts'
 import { search } from './search/search.ts'
 import { searchChats } from './search/chat-search.ts'
@@ -48,6 +48,7 @@ import { listModels } from './codex/models.ts'
 import { Hub } from './hub.ts'
 import {
   converterScript,
+  htmlScript,
   indexDbFile,
   pagesScript,
   stateDbFile,
@@ -124,7 +125,10 @@ async function main(): Promise<void> {
     ingests,
     codex: codex.client,
     model: () => config.ingest.model,
-    onImported: (slug) => enqueueConvert(jobs, slug),
+    // 原本の種別で走らせ方が変わるので、置いてある原本を見てから積む(0022)。
+    onImported: (slug) => {
+      void originalKind(dataDir, slug).then((kind: 'pdf' | 'html' | null) => enqueueConvert(jobs, slug, kind ?? 'pdf'))
+    },
     linkFeed: (arxivId, slug) => feed.setSlug(arxivId, slug),
   })
 
@@ -137,6 +141,7 @@ async function main(): Promise<void> {
       llamaServer: config.converter.llamaServer,
       llamaLibDir: config.converter.llamaLibDir,
     },
+    htmlScript: htmlScript(),
     onDone: (slug) => enqueueVerify(jobs, slug),
   })
 
@@ -283,10 +288,10 @@ async function main(): Promise<void> {
     enqueueResolve: (url) => enqueueResolve(jobs, url),
     enqueueReferences: (slug) => enqueueReferences(jobs, slug, 'background'),
     // 失敗した取り込みを続きから積む(#220)。どの段階から始めるかは記録と成果物が決める。
-    resumeIngest: (slug, stage) => {
+    resumeIngest: async (slug, stage) => {
       switch (stage) {
         case 'convert':
-          return enqueueConvert(jobs, slug)
+          return enqueueConvert(jobs, slug, (await originalKind(dataDir, slug)) ?? 'pdf')
         case 'verify':
           return enqueueVerify(jobs, slug)
         case 'bibliography':
