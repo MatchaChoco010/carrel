@@ -1,7 +1,7 @@
 import { access, copyFile, mkdir, readFile, rename, rm } from 'node:fs/promises'
 import type { CodexClient } from '../codex/client.ts'
 import { nowIsoDateTime } from '../data/datetime.ts'
-import { paperDir, paperFile, paperOriginalPdf } from '../data/layout.ts'
+import { paperDir, paperFile, paperOriginalHtml, paperOriginalPdf } from '../data/layout.ts'
 import { deletePaperDir, writePaper, writePaperSideFile, type PaperMeta } from '../data/paper.ts'
 import { buildSlug } from '../data/slug.ts'
 import type { IndexDb } from '../db/index-db.ts'
@@ -47,7 +47,11 @@ async function exists(path: string): Promise<boolean> {
 export async function completedStages(dataDir: string, slug: string): Promise<Set<IngestStage>> {
   const done = new Set<IngestStage>()
   if (await exists(paperFile(dataDir, slug, 'body'))) done.add('resolve')
-  if ((await exists(paperOriginalPdf(dataDir, slug))) || (await exists(paperFile(dataDir, slug, 'raw')))) {
+  if (
+    (await exists(paperOriginalPdf(dataDir, slug))) ||
+    (await exists(paperOriginalHtml(dataDir, slug))) ||
+    (await exists(paperFile(dataDir, slug, 'raw')))
+  ) {
     done.add('fetch')
   }
   if (await exists(paperFile(dataDir, slug, 'raw'))) done.add('convert')
@@ -101,6 +105,14 @@ async function fetchFirst(
   for (const url of urls) {
     try {
       const fetched = await fetchOriginal(dataDir, slug, url, kind)
+      if (kind === 'html') {
+        // 断りの画面も HTTP としては成功するので、種別まで見る。
+        if (!(fetched.contentType ?? '').includes('html')) {
+          await rm(fetched.path, { force: true })
+          failures.push(`${url}: HTML ではない (content-type=${fetched.contentType})`)
+          continue
+        }
+      }
       if (kind === 'pdf') {
         const head = await readFile(fetched.path, { encoding: null })
         if (!looksLikePdf(head.subarray(0, 8))) {
@@ -155,14 +167,36 @@ async function fetchWithRetry(
       { codex: deps.codex, model: deps.model },
     )
     const fresh = more.filter((url) => !tried.includes(url))
-    if (fresh.length === 0) throw error
-
-    try {
-      return await fetchFirst(deps.dataDir, slug, fresh, 'pdf')
-    } catch (second) {
-      if (!(second instanceof FetchAllFailed)) throw second
-      throw new FetchAllFailed([...error.failures, ...second.failures])
+    if (fresh.length > 0) {
+      try {
+        return await fetchFirst(deps.dataDir, slug, fresh, 'pdf')
+      } catch (second) {
+        if (!(second instanceof FetchAllFailed)) throw second
+        return await fetchHtml(slug, source, [...tried, ...fresh], [...error.failures, ...second.failures], deps)
+      }
     }
+    return await fetchHtml(slug, source, tried, error.failures, deps)
+  }
+}
+
+/**
+ * PDF が取れないときに、HTML の原本を取る(0022、0004)。
+ *
+ * 閲覧ページしか出さない出版社と、HTML でしか出ない論文がある。HTML の原本は照合を
+ * 飛ばして本文だけを取り出す。
+ */
+async function fetchHtml(
+  slug: string,
+  source: ResolvedSource,
+  tried: string[],
+  failures: string[],
+  deps: IngestDeps,
+): Promise<{ url: string; path: string }> {
+  try {
+    return await fetchFirst(deps.dataDir, slug, tried, 'html')
+  } catch (error) {
+    if (!(error instanceof FetchAllFailed)) throw error
+    throw new FetchAllFailed([...failures, ...error.failures.map((f) => `${f} (HTML としても取れない)`)])
   }
 }
 

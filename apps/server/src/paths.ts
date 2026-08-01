@@ -24,6 +24,11 @@ export function indexDbFile(): string {
   return join(stateDir(), 'index.sqlite')
 }
 
+/** HTML の原本を変換する script(0022)。 */
+export function htmlScript(): string {
+  return join(converterDir(), 'pct_html.py')
+}
+
 /** ページを画像にする script(0021)。 */
 export function pagesScript(): string {
   return join(converterDir(), 'pct_pages.py')
