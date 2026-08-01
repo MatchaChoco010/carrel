@@ -99,6 +99,7 @@ export function parseArxivEntry(xml: string, arxivId: string): ResolvedSource | 
     arxivId,
     doi: text(entry, 'arxiv:doi'),
     slugKeyword: null,
+    slugKeywordKeepsSkipped: false,
     via: 'arxiv',
   }
 }

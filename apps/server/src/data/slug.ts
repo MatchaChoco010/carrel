@@ -5,8 +5,16 @@ export type SlugSource = {
   year: number | null
   /** 論文の題。語幹はここから作る。 */
   title: string
-  /** 取り込みが提案した略称。題に出てこない語は使わない(#247)。 */
+  /** 取り込みが提案した語幹。題に出てこない語は使わない(0023)。 */
   keyword: string | null
+  /**
+   * 提案された語に、規則が飛ばす語をあえて含めたか(0023)。
+   *
+   * `von Mises-Fisher` の `von` のように、姓の前置きが固有名詞の一部であることがある。
+   * 語の並びだけからは決まらないので、題を読んでいる取り込みの側が明示する。明示が
+   * 無ければ規則どおりに飛ばす。
+   */
+  keywordKeepsSkipped?: boolean
   /** 語幹を作れないときのフォールバックに使う、その論文に固有の文字列。 */
   identity: string
 }
@@ -115,6 +123,18 @@ function pack(list: string[]): string {
 }
 
 /**
+ * 提案された語を語幹の形にする(0023)。
+ *
+ * 明示が無ければ、提案された語にも規則の飛ばしを当てる。上限は明示の有無によらず効かせる。
+ */
+function packProposed(keyword: string, keepsSkipped: boolean): string {
+  const all = words(keyword)
+  if (keepsSkipped) return pack(all)
+  const content = all.filter((word) => !STOP_WORDS.has(word))
+  return pack(content.length > 0 ? content : all)
+}
+
+/**
  * 題から slug の語幹を作る(0002)。
  *
  * コロンより前が 2 語までなら、それを論文が与えた略称として使う(`NeRF: ...` → `nerf`)。
@@ -168,7 +188,7 @@ function baseSlug(source: SlugSource): string {
   const lastName = source.authors.map(lastNameOf).find((name) => name.length > 0) ?? ''
   const year = source.year !== null && Number.isInteger(source.year) ? String(source.year) : ''
   const proposed = source.keyword !== null && keywordInTitle(source.keyword, source.title) ? source.keyword : null
-  const keyword = proposed === null ? keywordFromTitle(source.title) : pack(words(proposed))
+  const keyword = proposed === null ? keywordFromTitle(source.title) : packProposed(proposed, source.keywordKeepsSkipped === true)
 
   if (lastName.length === 0 || year.length === 0) {
     return `unknown${year.length > 0 ? year : '0000'}-${shortHash(source.identity)}`

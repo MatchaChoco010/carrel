@@ -69,7 +69,12 @@ const OUTPUT_SCHEMA = {
     slugKeyword: {
       type: ['string', 'null'],
       description:
-        '論文自身が題の中で与えている略称(コロンの前など)。題に出てこない語を作らない。無ければ null。',
+        '論文自身が題の中で与えている略称、または題の中の固有名詞。題に出てこない語を作らない。無ければ null。',
+    },
+    slugKeywordKeepsSkipped: {
+      type: 'boolean',
+      description:
+        '上の語に冠詞・前置詞・姓の前置き(von など)をあえて含めたなら true。固有名詞の一部である場合に限る。',
     },
   },
   required: [
@@ -84,6 +89,7 @@ const OUTPUT_SCHEMA = {
     'arxivId',
     'doi',
     'slugKeyword',
+    'slugKeywordKeepsSkipped',
   ],
   additionalProperties: false,
 }
@@ -127,6 +133,7 @@ function parseAgentResult(text: string): ResolvedSource | null {
     arxivId: asString(r['arxivId']),
     doi: normalizeDoi(asString(r['doi'])),
     slugKeyword: asString(r['slugKeyword']),
+    slugKeywordKeepsSkipped: r['slugKeywordKeepsSkipped'] === true,
     via: 'agent',
   }
 }
@@ -224,10 +231,15 @@ const HEAD_SCHEMA = {
     slugKeyword: {
       type: ['string', 'null'],
       description:
-        '論文自身が題の中で与えている略称(コロンの前など)。題に出てこない語を作らない。無ければ null。',
+        '論文自身が題の中で与えている略称、または題の中の固有名詞。題に出てこない語を作らない。無ければ null。',
+    },
+    slugKeywordKeepsSkipped: {
+      type: 'boolean',
+      description:
+        '上の語に冠詞・前置詞・姓の前置き(von など)をあえて含めたなら true。固有名詞の一部である場合に限る。',
     },
   },
-  required: ['title', 'authors', 'year', 'abstract', 'slugKeyword'],
+  required: ['title', 'authors', 'year', 'abstract', 'slugKeyword', 'slugKeywordKeepsSkipped'],
   additionalProperties: false,
 }
 
@@ -299,6 +311,7 @@ function parseHeadResult(text: string): ResolvedSource | null {
     arxivId: null,
     doi: null,
     slugKeyword: asString(r['slugKeyword']),
+    slugKeywordKeepsSkipped: r['slugKeywordKeepsSkipped'] === true,
     via: 'original',
   }
 }

@@ -39,6 +39,12 @@ export type ResolvedSource = {
   doi: string | null
   /** slug のタイトル由来の部分の候補。 */
   slugKeyword: string | null
+  /**
+   * 上の語に、冠詞・前置詞・姓の前置きをあえて含めたか(0023)。
+   *
+   * `von Mises-Fisher` のように、それらが固有名詞の一部である場合に真になる。
+   */
+  slugKeywordKeepsSkipped: boolean
   /** どの経路で解決したか。 */
   via: 'arxiv' | 'agent' | 'original'
 }

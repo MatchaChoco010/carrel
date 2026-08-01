@@ -99,6 +99,50 @@ test('著者か年が取れないときはフォールバックする', () => {
   assert.match(noYear, /^unknown0000-[0-9a-f]{8}$/)
 })
 
+test('提案された語の飛ばす語は、明示が無ければ落とす(0023)', () => {
+  const slug = buildSlug(
+    {
+      authors: ['Arindam Banerjee'],
+      year: 2005,
+      title: 'Clustering on the Unit Hypersphere using von Mises-Fisher Distributions',
+      keyword: 'von Mises-Fisher',
+      identity: 'x',
+    },
+    never,
+  )
+  assert.equal(slug, 'banerjee2005-mises-fisher')
+})
+
+test('固有名詞だと明示されたら、飛ばす語も残す(0023)', () => {
+  const slug = buildSlug(
+    {
+      authors: ['Arindam Banerjee'],
+      year: 2005,
+      title: 'Clustering on the Unit Hypersphere using von Mises-Fisher Distributions',
+      keyword: 'von Mises-Fisher',
+      keywordKeepsSkipped: true,
+      identity: 'x',
+    },
+    never,
+  )
+  assert.equal(slug, 'banerjee2005-von-mises-fisher')
+})
+
+test('明示があっても、題に出てこない語は使わない(0023)', () => {
+  const slug = buildSlug(
+    {
+      authors: ['Jiaping Wang'],
+      year: 2018,
+      title: 'Analytic spherical harmonic coefficients for polygonal area lights',
+      keyword: 'ASH',
+      keywordKeepsSkipped: true,
+      identity: 'x',
+    },
+    never,
+  )
+  assert.equal(slug, 'wang2018-analytic-spherical-harmonic')
+})
+
 test('提案された語が題に無ければ、題から作り直す(0023)', () => {
   const slug = buildSlug(
     {
