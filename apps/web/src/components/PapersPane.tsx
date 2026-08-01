@@ -50,6 +50,11 @@ export function PapersPane({
   const [limit, setLimit] = useState(PAGE)
   const picker = useRef<HTMLInputElement>(null)
   const tail = useRef<HTMLDivElement>(null)
+  const head = useRef<HTMLDivElement>(null)
+  /** 一覧の先頭が見えているか(#273)。 */
+  const [atTop, setAtTop] = useState(true)
+  /** 索引が変わったのに、まだ読み直していない(#273)。 */
+  const [stale, setStale] = useState(false)
   const [url, setUrl] = useState('')
 
   const load = useCallback(async (): Promise<void> => {
@@ -74,10 +79,49 @@ export function PapersPane({
     }
   }, [query, filter, limit])
 
+  // 検索の条件や求める件数が変わったら読み直す。ここで読み直すので、溜めていた分も済む。
   useEffect(() => {
-    const timer = setTimeout(() => void load(), DEBOUNCE)
+    const timer = setTimeout(() => {
+      void load()
+      setStale(false)
+    }, DEBOUNCE)
     return () => clearTimeout(timer)
-  }, [load, revision])
+  }, [load])
+
+  /**
+   * 一覧の先頭にいるかを見張る(#273)。
+   *
+   * 送っている枠は親が持っているので、位置を直に測らずに、先頭に置いた目印が
+   * 見えているかで判じる。末尾の見張り(#222)と同じやり方である。
+   */
+  useEffect(() => {
+    const node = head.current
+    if (node === null) return
+    const watcher = new IntersectionObserver((entries) => {
+      for (const entry of entries) setAtTop(entry.isIntersecting)
+    })
+    watcher.observe(node)
+    return () => watcher.disconnect()
+  }, [hits.length])
+
+  /**
+   * 索引が変わったら、読み直しが要ることを覚える(#273)。
+   *
+   * 送っている途中で一覧が入れ替わると、読んでいる場所が飛ぶ。先頭に戻るまで待つ。
+   */
+  const seenRevision = useRef(revision)
+  useEffect(() => {
+    if (revision === seenRevision.current) return
+    seenRevision.current = revision
+    setStale(true)
+  }, [revision])
+
+  // 先頭にいて、読み直しが要るなら読み直す。先頭にいる間に変わったときは、そのまま続けて読む。
+  useEffect(() => {
+    if (!stale || !atTop) return
+    setStale(false)
+    void load()
+  }, [stale, atTop, load])
 
   // 条件を変えたら最初の分量から出し直す。前の条件で伸ばした件数を持ち越さない。
   useEffect(() => {
@@ -265,6 +309,8 @@ export function PapersPane({
         <p className="empty">条件に当たる論文は無い</p>
       ) : (
         <div className="paper-list">
+          {/* 先頭の見張り。ここが見えているかで、読み直してよいかを決める(#273)。 */}
+          <div ref={head} className="paper-list__head" aria-hidden />
           {hits.map((hit) => {
             const detail = details.get(hit.slug)
             if (detail === undefined) return null
