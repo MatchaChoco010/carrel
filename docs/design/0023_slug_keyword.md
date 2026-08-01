@@ -2,7 +2,7 @@
 
 - created: 2026-08-01
 - status: ready for review
-- implementation: not-started
+- implementation: done (2026-08-01)
 
 ## 解決したい問題
 
@@ -50,12 +50,12 @@ slug は論文を指す不変の名前で、チャットの markdown に `@slug`
 語幹は **5 語・32 文字まで**とする。
 `@` に続けて打つ名前なので、長くすると打ちにくくなる。
 
-コロンの前が 2 語までなら、それを論文が与えた略称として使う(`NeRF: Representing Scenes ...` → `nerf`)。
+コロンの前が短ければ(3 語・16 文字まで)、それを論文が与えた略称として使う(`NeRF: Representing Scenes ...` → `nerf`、`Mip-NeRF 360: ...` → `mip-nerf-360`)。
 これは発明ではなく、著者が題の中で与えた名前である。
 
 ```mermaid
 flowchart TD
-  T["論文の題"] --> C{"コロンの前が 2 語まで?"}
+  T["論文の題"] --> C{"コロンの前が短い?<br/>(3 語・16 文字まで)"}
   C -->|はい| S["その語を語幹にする"]
   C -->|いいえ| W["題の語を先頭から取る"]
   W --> D{"冠詞・前置詞・接続詞を<br/>落として 2 語以上残る?"}
@@ -84,11 +84,13 @@ slug は `wang2018-analytic-spherical-harmonic` になる。
 | 題 | 語幹 | 理由 |
 |---|---|---|
 | `NeRF: Representing Scenes as Neural Radiance Fields ...` | `nerf` | コロンの前が 1 語 |
+| `Mip-NeRF 360: Unbounded Anti-Aliased Neural Radiance Fields` | `mip-nerf-360` | コロンの前が 3 語・12 文字 |
 | `Analytic spherical harmonic coefficients for polygonal area lights` | `analytic-spherical-harmonic` | 前置詞を飛ばし、32 文字で打ち切り |
 | `Clustering on the Unit Hypersphere using von Mises-Fisher Distributions` | `clustering-unit-hypersphere` | 同上 |
 | `Attention Is All You Need` | `attention-is-all-you-need` | 飛ばすと 2 語未満になるので題のまま |
 
-飛ばすのは冠詞・前置詞・接続詞に限る。
+飛ばすのは冠詞・前置詞・接続詞と、姓の前置き(`von`、`van`、`de` など)に限る。
+姓の前置きを飛ばすのは、`von Mises-Fisher` のような名前が途中で切れた語幹になるのを避けるためである。
 動詞と代名詞は落とさない。
 `Attention Is All You Need` のように、それらが題の中身である題があるためである。
 
