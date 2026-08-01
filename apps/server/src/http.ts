@@ -431,7 +431,9 @@ export function createApp(deps: AppDeps): Hono {
       messages: chat.messages,
       id: chat.meta.id,
       path: chat.path,
-      running: deps.chats.isRunning(chat.path),
+      // 走っているかの鍵は会話の実体の場所である。`chat.path` はコレクションからの
+      // 相対なので、そのまま渡すと常に走っていないことになる。
+      running: deps.chats.isRunning(file),
       state: await deps.chats.state(chat),
     })
   })
