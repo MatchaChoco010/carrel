@@ -100,6 +100,14 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 7,
+    up: `
+      -- 取り込みの題と DOI(#263)。索引に載る前の取り込みでも、同じ論文かを引けるようにする。
+      alter table ingests add column title text;
+      alter table ingests add column doi text;
+    `,
+  },
 ]
 
 /**

@@ -147,3 +147,51 @@ test('取り込みを取り消すと記録が消える', () => {
     h.close()
   }
 })
+
+test('登録まで進んでいない取り込みは、題と DOI で引ける(#263)', () => {
+  const h = harness()
+  try {
+    h.ingests.start({
+      slug: 'olajos2026-clouds',
+      sourceUrl: 'Environmental Volumetric Neural Shading of Clouds',
+      arxivId: null,
+      originalUrl: 'https://dl.acm.org/doi/pdf/10.1145/3820020',
+      title: 'Environmental Volumetric Neural Shading of Clouds for Real-Time Rendering',
+      doi: '10.1145/3820020',
+    })
+    h.ingests.fail('olajos2026-clouds', '変換が異常終了した')
+
+    assert.deepEqual(h.ingests.pendingIdentities(), [
+      {
+        slug: 'olajos2026-clouds',
+        title: 'Environmental Volumetric Neural Shading of Clouds for Real-Time Rendering',
+        authors: [],
+        doi: '10.1145/3820020',
+        arxivId: null,
+      },
+    ])
+  } finally {
+    h.close()
+  }
+})
+
+test('登録まで進んだ取り込みは、突き合わせの相手にしない(#263)', () => {
+  const h = harness()
+  try {
+    h.ingests.start({ slug: 'a2020-x', sourceUrl: 'u', arxivId: null, originalUrl: null, title: 'T', doi: null })
+    h.ingests.finish('a2020-x')
+    assert.deepEqual(h.ingests.pendingIdentities(), [])
+  } finally {
+    h.close()
+  }
+})
+
+test('題を持たない取り込みは、突き合わせの相手にしない(#263)', () => {
+  const h = harness()
+  try {
+    h.ingests.start({ slug: 'a2020-x', sourceUrl: 'u', arxivId: null, originalUrl: null })
+    assert.deepEqual(h.ingests.pendingIdentities(), [])
+  } finally {
+    h.close()
+  }
+})

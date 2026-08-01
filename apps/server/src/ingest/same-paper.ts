@@ -1,5 +1,3 @@
-import type { IndexDb } from '../db/index-db.ts'
-
 /** 突き合わせのために題を均す。大文字と小文字、空白、記号の違いを落とす。 */
 export function normalizeTitle(title: string): string {
   return title
@@ -46,30 +44,35 @@ function differentVersion(a: Identity, b: Identity): boolean {
   return false
 }
 
+/** 突き合わせの相手。取り込み済みの論文と、まだ登録まで進んでいない取り込みの両方が入る。 */
+export type Candidate = Identity & { slug: string }
+
 /**
- * 既に取り込んである同じ論文を引く(#245)。
+ * 同じ論文を引く(#245)。
  *
  * 出所の URL と arXiv の識別子だけでは、題名から入れた論文と URL から入れた論文が
  * 同じだと分からない。DOI が一致すれば同じ出版物であり、DOI が無い論文(arXiv など)
  * でも、題と筆頭著者が一致すれば同じ論文とみなす。ただし識別子が食い違う組は、
  * 版の違いとして別の論文のままにする。
+ *
+ * 相手には、途中で失敗した取り込みも含める(#263)。索引に載るのは登録まで進んだ論文
+ * だけなので、索引だけを見ると失敗した取り込みと同じ論文に連番が付く。
  */
-export function findSamePaper(index: IndexDb, asked: Identity): string | null {
+export function findSamePaper(candidates: Candidate[], asked: Identity): string | null {
   if (asked.doi !== null) {
-    const byDoi = index.findByDoi(asked.doi)
-    if (byDoi !== null) return byDoi
+    const byDoi = candidates.find((paper) => paper.doi === asked.doi)
+    if (byDoi !== undefined) return byDoi.slug
   }
 
   const title = normalizeTitle(asked.title)
   if (title.length === 0) return null
 
-  for (const paper of index.identities()) {
+  for (const paper of candidates) {
     if (normalizeTitle(paper.title) !== title) continue
-    const known: Identity = { title: paper.title, authors: paper.authors, doi: paper.doi, arxivId: paper.arxivId }
-    if (differentVersion(asked, known)) continue
+    if (differentVersion(asked, paper)) continue
     // 著者が分からない側があるときは、題の一致だけで同じ論文とみなす。
-    if (asked.authors.length === 0 || known.authors.length === 0) return paper.slug
-    if (sameFirstAuthor(asked.authors, known.authors)) return paper.slug
+    if (asked.authors.length === 0 || paper.authors.length === 0) return paper.slug
+    if (sameFirstAuthor(asked.authors, paper.authors)) return paper.slug
   }
   return null
 }
