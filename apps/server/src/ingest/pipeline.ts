@@ -242,7 +242,8 @@ export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<Inge
     {
       authors: source.authors,
       year: source.year,
-      keyword: source.slugKeyword ?? source.title,
+      title: source.title,
+      keepWords: source.slugKeepWords,
       identity: source.arxivId ?? source.originalUrl ?? sourceUrl,
     },
     (candidate) => taken.has(candidate),
@@ -315,7 +316,8 @@ export async function ingestFromUpload(staged: StagedOriginal, deps: UploadInges
     {
       authors: source.authors,
       year: source.year,
-      keyword: source.slugKeyword ?? source.title,
+      title: source.title,
+      keepWords: source.slugKeepWords,
       identity: staged.id,
     },
     (candidate) => taken.has(candidate),

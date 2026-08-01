@@ -73,9 +73,11 @@ const OUTPUT_SCHEMA = {
     abstract: { type: ['string', 'null'] },
     arxivId: { type: ['string', 'null'] },
     doi: { type: ['string', 'null'], description: '出版元の DOI。10. で始まる形。無ければ null。' },
-    slugKeyword: {
-      type: ['string', 'null'],
-      description: '論文に定着した略称。無ければタイトルの内容語を 1〜3 語。',
+    slugKeepWords: {
+      type: 'array',
+      items: { type: 'string' },
+      description:
+        '題の中の語のうち、冠詞・前置詞・姓の前置き(von など)でありながら固有名詞の一部であるもの。例: von Mises-Fisher の von。無ければ空の配列。',
     },
   },
   required: [
@@ -89,9 +91,16 @@ const OUTPUT_SCHEMA = {
     'abstract',
     'arxivId',
     'doi',
-    'slugKeyword',
+    'slugKeepWords',
   ],
   additionalProperties: false,
+}
+
+/** 文字列の配列として受け取る。空の要素は捨てる。 */
+function asWords(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((v): v is string => typeof v === 'string' && v.trim().length > 0).map((v) => v.trim())
+    : []
 }
 
 function asString(value: unknown): string | null {
@@ -132,7 +141,7 @@ function parseAgentResult(text: string): ResolvedSource | null {
     abstract: asString(r['abstract']),
     arxivId: asString(r['arxivId']),
     doi: normalizeDoi(asString(r['doi'])),
-    slugKeyword: asString(r['slugKeyword']),
+    slugKeepWords: asWords(r['slugKeepWords']),
     via: 'agent',
   }
 }
@@ -237,12 +246,14 @@ const HEAD_SCHEMA = {
     authors: { type: 'array', items: { type: 'string' }, description: '著者。順序を保つ。' },
     year: { type: ['integer', 'null'], description: '紙面から読める出版年。無ければ null。' },
     abstract: { type: ['string', 'null'], description: 'abstract の本文。無ければ null。' },
-    slugKeyword: {
-      type: ['string', 'null'],
-      description: '論文に定着した略称。無ければタイトルの内容語を 1〜3 語。',
+    slugKeepWords: {
+      type: 'array',
+      items: { type: 'string' },
+      description:
+        '題の中の語のうち、冠詞・前置詞・姓の前置き(von など)でありながら固有名詞の一部であるもの。例: von Mises-Fisher の von。無ければ空の配列。',
     },
   },
-  required: ['title', 'authors', 'year', 'abstract', 'slugKeyword'],
+  required: ['title', 'authors', 'year', 'abstract', 'slugKeepWords'],
   additionalProperties: false,
 }
 
@@ -318,7 +329,7 @@ function parseHeadResult(text: string): ResolvedSource | null {
     abstract: asString(r['abstract']),
     arxivId: null,
     doi: null,
-    slugKeyword: asString(r['slugKeyword']),
+    slugKeepWords: asWords(r['slugKeepWords']),
     via: 'original',
   }
 }
