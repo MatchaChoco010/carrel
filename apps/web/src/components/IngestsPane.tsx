@@ -10,7 +10,7 @@ export type IngestsPaneProps = {
    * 記録ができるのは解決が終わって slug が決まってからなので、それまでの数十秒は
    * 押した相手が画面に出ない。積んである解決の仕事をそのまま出す。
    */
-  waiting: Array<{ id: number; target: string }>
+  waiting: Array<{ id: number; target: string; createdAt: number }>
   /** 記録を消した後に一覧を読み直す。 */
   onChanged: () => void
 }
@@ -63,6 +63,25 @@ function useNow(active: boolean): number {
   return active ? now : Date.now()
 }
 
+/**
+ * まだ記録になっていない取り込みを、記録と同じ形に組み立てる(#230)。
+ *
+ * slug は解決が終わるまで決まらないので `未解決` と出し、解決の段階だけが走っている
+ * 状態にする。進みの見た目を他と変えないためである。
+ */
+function pending(job: { id: number; target: string; createdAt: number }): Ingest {
+  return {
+    slug: '未解決',
+    sourceUrl: job.target,
+    stage: 'resolve',
+    status: 'inProgress',
+    startedAt: job.createdAt,
+    updatedAt: job.createdAt,
+    lastError: null,
+    stages: [{ stage: 'resolve', startedAt: job.createdAt, finishedAt: null }],
+  }
+}
+
 export function IngestsPane({ ingests, waiting, onChanged }: IngestsPaneProps) {
   const now = useNow(ingests.some((i) => i.status === 'inProgress') || waiting.length > 0)
   const [busy, setBusy] = useState(false)
@@ -88,6 +107,12 @@ export function IngestsPane({ ingests, waiting, onChanged }: IngestsPaneProps) {
     return <p className="empty">取り込み中の論文はありません</p>
   }
 
+  // 待っているものを先に置く。押した直後のものが目に入るようにするためである。
+  const rows = [
+    ...waiting.map((job) => ({ key: `waiting-${job.id}`, ingest: pending(job) })),
+    ...ingests.map((ingest) => ({ key: ingest.slug, ingest })),
+  ]
+
   return (
     <div className="ingests">
       {done > 0 && (
@@ -98,23 +123,13 @@ export function IngestsPane({ ingests, waiting, onChanged }: IngestsPaneProps) {
           </button>
         </div>
       )}
-      {waiting.map((job) => (
-        <article key={`waiting-${job.id}`} className="ingest ingest--inProgress">
-          <header>
-            <code className="ingest__target">{job.target}</code>
-            <span className="ingest__total">
-              <Loader2 size={ICON} className="spin" aria-hidden /> 解決を待っている
-            </span>
-          </header>
-        </article>
-      ))}
-      {ingests.map((ingest) => {
+      {rows.map(({ key, ingest }) => {
         const byStage = new Map(ingest.stages.map((s) => [s.stage, s]))
         const at = STAGES.indexOf(ingest.stage)
         const total = ingest.stages.reduce((sum, s) => sum + ((s.finishedAt ?? now) - s.startedAt), 0)
 
         return (
-          <article key={ingest.slug} className={`ingest ingest--${ingest.status}`}>
+          <article key={key} className={`ingest ingest--${ingest.status}`} title={ingest.sourceUrl}>
             <header>
               <code>{ingest.slug}</code>
               <span className="ingest__total">{duration(total)}</span>

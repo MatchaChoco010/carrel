@@ -148,7 +148,7 @@ export function App() {
     return (jobs?.jobs ?? [])
       .filter((job) => job.kind === 'resolve' && (job.state === 'pending' || job.state === 'running'))
       .filter((job) => !started.has(job.target) && !ingests.some((i) => i.sourceUrl.startsWith(`${job.target}/`)))
-      .map((job) => ({ id: job.id, target: job.target }))
+      .map((job) => ({ id: job.id, target: job.target, createdAt: job.createdAt }))
   }, [jobs, ingests])
 
   return (
