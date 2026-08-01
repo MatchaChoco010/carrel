@@ -1,5 +1,5 @@
 import { FileText, ListTodo, MessagesSquare, Rss, Settings, type LucideIcon } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, type CodexStatus, type IndexStatus, type Ingest, type JobsResponse } from './api.ts'
 import { ChatPane } from './components/ChatPane.tsx'
 import { ChatsPane } from './components/ChatsPane.tsx'
@@ -172,6 +172,20 @@ export function App() {
     waitedBefore.current = waiting
   }, [waiting, notify])
 
+  /**
+   * まだ記録になっていない取り込み(#230)。
+   *
+   * 解決の仕事は slug が決まる前から積まれているので、これを出せば押した直後から進みが出る。
+   * 記録ができた取り込みは、記録の側に出るのでここから外す。
+   */
+  const waitingIngests = useMemo(() => {
+    const started = new Set(ingests.map((ingest) => ingest.sourceUrl))
+    return (jobs?.jobs ?? [])
+      .filter((job) => job.kind === 'resolve' && (job.state === 'pending' || job.state === 'running'))
+      .filter((job) => !started.has(job.target) && !ingests.some((i) => i.sourceUrl.startsWith(`${job.target}/`)))
+      .map((job) => ({ id: job.id, target: job.target, createdAt: job.createdAt }))
+  }, [jobs, ingests])
+
   return (
     <div className={`app ${narrow ? 'app--narrow' : ''}`}>
       <nav className="rail" aria-label="画面の切り替え">
@@ -223,7 +237,7 @@ export function App() {
             {opened.has('jobs') && (
               <div className="pane__slot" hidden={tab !== 'jobs'}>
                 <div className="jobs-tab">
-                  <IngestsPane ingests={ingests} onChanged={reloadJobs} />
+                  <IngestsPane ingests={ingests} waiting={waitingIngests} onChanged={reloadJobs} />
                   <JobsPane jobs={jobs} onCleared={reloadJobs} />
                 </div>
               </div>
