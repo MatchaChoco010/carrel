@@ -2,7 +2,7 @@ import { access, copyFile, mkdir, readFile, rename, rm } from 'node:fs/promises'
 import type { CodexClient } from '../codex/client.ts'
 import { nowIsoDateTime } from '../data/datetime.ts'
 import { paperDir, paperFile, paperOriginalHtml, paperOriginalPdf } from '../data/layout.ts'
-import { deletePaperDir, writePaper, writePaperSideFile, type PaperMeta } from '../data/paper.ts'
+import { deletePaperDir, readPaper, writePaper, writePaperSideFile, type PaperMeta } from '../data/paper.ts'
 import { buildSlug } from '../data/slug.ts'
 import type { IndexDb } from '../db/index-db.ts'
 import { fetchOriginal, looksLikePdf } from './fetch.ts'
@@ -460,6 +460,27 @@ export async function planResume(dataDir: string, record: IngestRecord): Promise
           ? 'references'
           : 'register'
   return { kind: 'continue', slug: record.slug, stage }
+}
+
+/**
+ * 題を持たない取り込みの記録に、その論文の `paper.md` から題と DOI を入れる(#271)。
+ *
+ * 題と DOI の欄は後から足したので、それ以前に失敗した記録は空のままである。空のままだと
+ * 同じ論文かの突き合わせ(#263)の相手に入らず、手元の PDF を入れても連番が付く。
+ * 書誌の正は論文のディレクトリ(0002)なので、そこから埋め直せる。
+ *
+ * 解決の段階で失敗した取り込みは `paper.md` を持たないが、その場合は slug も決まって
+ * いないので突き合わせる必要が無い。
+ */
+export async function backfillIngestMetadata(dataDir: string, ingests: IngestStore): Promise<number> {
+  let filled = 0
+  for (const slug of ingests.missingMetadata()) {
+    const paper = await readPaper(dataDir, slug)
+    if (paper === null || paper.meta.title.length === 0) continue
+    ingests.setMetadata(slug, paper.meta.title, paper.meta.doi)
+    filled += 1
+  }
+  return filled
 }
 
 /** 取り込みを取り消す。成果物と記録の両方を消す。 */
