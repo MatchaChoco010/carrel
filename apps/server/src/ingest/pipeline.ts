@@ -7,7 +7,8 @@ import { buildSlug } from '../data/slug.ts'
 import type { IndexDb } from '../db/index-db.ts'
 import { fetchOriginal, looksLikePdf } from './fetch.ts'
 import { readOriginalHead, type HeadPaths } from './head.ts'
-import { findArticlePages, findMoreSources, resolveFromOriginal, resolveSource } from './resolve.ts'
+import { scanForPdfLinks } from './links.ts'
+import { findArticlePages, findMoreSources, looksLikeUrl, resolveFromOriginal, resolveSource } from './resolve.ts'
 import type { StagedOriginal } from './staging.ts'
 import type { IngestRecord, IngestStore } from './store.ts'
 import type { IngestStage, ResolvedSource } from './types.ts'
@@ -149,7 +150,8 @@ export class FetchAllFailed extends Error {
  *
  * 1. 解決が挙げた所在を PDF として試す。
  * 2. 取れなければ、失敗の理由を渡して別の PDF の所在を探す。
- * 3. それでも無ければ、本文が載っている HTML のページを探して原本にする。
+ * 3. 挙がったページの中に PDF への直リンクがあれば、それを試す。
+ * 4. それでも無ければ、本文が載っている HTML のページを探して原本にする。
  *
  * 取れなかった PDF の所在をそのまま HTML として取らないのは、出版社の判定ページや
  * 案内のページを原本にしてしまうためである。
@@ -158,8 +160,11 @@ async function fetchWithRetry(
   slug: string,
   source: ResolvedSource,
   deps: IngestDeps,
+  entry: string | null = null,
 ): Promise<{ url: string; path: string }> {
-  const tried = candidates(source)
+  // 渡された URL は必ず試す。解決が出版社のページに置き換えてしまうことがあり、
+  // そのままだと指されたページを一度も見ないまま失敗する(#243)。
+  const tried = [...new Set([...candidates(source), ...(entry === null ? [] : [entry])])]
   const asked = { title: source.title, authors: source.authors, year: source.year }
   const failures: string[] = []
 
@@ -180,6 +185,17 @@ async function fetchWithRetry(
       if (!(error instanceof FetchAllFailed)) throw error
       failures.push(...error.failures)
       tried.push(...more)
+    }
+  }
+
+  const linked = (await scanForPdfLinks(tried)).filter((url) => !tried.includes(url))
+  if (linked.length > 0) {
+    try {
+      return await fetchFirst(deps.dataDir, slug, linked, 'pdf')
+    } catch (error) {
+      if (!(error instanceof FetchAllFailed)) throw error
+      failures.push(...error.failures)
+      tried.push(...linked)
     }
   }
 
@@ -251,7 +267,7 @@ export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<Inge
     }
     deps.ingests.advance(slug, 'fetch')
 
-    const taken = await fetchWithRetry(slug, source, deps)
+    const taken = await fetchWithRetry(slug, source, deps, looksLikeUrl(sourceUrl) ? sourceUrl : null)
     // 別の所在から取れたときは、原本の場所をそこへ直す。
     if (taken.url !== source.originalUrl) {
       await writePaper(deps.dataDir, { ...toMeta(slug, source, sourceUrl), pdfUrl: taken.url }, '')
