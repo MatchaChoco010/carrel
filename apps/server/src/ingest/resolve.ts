@@ -13,6 +13,8 @@ export type KnownPapers = {
   bySourceUrl: (url: string) => string | null
   /** 題での突き合わせ。手元から入れた原本には URL が無いので、これで重複を判じる(0021)。 */
   byTitle: (title: string) => string | null
+  /** DOI での突き合わせ。同じ DOI は同じ出版物である(#245)。 */
+  byDoi: (doi: string) => string | null
 }
 
 /**
@@ -193,6 +195,14 @@ export async function resolveSource(sourceUrl: string, deps: ResolveDeps): Promi
   if (source.arxivId !== null) {
     const byId = deps.known.byArxivId(source.arxivId)
     if (byId !== null) return { kind: 'duplicate', slug: byId, reason: 'arxivId' }
+  }
+
+  // 同じ DOI は同じ出版物である(#245)。題名で入れた論文と URL で入れた論文が、出所の
+  // 文字列だけでは同じと分からないので、ここで突き合わせる。プレプリントと会議版は
+  // DOI が別なので、別の論文として扱う扱い(0004)は変わらない。
+  if (source.doi !== null) {
+    const byDoi = deps.known.byDoi(source.doi)
+    if (byDoi !== null) return { kind: 'duplicate', slug: byDoi, reason: 'doi' }
   }
 
   return { kind: 'resolved', source, sourceUrl }

@@ -31,7 +31,7 @@ export type IngestResult =
   | {
       kind: 'duplicate'
       slug: string
-      reason: 'arxivId' | 'sourceUrl' | 'title'
+      reason: 'arxivId' | 'sourceUrl' | 'title' | 'doi'
       state: 'imported' | 'inProgress' | 'failed'
     }
 
@@ -224,6 +224,7 @@ export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<Inge
       byArxivId: (id) => deps.index.findByArxivId(id) ?? deps.ingests.byArxivId(id)?.slug ?? null,
       bySourceUrl: (u) => deps.index.findBySourceUrl(u) ?? deps.ingests.bySourceUrl(u)?.slug ?? null,
       byTitle: (title) => findByTitle(deps.index, title),
+      byDoi: (doi) => deps.index.findByDoi(doi),
     },
   })
 
@@ -322,6 +323,7 @@ export async function ingestFromUpload(staged: StagedOriginal, deps: UploadInges
       byArxivId: (id) => deps.index.findByArxivId(id) ?? deps.ingests.byArxivId(id)?.slug ?? null,
       bySourceUrl: (u) => deps.index.findBySourceUrl(u) ?? deps.ingests.bySourceUrl(u)?.slug ?? null,
       byTitle: (title) => findByTitle(deps.index, title),
+      byDoi: (doi) => deps.index.findByDoi(doi),
     },
   })
 

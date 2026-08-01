@@ -47,4 +47,4 @@ export type ResolveOutcome =
   /** 手元から入れたときは、指定された URL が無いので `sourceUrl` は null になる(0021)。 */
   | { kind: 'resolved'; source: ResolvedSource; sourceUrl: string | null }
   /** 既に取り込んである論文と同じだと分かった場合。 */
-  | { kind: 'duplicate'; slug: string; reason: 'arxivId' | 'sourceUrl' | 'title' }
+  | { kind: 'duplicate'; slug: string; reason: 'arxivId' | 'sourceUrl' | 'title' | 'doi' }

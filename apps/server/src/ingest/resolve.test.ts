@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import type { CodexClient } from '../codex/client.ts'
 import { looksLikeUrl, resolveSource, type KnownPapers } from './resolve.ts'
 
-const NONE: KnownPapers = { byArxivId: () => null, bySourceUrl: () => null, byTitle: () => null }
+const NONE: KnownPapers = { byArxivId: () => null, bySourceUrl: () => null, byTitle: () => null, byDoi: () => null }
 
 /** turn/start に対して決められた JSON を返す、最小の代役。 */
 function fakeCodex(finalText: string): CodexClient {
@@ -64,6 +64,16 @@ test('同じ arXiv 識別子の論文は、URL の形が違っても重複とし
     known: { ...NONE, byArxivId: (id) => (id === '2003.08934' ? 'mildenhall2020-nerf' : null) },
   })
   assert.deepEqual(outcome, { kind: 'duplicate', slug: 'mildenhall2020-nerf', reason: 'arxivId' })
+})
+
+test('同じ DOI の論文は、出所が違っても重複として返る', async () => {
+  // 題名で入れた論文と URL で入れた論文は、出所の文字列だけでは同じと分からない(#245)。
+  const outcome = await resolveSource('https://example.org/project/', {
+    codex: fakeCodex(AGENT_JSON),
+    model: 'test',
+    known: { ...NONE, byDoi: (doi) => (doi === '10.1145/3528223.3530127' ? 'mueller2022-instant-ngp' : null) },
+  })
+  assert.deepEqual(outcome, { kind: 'duplicate', slug: 'mueller2022-instant-ngp', reason: 'doi' })
 })
 
 test('未知の出所はエージェントが解決する', async () => {
