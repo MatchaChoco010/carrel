@@ -27,6 +27,7 @@ pct(paper collection tool)の設計判断の記録。
 | [0020](0020_bibliography_lookup.md) | 書誌を本文が出てから確かめる | approved | done (2026-07-31) |
 | [0021](0021_local_original.md) | 手元の PDF を原本として取り込む | approved | done (2026-07-31) |
 | [0022](0022_html_original.md) | HTML の原本を本文だけ取り出して変換する | ai-approved | done (2026-08-01) |
-| [0023](0023_slug_keyword.md) | slug の語幹を題の語から作る | ready for review | not-started |
+| [0023](0023_slug_keyword.md) | slug の語幹を題の語から作る | reviewing | not-started |
+| [0024](0024_chat_paper_mention.md) | チャットの論文参照を短く見せる | reviewing | not-started |
 
-件数: 23
+件数: 24
