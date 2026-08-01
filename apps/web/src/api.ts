@@ -207,6 +207,19 @@ export type PaperMeta = {
   addedAt: string
 }
 
+/**
+ * 起動時に一度引く論文の一覧 1 件ぶん(0024)。
+ *
+ * 追加日を持つのは、同じ姓と年の参照に振る字を取り込んだ順で決めるためである。
+ */
+export type PaperIndexEntry = {
+  slug: string
+  title: string
+  authors: string[]
+  year: number | null
+  addedAt: string
+}
+
 /** 論文の参考文献 1 件。取り込み済みなら importedSlug が入る(0015)。 */
 export type Reference = {
   text: string
@@ -282,7 +295,7 @@ export const api = {
       {},
     ),
   ingests: () => getJson<{ ingests: Ingest[] }>('/api/ingests'),
-  slugs: () => getJson<{ slugs: string[] }>('/api/papers/slugs'),
+  slugs: () => getJson<{ slugs: PaperIndexEntry[] }>('/api/papers/slugs'),
   models: () => getJson<{ models: CodexModel[] }>('/api/codex/models'),
   chats: () => getJson<{ chats: ChatSummary[] }>('/api/chats'),
   searchChats: (query: string, filter: { archived?: boolean } = {}) => {
