@@ -6,7 +6,8 @@ import { deletePaperDir, readPaper, writePaper, writePaperSideFile, type PaperMe
 import { buildSlug } from '../data/slug.ts'
 import type { IndexDb } from '../db/index-db.ts'
 import { fetchOriginal, looksLikePdf } from './fetch.ts'
-import { readOriginalHead, type HeadPaths } from './head.ts'
+import { readOriginalHead, type HeadPaths, type OriginalHead } from './head.ts'
+import { judgeOriginal, type AskedPaper } from './judge.ts'
 import { scanForPdfLinks } from './links.ts'
 import { findSamePaper, type Candidate } from './same-paper.ts'
 import { findArticlePages, findMoreSources, looksLikeUrl, resolveFromOriginal, resolveSource } from './resolve.ts'
@@ -20,10 +21,7 @@ export type IngestDeps = {
   ingests: IngestStore
   codex: CodexClient
   model: string
-}
-
-export type UploadIngestDeps = IngestDeps & {
-  /** 原本の先頭を読む道具(0021)。 */
+  /** 原本の先頭を読む道具(0021、0025)。 */
   head: HeadPaths
 }
 
@@ -107,11 +105,15 @@ function candidates(source: ResolvedSource): string[] {
  * 出版社の閲覧ページは HTTP としては成功しながら HTML を返すので、PDF の印まで見て
  * 初めて取れたと判じる。
  */
+/** 取れた中身を原本として受け取ってよいかを判じる(0025)。 */
+type Accept = (path: string) => Promise<{ ok: true } | { ok: false; reason: string }>
+
 async function fetchFirst(
   dataDir: string,
   slug: string,
   urls: string[],
   kind: ResolvedSource['kind'],
+  accept: Accept,
 ): Promise<{ url: string; path: string }> {
   const failures: string[] = []
   for (const url of urls) {
@@ -135,12 +137,55 @@ async function fetchFirst(
           continue
         }
       }
+      // 種別が合っていても、頼んだ論文とは限らない(0025)。
+      const judged = await accept(fetched.path)
+      if (!judged.ok) {
+        await rm(fetched.path, { force: true })
+        failures.push(`${url}: ${judged.reason}`)
+        continue
+      }
       return { url, path: fetched.path }
     } catch (error) {
       failures.push(`${url}: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
   throw new FetchAllFailed(failures)
+}
+
+/**
+ * 取れた原本が頼んだ論文かを確かめる受け入れ(0025)。
+ *
+ * 判定そのものが行えなかったときも、その候補を落とす。確かめずに受け取ると、この判定が
+ * 防ごうとしているものが素通りするためである。仕事は積み直せる。
+ */
+function acceptIfAsked(asked: AskedPaper, kind: ResolvedSource['kind'], deps: IngestDeps): Accept {
+  return async (path) => {
+    const head = kind === 'html' ? await readHtmlHead(path) : await readOriginalHead(path, deps.head)
+    try {
+      const judged = await judgeOriginal(head, asked, { codex: deps.codex, model: deps.model })
+      return judged.same ? { ok: true } : { ok: false, reason: judged.reason }
+    } catch (error) {
+      return { ok: false, reason: `頼んだ論文かを判じられなかった: ${error instanceof Error ? error.message : String(error)}` }
+    } finally {
+      if (head.kind === 'images') await head.dispose()
+    }
+  }
+}
+
+/**
+ * HTML の原本の先頭を、判定に渡せる形で読む(0025)。
+ *
+ * 本文の塊を選ぶ前(0022)でも、題と著者は文字として出ている。印は落として文字だけにする。
+ */
+async function readHtmlHead(path: string): Promise<OriginalHead> {
+  const html = await readFile(path, 'utf8')
+  const text = html
+    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&[a-z]+;|&#\d+;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return { kind: 'text', text }
 }
 
 /** すべての所在で取れなかったときの失敗。別の所在を探し直すために、内訳を持たせる。 */
@@ -176,11 +221,12 @@ async function fetchWithRetry(
   // 渡された URL は必ず試す。解決が出版社のページに置き換えてしまうことがあり、
   // そのままだと指されたページを一度も見ないまま失敗する(#243)。
   const tried = [...new Set([...candidates(source), ...(entry === null ? [] : [entry])])]
-  const asked = { title: source.title, authors: source.authors, year: source.year }
+  const asked: AskedPaper = { title: source.title, authors: source.authors, year: source.year }
   const failures: string[] = []
+  const accept = acceptIfAsked(asked, source.kind, deps)
 
   try {
-    return await fetchFirst(deps.dataDir, slug, tried, 'pdf')
+    return await fetchFirst(deps.dataDir, slug, tried, 'pdf', accept)
   } catch (error) {
     if (!(error instanceof FetchAllFailed)) throw error
     failures.push(...error.failures)
@@ -191,7 +237,7 @@ async function fetchWithRetry(
   )
   if (more.length > 0) {
     try {
-      return await fetchFirst(deps.dataDir, slug, more, 'pdf')
+      return await fetchFirst(deps.dataDir, slug, more, 'pdf', accept)
     } catch (error) {
       if (!(error instanceof FetchAllFailed)) throw error
       failures.push(...error.failures)
@@ -202,7 +248,7 @@ async function fetchWithRetry(
   const linked = (await scanForPdfLinks(tried)).filter((url) => !tried.includes(url))
   if (linked.length > 0) {
     try {
-      return await fetchFirst(deps.dataDir, slug, linked, 'pdf')
+      return await fetchFirst(deps.dataDir, slug, linked, 'pdf', accept)
     } catch (error) {
       if (!(error instanceof FetchAllFailed)) throw error
       failures.push(...error.failures)
@@ -216,7 +262,7 @@ async function fetchWithRetry(
   if (articles.length === 0) throw new FetchAllFailed(failures)
 
   try {
-    return await fetchFirst(deps.dataDir, slug, articles, 'html')
+    return await fetchFirst(deps.dataDir, slug, articles, 'html', acceptIfAsked(asked, 'html', deps))
   } catch (error) {
     if (!(error instanceof FetchAllFailed)) throw error
     throw new FetchAllFailed([...failures, ...error.failures.map((f) => `${f} (本文のページとしても取れない)`)])
@@ -303,7 +349,7 @@ export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<Inge
  * 解決は原本の先頭から読み、取得は預かった原本をコレクションへ移す操作になる。取り込みが
  * 始まらなかったときは、預かった原本も置き場に残さない。
  */
-export async function ingestFromUpload(staged: StagedOriginal, deps: UploadIngestDeps): Promise<IngestResult> {
+export async function ingestFromUpload(staged: StagedOriginal, deps: IngestDeps): Promise<IngestResult> {
   const startedAt = Date.now()
   const outcome = await resolveFromOriginal(staged.path, {
     codex: deps.codex,
@@ -386,7 +432,7 @@ export async function ingestFromUpload(staged: StagedOriginal, deps: UploadInges
 async function takeOverFailed(
   slug: string,
   staged: StagedOriginal,
-  deps: UploadIngestDeps,
+  deps: IngestDeps,
   startedAt: number,
 ): Promise<void> {
   const record = deps.ingests.get(slug)
