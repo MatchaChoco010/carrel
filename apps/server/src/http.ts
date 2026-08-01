@@ -435,6 +435,8 @@ export function createApp(deps: AppDeps): Hono {
       // 走っているかの鍵は会話の実体の場所である。`chat.path` はコレクションからの
       // 相対なので、そのまま渡すと常に走っていないことになる。
       running: deps.chats.isRunning(file),
+      // 開き直した画面が、書いている途中の応答を取り戻すための土台(#262)。
+      partial: deps.chats.partialAnswer(file),
       state: await deps.chats.state(chat),
     })
   })

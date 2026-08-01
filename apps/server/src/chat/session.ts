@@ -55,6 +55,13 @@ type Pending = {
 type Running = {
   /** ターン中に届いた入力。捨てずに溜め、そのターンの完了後にまとめて流す。 */
   queued: Pending[]
+  /**
+   * いま書いている応答の、そこまでの本文(#262)。
+   *
+   * 差分は届いたそばから流すが、途中で会話を開き直した画面はそれ以前の差分を持たない。
+   * 開き直したときに土台として渡せるよう、ここで繋いでおく。
+   */
+  text: string
   /** いま走っているターン。止めるときに要る(0018)。 */
   turn: { threadId: string; turnId: string } | null
   /** 取り消しで止めたかどうか。止めたターンの終わりは失敗として知らせない。 */
@@ -85,6 +92,15 @@ export class ChatSessions {
 
   isRunning(path: string): boolean {
     return this.#running.has(path)
+  }
+
+  /**
+   * いま書いている応答の、そこまでの本文(#262)。
+   *
+   * 走っていなければ null。会話を開き直した画面が、続きの差分を足す土台にする。
+   */
+  partialAnswer(path: string): string | null {
+    return this.#running.get(path)?.text ?? null
   }
 
   /**
@@ -149,7 +165,7 @@ export class ChatSessions {
       return { path: absolutePath, id }
     }
 
-    const running: Running = { queued: [], turn: null, interrupted: false, done: Promise.resolve() }
+    const running: Running = { queued: [], turn: null, interrupted: false, text: '', done: Promise.resolve() }
     this.#running.set(absolutePath, running)
     running.done = this.#runTurns(absolutePath, pending, options)
       .catch(() => {
@@ -192,6 +208,8 @@ export class ChatSessions {
     // 間にファイルを読んだ画面から発言が消える。
     const asked: ChatMessage = { role: 'user', at: nowIsoDateTime(), text: pending.text }
     const withAsked = await this.#append(absolutePath, chat, [asked], threadId, model, effort)
+    const running = this.#running.get(absolutePath)
+    if (running !== undefined) running.text = ''
     this.#deps.onEvent({ type: 'chat.turn.started', id: chat.meta.id })
 
     try {
@@ -206,7 +224,6 @@ export class ChatSessions {
           ? fullInstructionNotice(instructions)
           : instructionChangeNotice(instructions)
 
-      const running = this.#running.get(absolutePath)
       const outcome = await runTurn(
         this.#deps.codex,
         {
@@ -218,13 +235,19 @@ export class ChatSessions {
           effort,
         },
         {
-          onDelta: (delta) => this.#deps.onEvent({ type: 'chat.turn.delta', id: chat.meta.id, delta }),
+          onDelta: (delta) => {
+            if (running !== undefined) running.text += delta
+            this.#deps.onEvent({ type: 'chat.turn.delta', id: chat.meta.id, delta })
+          },
           onStarted: (turnId) => {
             if (running !== undefined) running.turn = { threadId, turnId }
           },
         },
       )
-      if (running !== undefined) running.turn = null
+      if (running !== undefined) {
+        running.turn = null
+        running.text = ''
+      }
 
       // 差し込みは会話の一部なので、コンパクションで落ちうる。落ちたら覚えを捨て、
       // 次の発言で差し込み直す(0014)。
@@ -243,8 +266,10 @@ export class ChatSessions {
       const saved = await this.#append(absolutePath, withAsked, [answered], threadId, model, effort)
       this.#deps.onEvent({ type: 'chat.turn.completed', id: saved.meta.id, message: answered })
     } catch (error) {
-      const running = this.#running.get(absolutePath)
-      if (running !== undefined) running.turn = null
+      if (running !== undefined) {
+        running.turn = null
+        running.text = ''
+      }
       // 取り消しで止めたターンは、失敗として知らせない。記録も直後に巻き戻る。
       if (running?.interrupted === true) return
       const message = error instanceof Error ? error.message : String(error)
