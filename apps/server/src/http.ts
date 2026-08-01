@@ -477,7 +477,7 @@ export function createApp(deps: AppDeps): Hono {
     return c.json({ queued: true })
   })
 
-  // 済んだ取り込みの記録を消す。論文は残る(#223)。
+  // 完了した取り込みの記録を消す。論文は残る(#223)。
   app.post('/api/ingests/clear', (c) => c.json({ cleared: deps.ingests.clearDone() }))
 
   // 失敗した取り込みを捨てる。半端な成果物も一緒に消す(#223)。
