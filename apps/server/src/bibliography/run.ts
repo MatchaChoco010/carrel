@@ -5,6 +5,7 @@ import { normalizeDoi } from '../data/doi.ts'
 import { readPaper, writePaper, type PaperMeta } from '../data/paper.ts'
 import { extractArxivId } from '../ingest/arxiv.ts'
 import { BIBLIOGRAPHY_INSTRUCTIONS, BIBLIOGRAPHY_SCHEMA, buildBibliographyPrompt } from './prompt.ts'
+import { doiPointsAtPaper, lookupDoi, type DoiLookup } from './verify-doi.ts'
 
 export type BibliographyDeps = {
   dataDir: string
@@ -18,6 +19,8 @@ export type BibliographyDeps = {
    * 渡さなければ何も弾かない。
    */
   takenDoi?: (doi: string, slug: string) => boolean
+  /** DOI から書誌を引く口(#287)。差し替えられるようにして、試験では通信しない。 */
+  lookupDoi?: DoiLookup
 }
 
 /** 確かめた結果。確かめられなかった項目は null で返る。 */
@@ -130,7 +133,14 @@ export async function lookupBibliography(slug: string, deps: BibliographyDeps): 
   const found = parseBibliography(outcome.text)
   if (found === null) return null
 
-  const merged = mergeBibliography(paper.meta, found, (doi) => deps.takenDoi?.(doi, slug) ?? false)
+  // 挙がった DOI がこの論文を指しているかを確かめる(#287)。同じ予稿集の中の別の論文の
+  // 番号が入ることがあり、組み立てられる形なので当てずっぽうでも DOI らしく見える。
+  const pointsHere =
+    found.doi === null ||
+    (await doiPointsAtPaper(found.doi, found.title ?? paper.meta.title, deps.lookupDoi ?? lookupDoi))
+  const verified = pointsHere ? found : { ...found, doi: null }
+
+  const merged = mergeBibliography(paper.meta, verified, (doi) => deps.takenDoi?.(doi, slug) ?? false)
   await writePaper(deps.dataDir, merged, paper.body)
-  return found
+  return verified
 }
