@@ -50,8 +50,20 @@ export class IngestStore {
     this.#now = now
   }
 
-  start(record: Omit<IngestRecord, 'stage' | 'status' | 'startedAt' | 'updatedAt' | 'lastError'>): IngestRecord {
-    const now = this.#now()
+  /**
+   * 取り込みの記録を作る。
+   *
+   * `at` には押された時刻を渡す。記録ができるのは解決が終わってからなので、既定の
+   * 現在時刻にすると、解決にかかった時間が記録から抜け落ちる(#238)。
+   */
+  start(
+    record: Omit<IngestRecord, 'stage' | 'status' | 'startedAt' | 'updatedAt' | 'lastError'>,
+    at?: number,
+  ): IngestRecord {
+    const now = at ?? this.#now()
+    // 同じ slug をもう一度取り込むときは、前の段階の記録を残さない。残すと、済んだ
+    // ことになっていない古い段階が混ざり、かかった時間が実際と合わなくなる。
+    this.#db.prepare('delete from ingest_stages where slug = ?').run(record.slug)
     const row = this.#db
       .prepare(
         `insert into ingests (slug, source_url, arxiv_id, original_url, stage, status, started_at, updated_at, last_error)
@@ -129,6 +141,7 @@ export class IngestStore {
 
   remove(slug: string): void {
     this.#db.prepare('delete from ingests where slug = ?').run(slug)
+    this.#db.prepare('delete from ingest_stages where slug = ?').run(slug)
   }
 
   get(slug: string): IngestRecord | null {
@@ -159,7 +172,7 @@ export class IngestStore {
   }
 
   /**
-   * 済んだ取り込みの記録を消す(#223)。
+   * 完了した取り込みの記録を消す(#223)。
    *
    * 消すのは記録だけで、論文はコレクションに残る。失敗した取り込みは、消すと成果物も
    * 一緒に捨てることになるので、ここでは触らない。

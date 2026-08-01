@@ -1007,6 +1007,10 @@ body {
 }
 
 .ingest__total {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
   color: var(--text-muted);
   font-size: 12px;
 }
@@ -1064,6 +1068,33 @@ body {
   justify-content: flex-end;
 }
 
+/* 記録を消すボタン。設定の欄のボタンと同じ見た目にする。 */
+.jobs__actions button,
+.ingests__actions button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  padding: 5px 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.jobs__actions button:hover,
+.ingests__actions button:hover {
+  border-color: var(--text-muted);
+}
+
+.jobs__actions button:disabled,
+.ingests__actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* 失敗した取り込みを捨てるボタン。題の行に小さく置く。 */
 .ingest__discard {
   background: transparent;
@@ -1077,6 +1108,66 @@ body {
 
 .ingest__discard:hover {
   color: var(--text);
+}
+
+/* --- 知らせ(トースト) --- */
+
+/* 画面の右下に積む。チャットの入力欄の上に重なるが、数秒で消える(#229)。 */
+.toasts {
+  position: fixed;
+  right: 16px;
+  bottom: 32px;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: min(420px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 35%);
+  font-size: 13px;
+  pointer-events: auto;
+  animation: toast-in 120ms ease-out;
+}
+
+.toast--error {
+  border-color: var(--danger, #b4544a);
+}
+
+.toast__text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.toast button {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+}
+
+.toast button:hover {
+  color: var(--text);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
 }
 
 /* --- arXiv フィード --- */

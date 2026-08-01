@@ -1,5 +1,5 @@
 import { FileText, ListTodo, MessagesSquare, Rss, Settings, type LucideIcon } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, type CodexStatus, type IndexStatus, type Ingest, type JobsResponse } from './api.ts'
 import { ChatPane } from './components/ChatPane.tsx'
 import { ChatsPane } from './components/ChatsPane.tsx'
@@ -9,10 +9,12 @@ import { IngestsPane } from './components/IngestsPane.tsx'
 import { JobsPane } from './components/JobsPane.tsx'
 import { PapersPane } from './components/PapersPane.tsx'
 import { StatusLine } from './components/StatusLine.tsx'
+import { Toasts } from './components/Toasts.tsx'
 import { useServerEvents, type ServerEvent } from './useServerEvents.ts'
 import { useLang } from './useLang.ts'
 import { useReading } from './useReading.ts'
 import { useSplit } from './useSplit.ts'
+import { useToasts } from './useToasts.ts'
 
 type Tab = 'feed' | 'papers' | 'chats' | 'jobs' | 'settings'
 
@@ -71,6 +73,7 @@ export function App() {
   const [lang, setLang] = useLang()
   // 読みやすさはこの端末に持つので、設定の欄ではなくここで受けて配る。
   const [reading, setReading] = useReading()
+  const { toasts, notify, dismiss } = useToasts()
 
   const reloadJobs = useCallback(() => {
     void api.jobs().then(setJobs).catch(() => setJobs(null))
@@ -137,6 +140,52 @@ export function App() {
   const connection = useServerEvents(onEvent)
   const running = jobs?.counts.running ?? 0
 
+  /**
+   * 取り込みの結果を知らせる(#229)。
+   *
+   * 取り込みは押してから数分かかり、終わりは記録の状態でしか分からない。前に見た状態と
+   * 比べて、変わったものだけを出す。
+   */
+  const seenIngests = useRef(new Map<string, string>())
+  useEffect(() => {
+    const seen = seenIngests.current
+    for (const ingest of ingests) {
+      const before = seen.get(ingest.slug)
+      seen.set(ingest.slug, ingest.status)
+      // 初めて見る記録は、開き直したときに過去の分まで流れるので知らせない。
+      if (before === undefined || before === ingest.status) continue
+      if (ingest.status === 'done') notify(`取り込みが終わった: ${ingest.slug}`)
+      if (ingest.status === 'failed') notify(`取り込みに失敗した(${ingest.stage}): ${ingest.slug}`, 'error')
+    }
+    for (const slug of [...seen.keys()]) {
+      if (!ingests.some((ingest) => ingest.slug === slug)) seen.delete(slug)
+    }
+  }, [ingests, notify])
+
+  /** 枠が尽きて待ちに入ったことを知らせる(#229、0003)。 */
+  const waiting = jobs?.counts.waitingForQuota ?? 0
+  const waitedBefore = useRef(0)
+  useEffect(() => {
+    if (waiting > 0 && waitedBefore.current === 0) {
+      notify('Codex の枠が尽きたので、空くまで待っている', 'error')
+    }
+    waitedBefore.current = waiting
+  }, [waiting, notify])
+
+  /**
+   * まだ記録になっていない取り込み(#230)。
+   *
+   * 解決の仕事は slug が決まる前から積まれているので、これを出せば押した直後から進みが出る。
+   * 記録ができた取り込みは、記録の側に出るのでここから外す。
+   */
+  const waitingIngests = useMemo(() => {
+    const started = new Set(ingests.map((ingest) => ingest.sourceUrl))
+    return (jobs?.jobs ?? [])
+      .filter((job) => job.kind === 'resolve' && (job.state === 'pending' || job.state === 'running'))
+      .filter((job) => !started.has(job.target) && !ingests.some((i) => i.sourceUrl.startsWith(`${job.target}/`)))
+      .map((job) => ({ id: job.id, target: job.target, createdAt: job.createdAt }))
+  }, [jobs, ingests])
+
   return (
     <div className={`app ${narrow ? 'app--narrow' : ''}`}>
       <nav className="rail" aria-label="画面の切り替え">
@@ -188,7 +237,7 @@ export function App() {
             {opened.has('jobs') && (
               <div className="pane__slot" hidden={tab !== 'jobs'}>
                 <div className="jobs-tab">
-                  <IngestsPane ingests={ingests} onChanged={reloadJobs} />
+                  <IngestsPane ingests={ingests} waiting={waitingIngests} onChanged={reloadJobs} />
                   <JobsPane jobs={jobs} onCleared={reloadJobs} />
                 </div>
               </div>
@@ -201,6 +250,7 @@ export function App() {
                   tags={index?.tags ?? []}
                   revision={revision}
                   onChanged={() => setRevision((n) => n + 1)}
+                  onNotify={notify}
                 />
               </div>
             )}
@@ -270,6 +320,8 @@ export function App() {
           </div>
         </section>
       </main>
+
+      <Toasts toasts={toasts} onDismiss={dismiss} />
 
       <StatusLine codex={codex} connection={connection} runningJobs={running} />
     </div>

@@ -43,6 +43,11 @@ export function paperOriginalPdf(dataDir: string, slug: string): string {
   return join(paperDir(dataDir, slug), 'original.pdf')
 }
 
+/** 原本が HTML のときの置き場所(0022)。 */
+export function paperOriginalHtml(dataDir: string, slug: string): string {
+  return join(paperDir(dataDir, slug), 'original.html')
+}
+
 /** `chats/YYYY/MM/DD/` までを返す。 */
 export function chatDayDir(dataDir: string, createdAt: Date): string {
   const year = String(createdAt.getFullYear()).padStart(4, '0')

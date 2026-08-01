@@ -34,6 +34,13 @@ export type SessionDeps = {
 }
 
 export type ChatTurnEvent =
+  /**
+   * 発言を受け取った(#240)。
+   *
+   * `waiting` が真なら、前の応答が終わるまで順番を待つ。応答を作り始めるのは
+   * `chat.turn.started` からで、そこまでに数秒かかる。
+   */
+  | { type: 'chat.turn.queued'; id: string; waiting: boolean }
   | { type: 'chat.turn.started'; id: string }
   | { type: 'chat.turn.delta'; id: string; delta: string }
   | { type: 'chat.turn.completed'; id: string; message: ChatMessage }
@@ -136,6 +143,7 @@ export class ChatSessions {
     }
 
     const current = this.#running.get(absolutePath)
+    this.#deps.onEvent({ type: 'chat.turn.queued', id, waiting: current !== undefined })
     if (current !== undefined) {
       current.queued.push(pending)
       return { path: absolutePath, id }
