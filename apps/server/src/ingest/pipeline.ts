@@ -8,7 +8,7 @@ import type { IndexDb } from '../db/index-db.ts'
 import { fetchOriginal, looksLikePdf } from './fetch.ts'
 import { readOriginalHead, type HeadPaths } from './head.ts'
 import { scanForPdfLinks } from './links.ts'
-import { findSamePaper } from './same-paper.ts'
+import { findSamePaper, type Candidate } from './same-paper.ts'
 import { findArticlePages, findMoreSources, looksLikeUrl, resolveFromOriginal, resolveSource } from './resolve.ts'
 import type { StagedOriginal } from './staging.ts'
 import type { IngestRecord, IngestStore } from './store.ts'
@@ -61,6 +61,16 @@ export async function completedStages(dataDir: string, slug: string): Promise<Se
   if (await exists(paperFile(dataDir, slug, 'bodyJa'))) done.add('translate')
   if (await exists(paperFile(dataDir, slug, 'references'))) done.add('references')
   return done
+}
+
+/**
+ * 同じ論文かを突き合わせる相手(#263)。
+ *
+ * 索引に載っている論文だけでなく、まだ登録まで進んでいない取り込みも入れる。索引だけを
+ * 見ると、途中で失敗した取り込みと同じ論文をもう一度入れたときに連番が付く。
+ */
+function samePaperCandidates(deps: IngestDeps): Candidate[] {
+  return [...deps.index.identities(), ...deps.ingests.pendingIdentities()]
 }
 
 function toMeta(slug: string, source: ResolvedSource, sourceUrl: string | null): PaperMeta {
@@ -224,7 +234,7 @@ export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<Inge
     known: {
       byArxivId: (id) => deps.index.findByArxivId(id) ?? deps.ingests.byArxivId(id)?.slug ?? null,
       bySourceUrl: (u) => deps.index.findBySourceUrl(u) ?? deps.ingests.bySourceUrl(u)?.slug ?? null,
-      samePaper: (identity) => findSamePaper(deps.index, identity),
+      samePaper: (identity) => findSamePaper(samePaperCandidates(deps), identity),
     },
   })
 
@@ -255,6 +265,8 @@ export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<Inge
       sourceUrl,
       arxivId: source.arxivId,
       originalUrl: source.originalUrl,
+      title: source.title,
+      doi: source.doi,
     },
     startedAt,
   )
@@ -300,12 +312,18 @@ export async function ingestFromUpload(staged: StagedOriginal, deps: UploadInges
     known: {
       byArxivId: (id) => deps.index.findByArxivId(id) ?? deps.ingests.byArxivId(id)?.slug ?? null,
       bySourceUrl: (u) => deps.index.findBySourceUrl(u) ?? deps.ingests.bySourceUrl(u)?.slug ?? null,
-      samePaper: (identity) => findSamePaper(deps.index, identity),
+      samePaper: (identity) => findSamePaper(samePaperCandidates(deps), identity),
     },
   })
 
   if (outcome.kind === 'duplicate') {
     const record = deps.ingests.get(outcome.slug)
+    // 失敗した取り込みと同じ論文なら、選ばれた原本を入れ替えてそこから続ける(#263)。
+    // 別の slug を立てると、題も DOI も同じ論文が 2 つ並ぶ。
+    if (record !== null && record.status === 'failed') {
+      await takeOverFailed(record.slug, staged, deps, startedAt)
+      return { kind: 'imported', slug: record.slug, stagesRun: ['resolve', 'fetch'] }
+    }
     const state = record === null ? 'imported' : record.status === 'done' ? 'imported' : record.status
     return { ...outcome, state }
   }
@@ -331,6 +349,8 @@ export async function ingestFromUpload(staged: StagedOriginal, deps: UploadInges
       sourceUrl: `upload:${staged.id}/${staged.name}`,
       arxivId: null,
       originalUrl: null,
+      title: source.title,
+      doi: source.doi,
     },
     startedAt,
   )
@@ -353,6 +373,41 @@ export async function ingestFromUpload(staged: StagedOriginal, deps: UploadInges
   }
 
   return { kind: 'imported', slug, stagesRun: ['resolve', 'fetch'] }
+}
+
+/**
+ * 失敗した取り込みの原本を、手元から選ばれた PDF に入れ替える(#263)。
+ *
+ * 書誌は前の解決が書いたものを残す。出版社のページから読み取った DOI や学会名を持って
+ * おり、原本の先頭から読み取ったものより揃っているためである。
+ *
+ * 前の取得が HTML を置いていたら消す。両方あると、変換がどちらを読むかで結果が変わる。
+ */
+async function takeOverFailed(
+  slug: string,
+  staged: StagedOriginal,
+  deps: UploadIngestDeps,
+  startedAt: number,
+): Promise<void> {
+  const record = deps.ingests.get(slug)
+  deps.ingests.start(
+    {
+      slug,
+      sourceUrl: `upload:${staged.id}/${staged.name}`,
+      arxivId: record?.arxivId ?? null,
+      originalUrl: null,
+      title: record?.title ?? null,
+      doi: record?.doi ?? null,
+    },
+    startedAt,
+  )
+  deps.ingests.startStage(slug, 'resolve', startedAt)
+  deps.ingests.advance(slug, 'fetch')
+
+  await mkdir(paperDir(deps.dataDir, slug), { recursive: true })
+  await rm(paperOriginalHtml(deps.dataDir, slug), { force: true })
+  await moveFile(staged.path, paperOriginalPdf(deps.dataDir, slug))
+  deps.ingests.advance(slug, 'convert')
 }
 
 /**
