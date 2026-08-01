@@ -411,6 +411,38 @@ export class IndexDb {
     }>
   }
 
+  /**
+   * 重複の判定に使う一覧(#245)。
+   *
+   * 識別子も返すのは、題と著者が同じでも版が違えば別の論文だからである(0004)。
+   * 件数はコレクションの論文の数で、1 回の問い合わせで読む。
+   */
+  identities(): Array<{ slug: string; title: string; doi: string | null; arxivId: string | null; authors: string[] }> {
+    const rows = this.#db.prepare('select slug, title, doi, arxiv_id from papers').all() as Array<{
+      slug: string
+      title: string
+      doi: string | null
+      arxiv_id: string | null
+    }>
+    const authors = this.#db.prepare('select slug, name from paper_authors order by position').all() as Array<{
+      slug: string
+      name: string
+    }>
+    const byPaper = new Map<string, string[]>()
+    for (const row of authors) {
+      const list = byPaper.get(row.slug) ?? []
+      list.push(row.name)
+      byPaper.set(row.slug, list)
+    }
+    return rows.map((row) => ({
+      slug: row.slug,
+      title: row.title,
+      doi: row.doi,
+      arxivId: row.arxiv_id,
+      authors: byPaper.get(row.slug) ?? [],
+    }))
+  }
+
   allSlugs(): Set<string> {
     const rows = this.#db.prepare('select slug from papers').all() as Array<{ slug: string }>
     return new Set(rows.map((r) => r.slug))

@@ -11,10 +11,15 @@ import type { ResolvedSource, ResolveOutcome, SourceKind } from './types.ts'
 export type KnownPapers = {
   byArxivId: (arxivId: string) => string | null
   bySourceUrl: (url: string) => string | null
-  /** 題での突き合わせ。手元から入れた原本には URL が無いので、これで重複を判じる(0021)。 */
-  byTitle: (title: string) => string | null
-  /** DOI での突き合わせ。同じ DOI は同じ出版物である(#245)。 */
-  byDoi: (doi: string) => string | null
+  /**
+   * 書誌での突き合わせ(#245)。
+   *
+   * DOI が一致すれば同じ出版物である。DOI が無い論文でも、題と筆頭著者が一致すれば
+   * 同じ論文とみなす。手元から入れた原本には URL が無いので、この口だけが頼りになる(0021)。
+   */
+  samePaper: (identity: { title: string; authors: string[]; doi: string | null; arxivId: string | null }) =>
+    | string
+    | null
 }
 
 /**
@@ -197,13 +202,15 @@ export async function resolveSource(sourceUrl: string, deps: ResolveDeps): Promi
     if (byId !== null) return { kind: 'duplicate', slug: byId, reason: 'arxivId' }
   }
 
-  // 同じ DOI は同じ出版物である(#245)。題名で入れた論文と URL で入れた論文が、出所の
-  // 文字列だけでは同じと分からないので、ここで突き合わせる。プレプリントと会議版は
-  // DOI が別なので、別の論文として扱う扱い(0004)は変わらない。
-  if (source.doi !== null) {
-    const byDoi = deps.known.byDoi(source.doi)
-    if (byDoi !== null) return { kind: 'duplicate', slug: byDoi, reason: 'doi' }
-  }
+  // 出所の文字列が違っても、書誌で同じ論文だと分かることがある(#245)。題名で入れた
+  // 論文と URL で入れた論文は、出所が一致しない。
+  const same = deps.known.samePaper({
+    title: source.title,
+    authors: source.authors,
+    doi: source.doi,
+    arxivId: source.arxivId,
+  })
+  if (same !== null) return { kind: 'duplicate', slug: same, reason: 'bibliography' }
 
   return { kind: 'resolved', source, sourceUrl }
 }
@@ -268,8 +275,13 @@ export async function resolveFromOriginal(pdf: string, deps: ResolveOriginalDeps
     const source = parseHeadResult(outcome.text)
     if (source === null) throw new Error('原本の先頭から書誌を読み取れなかった')
 
-    const byTitle = deps.known.byTitle(source.title)
-    if (byTitle !== null) return { kind: 'duplicate', slug: byTitle, reason: 'title' }
+    const same = deps.known.samePaper({
+      title: source.title,
+      authors: source.authors,
+      doi: null,
+      arxivId: null,
+    })
+    if (same !== null) return { kind: 'duplicate', slug: same, reason: 'bibliography' }
 
     return { kind: 'resolved', source, sourceUrl: null }
   } finally {

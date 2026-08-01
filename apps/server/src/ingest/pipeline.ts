@@ -8,6 +8,7 @@ import type { IndexDb } from '../db/index-db.ts'
 import { fetchOriginal, looksLikePdf } from './fetch.ts'
 import { readOriginalHead, type HeadPaths } from './head.ts'
 import { scanForPdfLinks } from './links.ts'
+import { findSamePaper } from './same-paper.ts'
 import { findArticlePages, findMoreSources, looksLikeUrl, resolveFromOriginal, resolveSource } from './resolve.ts'
 import type { StagedOriginal } from './staging.ts'
 import type { IngestRecord, IngestStore } from './store.ts'
@@ -31,7 +32,7 @@ export type IngestResult =
   | {
       kind: 'duplicate'
       slug: string
-      reason: 'arxivId' | 'sourceUrl' | 'title' | 'doi'
+      reason: 'arxivId' | 'sourceUrl' | 'bibliography'
       state: 'imported' | 'inProgress' | 'failed'
     }
 
@@ -223,8 +224,7 @@ export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<Inge
     known: {
       byArxivId: (id) => deps.index.findByArxivId(id) ?? deps.ingests.byArxivId(id)?.slug ?? null,
       bySourceUrl: (u) => deps.index.findBySourceUrl(u) ?? deps.ingests.bySourceUrl(u)?.slug ?? null,
-      byTitle: (title) => findByTitle(deps.index, title),
-      byDoi: (doi) => deps.index.findByDoi(doi),
+      samePaper: (identity) => findSamePaper(deps.index, identity),
     },
   })
 
@@ -285,29 +285,6 @@ export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<Inge
 
 
 /**
- * 題が同じ論文を引く。
- *
- * 突き合わせは、大文字と小文字、前後の空白、記号の違いを均してから行う。同じ論文でも
- * 出所によって記号の書き方が変わるためである。
- */
-export function normalizeTitle(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/[\u2018\u2019\u201c\u201d]/g, "'")
-    .replace(/[^\p{L}\p{N}]+/gu, ' ')
-    .trim()
-}
-
-function findByTitle(index: IndexDb, title: string): string | null {
-  const wanted = normalizeTitle(title)
-  if (wanted.length === 0) return null
-  for (const paper of index.titles()) {
-    if (normalizeTitle(paper.title) === wanted) return paper.slug
-  }
-  return null
-}
-
-/**
  * 手元から預かった原本を取り込む(0021)。
  *
  * 解決は原本の先頭から読み、取得は預かった原本をコレクションへ移す操作になる。取り込みが
@@ -322,8 +299,7 @@ export async function ingestFromUpload(staged: StagedOriginal, deps: UploadInges
     known: {
       byArxivId: (id) => deps.index.findByArxivId(id) ?? deps.ingests.byArxivId(id)?.slug ?? null,
       bySourceUrl: (u) => deps.index.findBySourceUrl(u) ?? deps.ingests.bySourceUrl(u)?.slug ?? null,
-      byTitle: (title) => findByTitle(deps.index, title),
-      byDoi: (doi) => deps.index.findByDoi(doi),
+      samePaper: (identity) => findSamePaper(deps.index, identity),
     },
   })
 
