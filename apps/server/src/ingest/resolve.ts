@@ -4,6 +4,7 @@ import { normalizeDoi } from '../data/doi.ts'
 import { runTurn, startWorkThread } from '../codex/threads.ts'
 import { extractArxivId, isArxivUrl, lookupArxiv } from './arxiv.ts'
 import { readOriginalHead, type HeadPaths } from './head.ts'
+import { readPageHint, type PageHint } from './links.ts'
 import type { ResolvedSource, ResolveOutcome, SourceKind } from './types.ts'
 
 /** 既に取り込んである論文を引く口。 */
@@ -14,11 +15,32 @@ export type KnownPapers = {
   byTitle: (title: string) => string | null
 }
 
+/**
+ * 指されたページから読み取れたものを、問い合わせに添える(#243)。
+ *
+ * URL の文字だけで探すと、題の似た別の論文に行き着くことがある。ページの標題と、
+ * そこに置かれている PDF を先に見せる。
+ */
+function describeHint(hint: PageHint | null): string[] {
+  if (hint === null) return []
+  const lines = ['', 'そのページから読み取れたもの(こちらを優先して信じること):']
+  if (hint.title !== null) lines.push(`ページの標題: ${hint.title}`)
+  if (hint.pdfLinks.length > 0) {
+    lines.push('そのページに置かれている PDF:')
+    for (const link of hint.pdfLinks) lines.push(`- ${link}`)
+    lines.push('この PDF が論文の本体なら、originalUrl にそれを入れる。')
+  }
+  return lines
+}
+
 const AGENT_INSTRUCTIONS = [
   'あなたは論文の所在と書誌情報を調べる。',
   'web 検索と取得を使って、指された論文の原本(PDF、無ければ HTML)を見つける。',
   '取りに行くのはブラウザではなく素の HTTP の道具である。',
   'そのため arXiv・著者のページ・研究機関のリポジトリのように、そのまま PDF が返る所在を優先する。',
+  '論文ごとのプロジェクトページ(多くは GitHub Pages の `*.github.io`)は、著者が PDF を置いている場所として最も当たりが良い。題名で探し、見つけたらページを開いて PDF への直リンクを取る。',
+  '題名が長いときは、そのまま検索の語にしない。特徴的な語を 4〜6 語に絞って探す。長い題名のままだと出版社のページしか出てこない。',
+  '出版社のページしか出てこないときは、題名に `project page`・`code`・`supplemental`・著者名を足して探し直す。',
   '出版社の閲覧ページ(dl.acm.org、diglib.eg.org、onlinelibrary.wiley.com など)は、会話状態や合意の操作を要求して PDF を返さないことが多い。',
   'researchgate.net と academia.edu も素の HTTP を弾く。他に何も無いときの最後の候補にとどめる。',
   '出版社の閲覧ページを見つけたら、そのページを開いて PDF への直リンクを探す。閲覧ページと PDF で URL の形が違う出版社が多い。',
@@ -146,7 +168,10 @@ export async function resolveSource(sourceUrl: string, deps: ResolveDeps): Promi
     webSearch: true,
   })
   const asked = looksLikeUrl(sourceUrl)
-    ? `次の URL が指す論文の原本と書誌情報を調べよ: ${sourceUrl}`
+    ? [
+        `次の URL が指す論文の原本と書誌情報を調べよ: ${sourceUrl}`,
+        ...describeHint(await readPageHint(sourceUrl)),
+      ].join('\n')
     : `次の題名の論文を探し、取得できる原本と書誌情報を返せ: ${sourceUrl}`
   const outcome = await runTurn(deps.codex, {
     threadId,
@@ -288,7 +313,10 @@ const MORE_INSTRUCTIONS = [
   '取りに行くのはブラウザではなく素の HTTP の道具である。そのまま PDF が返る所在を挙げる。',
   'researchgate.net と academia.edu も素の HTTP を弾く。他に何も無いときの最後の候補にとどめる。',
   '出版社の閲覧ページを見つけたら、そのページを開いて PDF への直リンクを探す。閲覧ページと PDF で URL の形が違う出版社が多い。',
-  '著者のページ、研究室のページ、所属機関のリポジトリ、プロジェクトページ、arXiv も当たる。',
+  '論文ごとのプロジェクトページ(多くは GitHub Pages の `*.github.io`)を最初に当たる。著者が PDF を置いている場所として最も当たりが良い。',
+  '題名が長いときは、そのまま検索の語にしない。特徴的な語を 4〜6 語に絞って探す。長い題名のままだと出版社のページしか出てこない。',
+  '題名だけで出てこないときは、題名に `project page`・`code`・`supplemental`・著者名を足して探し直す。',
+  '著者のページ、研究室のページ、所属機関のリポジトリ、arXiv も当たる。',
   '取れる見込みのある所在が無ければ空の配列を返す。当てずっぽうの URL を書かない。',
   '要求された JSON だけを返す。',
 ].join('\n')
@@ -324,6 +352,66 @@ export async function findMoreSources(
     source.year === null ? null : `出版年: ${source.year}`,
     '',
     '試した所在と失敗の理由:',
+    failures,
+  ]
+    .filter((line): line is string => line !== null)
+    .join('\n')
+
+  const outcome = await runTurn(deps.codex, {
+    threadId,
+    input: textInput(asked),
+    effort: 'low',
+    outputSchema: MORE_SCHEMA,
+  })
+
+  let raw: unknown
+  try {
+    raw = JSON.parse(outcome.text)
+  } catch {
+    return []
+  }
+  const urls = (raw as Record<string, unknown>)['urls']
+  if (!Array.isArray(urls)) return []
+  return urls.filter((u): u is string => typeof u === 'string' && /^https?:\/\//i.test(u.trim())).map((u) => u.trim())
+}
+
+/**
+ * PDF がどこからも取れないときに、本文が載っている HTML のページを探す(#243)。
+ *
+ * 原本は PDF が本命で、HTML は最後の受け皿である(0022)。取れなかった PDF の所在を
+ * そのまま HTML として取ると、出版社の判定ページや案内のページを原本にしてしまう。
+ * 本文が載っているページかどうかを、探す側に確かめさせる。
+ */
+const ARTICLE_INSTRUCTIONS = [
+  'あなたは論文の本文が読める HTML のページを探す。',
+  '既に試した所在と、その失敗の理由を渡す。同じ所在を挙げない。',
+  '挙げてよいのは、本文の節がそのページの HTML に入っているものだけである。',
+  '次のページは挙げない。',
+  '- 概要と書誌だけの閲覧ページ(本文が読めないもの)。',
+  '- 本文を JavaScript で描くページ(取得した HTML に本文が入らない)。',
+  '- 会話状態や合意の操作を求めるページ(dl.acm.org など)。',
+  'arXiv の HTML 版、著者や研究室が置いた本文のページ、出版社の全文ページは当たる。',
+  '見つからなければ空の配列を返す。当てずっぽうの URL を書かない。',
+  '要求された JSON だけを返す。',
+].join('\n')
+
+/** 本文が読める HTML のページを探す。無ければ空を返す。 */
+export async function findArticlePages(
+  source: { title: string; authors: string[]; year: number | null },
+  failures: string,
+  deps: MoreSourcesDeps,
+): Promise<string[]> {
+  const threadId = await startWorkThread(deps.codex, {
+    instructions: ARTICLE_INSTRUCTIONS,
+    model: deps.model,
+    webSearch: true,
+  })
+  const asked = [
+    `題名: ${source.title}`,
+    source.authors.length > 0 ? `著者: ${source.authors.join(', ')}` : null,
+    source.year === null ? null : `出版年: ${source.year}`,
+    '',
+    'PDF を試した所在と失敗の理由:',
     failures,
   ]
     .filter((line): line is string => line !== null)
