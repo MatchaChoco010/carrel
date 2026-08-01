@@ -168,6 +168,11 @@ async function main(): Promise<void> {
     model: config.ingest.model,
     effort: config.ingest.effort,
     serviceTier: config.ingest.serviceTier,
+    // 別の論文が持っている DOI は入れない。DOI は出版物を一意に指す(#283)。
+    takenDoi: (doi, slug) => {
+      const owner = index.findByDoi(doi)
+      return owner !== null && owner !== slug
+    },
     onDone: (slug) => enqueueTranslate(jobs, slug),
   })
 
