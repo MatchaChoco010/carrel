@@ -116,12 +116,20 @@ export class IngestStore {
     this.startStage(slug, stage, now)
   }
 
-  advance(slug: string, stage: IngestStage): void {
+  /**
+   * 次の段階へ進める。動かせなければ false を返す(#289)。
+   *
+   * 段階のジョブは走っている間に取り込みが失敗することがある。実行中でなくなった
+   * 記録を進めると、失敗したまま段階だけが先へ動き、記録が実際と食い違う。
+   */
+  advance(slug: string, stage: IngestStage): boolean {
+    const record = this.get(slug)
+    if (record === null || record.status !== 'inProgress') return false
     const now = this.#now()
-    const current = this.get(slug)?.stage
-    if (current !== undefined) this.finishStage(slug, current, now)
+    this.finishStage(slug, record.stage, now)
     this.startStage(slug, stage, now)
     this.#db.prepare('update ingests set stage = ?, updated_at = ? where slug = ?').run(stage, now, slug)
+    return true
   }
 
   startStage(slug: string, stage: IngestStage, at = this.#now()): void {
@@ -159,13 +167,17 @@ export class IngestStore {
     return rows.map((r) => ({ stage: r.stage as IngestStage, startedAt: r.started_at, finishedAt: r.finished_at }))
   }
 
-  finish(slug: string): void {
+  /** 取り込みを終わりにする。既に失敗している記録は動かさず、false を返す(#289)。 */
+  finish(slug: string): boolean {
+    const record = this.get(slug)
+    if (record === null || record.status !== 'inProgress') return false
     const now = this.#now()
     // 飛ばした段階が開いたまま残ることがあるので、まとめて閉じる(#280)。
     this.#closeOpenStages(slug, now)
     this.#db
       .prepare(`update ingests set status = 'done', stage = 'register', updated_at = ? where slug = ?`)
       .run(now, slug)
+    return true
   }
 
   fail(slug: string, message: string): void {

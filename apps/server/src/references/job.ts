@@ -38,7 +38,8 @@ export function registerReferences(
       deps.ingests.finishStage(slug, 'references')
       return
     }
-    deps.ingests.advance(slug, 'register')
-    deps.onDone(slug)
+    // 走っている間に取り込みが失敗していたら、ここで終える(#289)。始まった時点の
+    // `inChain` のまま進めると、失敗した記録の上を段階が進む。
+    if (deps.ingests.advance(slug, 'register')) deps.onDone(slug)
   })
 }

@@ -266,3 +266,59 @@ test('終わったら、飛ばした段階も閉じる(#280)', () => {
     h.close()
   }
 })
+
+test('失敗した取り込みは次の段階へ進まない(#289)', () => {
+  const h = harness()
+  try {
+    h.ingests.start({ slug: 'a2020-x', sourceUrl: 'https://example.test/a', arxivId: null, originalUrl: null })
+    h.ingests.advance('a2020-x', 'translate')
+    // 翻訳が走っている間に、別のところから失敗が記録される。
+    h.ingests.fail('a2020-x', '登録に失敗した')
+
+    assert.equal(h.ingests.advance('a2020-x', 'references'), false)
+    const record = h.ingests.get('a2020-x')
+    assert.equal(record?.status, 'failed')
+    assert.equal(record?.stage, 'translate')
+    assert.equal(h.ingests.stages('a2020-x').some((s) => s.stage === 'references'), false)
+  } finally {
+    h.close()
+  }
+})
+
+test('失敗した取り込みは終わりにならない(#289)', () => {
+  const h = harness()
+  try {
+    h.ingests.start({ slug: 'a2020-x', sourceUrl: 'https://example.test/a', arxivId: null, originalUrl: null })
+    h.ingests.fail('a2020-x', '参考文献の段階で失敗した')
+
+    assert.equal(h.ingests.finish('a2020-x'), false)
+    assert.equal(h.ingests.get('a2020-x')?.status, 'failed')
+  } finally {
+    h.close()
+  }
+})
+
+test('動かし直した取り込みは、また進められる(#289)', () => {
+  const h = harness()
+  try {
+    h.ingests.start({ slug: 'a2020-x', sourceUrl: 'https://example.test/a', arxivId: null, originalUrl: null })
+    h.ingests.fail('a2020-x', '取得に失敗した')
+    h.ingests.resume('a2020-x', 'fetch')
+
+    assert.equal(h.ingests.advance('a2020-x', 'convert'), true)
+    assert.equal(h.ingests.finish('a2020-x'), true)
+    assert.equal(h.ingests.get('a2020-x')?.status, 'done')
+  } finally {
+    h.close()
+  }
+})
+
+test('記録の無い slug は進められない(#289)', () => {
+  const h = harness()
+  try {
+    assert.equal(h.ingests.advance('無い', 'convert'), false)
+    assert.equal(h.ingests.finish('無い'), false)
+  } finally {
+    h.close()
+  }
+})

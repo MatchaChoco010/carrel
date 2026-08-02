@@ -29,13 +29,11 @@ export function registerVerify(
       // 担っているので、飛ばしたままだと本文が空のまま先へ進む。
       if (!(await exists(paperOriginalPdf(deps.dataDir, slug)))) {
         await useConvertedBody(deps.dataDir, slug)
-        deps.ingests.advance(slug, 'bibliography')
-        deps.onDone(slug)
+        if (deps.ingests.advance(slug, 'bibliography')) deps.onDone(slug)
         return
       }
       await verifyPaper(slug, deps)
-      deps.ingests.advance(slug, 'bibliography')
-      deps.onDone(slug)
+      if (deps.ingests.advance(slug, 'bibliography')) deps.onDone(slug)
     } catch (error) {
       deps.ingests.fail(slug, error instanceof Error ? error.message : String(error))
       throw error

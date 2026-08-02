@@ -27,8 +27,7 @@ export function registerTranslate(
             breached.map((o) => `${o.heading || `${o.index} 番目`}(${o.breach})`).join(' / '),
         )
       }
-      deps.ingests.advance(slug, 'references')
-      deps.onDone(slug)
+      if (deps.ingests.advance(slug, 'references')) deps.onDone(slug)
     } catch (error) {
       deps.ingests.fail(slug, error instanceof Error ? error.message : String(error))
       throw error
