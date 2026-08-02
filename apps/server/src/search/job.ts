@@ -54,6 +54,9 @@ export function registerRegister(
       await registerPaper(slug, deps)
       // 全段階が成功したので、ここで初めて検索の対象になる(0004)。
       // registerPaper の最後は同期処理なので、ここまで監視の処理は割り込めない。
+      //
+      // 走っている間に取り込みが失敗していると、取り込みは失敗のまま残る(#289)。
+      // 論文自体は索引に載っているので、知らせは状態によらず出す。
       deps.ingests.finish(slug)
       deps.onRegistered?.(slug)
     } catch (error) {
