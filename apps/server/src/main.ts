@@ -30,6 +30,8 @@ import { JobStore } from './jobs/store.ts'
 import { IngestStore } from './ingest/store.ts'
 import { enqueueFeedFetch, registerFeed } from './feed/job.ts'
 import { enqueueResolve, registerResolve } from './ingest/job.ts'
+import type { IngestStage } from './ingest/types.ts'
+import type { Job } from './jobs/types.ts'
 import { FeedStore } from './feed/store.ts'
 import { createChat } from './chat/create.ts'
 import {
@@ -118,6 +120,28 @@ async function main(): Promise<void> {
     onChange: (job) => hub.broadcast({ type: 'job.changed', payload: job }),
   })
 
+  /**
+   * 失敗した取り込みを続きから積む(#220、#285)。
+   *
+   * どの段階から始めるかは記録と成果物が決める。解決の仕事と画面のやり直しの両方から使う。
+   */
+  const resumeIngest = async (slug: string, stage: IngestStage): Promise<Job> => {
+    switch (stage) {
+      case 'convert':
+        return enqueueConvert(jobs, slug, (await originalKind(dataDir, slug)) ?? 'pdf')
+      case 'verify':
+        return enqueueVerify(jobs, slug)
+      case 'bibliography':
+        return enqueueBibliography(jobs, slug)
+      case 'translate':
+        return enqueueTranslate(jobs, slug)
+      case 'references':
+        return enqueueReferences(jobs, slug)
+      default:
+        return enqueueRegister(jobs, slug)
+    }
+  }
+
   registerResolve(jobs, {
     dataDir,
     stateDir: stateDir(),
@@ -135,6 +159,7 @@ async function main(): Promise<void> {
       void originalKind(dataDir, slug).then((kind: 'pdf' | 'html' | null) => enqueueConvert(jobs, slug, kind ?? 'pdf'))
     },
     linkFeed: (arxivId, slug) => feed.setSlug(arxivId, slug),
+    resumeIngest,
   })
 
   registerConvert(jobs, {
@@ -296,23 +321,7 @@ async function main(): Promise<void> {
     searchChats: (query) => searchChats(query, { index, chunks: chatChunks, embed, segment }),
     enqueueResolve: (url) => enqueueResolve(jobs, url),
     enqueueReferences: (slug) => enqueueReferences(jobs, slug, 'background'),
-    // 失敗した取り込みを続きから積む(#220)。どの段階から始めるかは記録と成果物が決める。
-    resumeIngest: async (slug, stage) => {
-      switch (stage) {
-        case 'convert':
-          return enqueueConvert(jobs, slug, (await originalKind(dataDir, slug)) ?? 'pdf')
-        case 'verify':
-          return enqueueVerify(jobs, slug)
-        case 'bibliography':
-          return enqueueBibliography(jobs, slug)
-        case 'translate':
-          return enqueueTranslate(jobs, slug)
-        case 'references':
-          return enqueueReferences(jobs, slug)
-        default:
-          return enqueueRegister(jobs, slug)
-      }
-    },
+    resumeIngest,
     dataDir,
     getConfig: () => config,
     setConfig: (next) => {

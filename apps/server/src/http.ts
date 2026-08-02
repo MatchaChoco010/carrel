@@ -495,6 +495,30 @@ export function createApp(deps: AppDeps): Hono {
     return c.json({ discarded: slug, cancelledJobs: jobs.cancelled })
   })
 
+  /**
+   * 失敗した取り込みを、続きから積み直す(#285)。
+   *
+   * 解決が済んでいるなら、そこからやり直す必要は無い。成果物の有無から次に走らせる
+   * 段階を決める(#220)。
+   */
+  app.post('/api/ingests/:slug/retry', async (c) => {
+    const slug = c.req.param('slug')
+    const record = deps.ingests.get(slug)
+    if (record === null) return c.json({ error: `取り込みの記録が見つからない: ${slug}` }, 404)
+    if (record.status === 'inProgress') return c.json({ error: 'この取り込みはいま走っている' }, 409)
+
+    const plan = await planResume(deps.dataDir, record)
+    if (plan.kind === 'unavailable') return c.json({ error: plan.reason }, 409)
+    if (plan.kind === 'continue') {
+      deps.ingests.resume(plan.slug, plan.stage)
+      const job = await deps.resumeIngest(plan.slug, plan.stage)
+      return c.json({ kind: 'resumed', slug: plan.slug, stage: plan.stage, job })
+    }
+    // 原本を持たない取り込みは、成果物を捨てて所在を探すところからやり直す。
+    await discardIngest(deps.dataDir, slug, deps.ingests)
+    return c.json({ kind: 'restarted', slug, job: deps.enqueueResolve(plan.target) })
+  })
+
   app.get('/api/ingests', (c) =>
     c.json({
       ingests: deps.ingests.list().map((record) => ({ ...record, stages: deps.ingests.stages(record.slug) })),

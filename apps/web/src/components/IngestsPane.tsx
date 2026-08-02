@@ -1,4 +1,4 @@
-import { Check, CircleDashed, Eraser, Loader2, Trash2, X } from 'lucide-react'
+import { Check, CircleDashed, Eraser, Loader2, RotateCcw, Trash2, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api, type Ingest, type IngestStage } from '../api.ts'
 import { clockFor, stageElapsed, totalElapsed } from '../ingest-timing.ts'
@@ -88,6 +88,8 @@ function pending(job: { id: number; target: string; createdAt: number }): Ingest
 export function IngestsPane({ ingests, waiting, onChanged }: IngestsPaneProps) {
   const now = useNow(ingests.some((i) => i.status === 'inProgress') || waiting.length > 0)
   const [busy, setBusy] = useState(false)
+  /** やり直しを断られた理由。走っている取り込みや、原本の残っていないものがある。 */
+  const [error, setError] = useState<string | null>(null)
   const done = ingests.filter((i) => i.status === 'done').length
 
   const clear = (): void => {
@@ -95,6 +97,22 @@ export function IngestsPane({ ingests, waiting, onChanged }: IngestsPaneProps) {
     void api
       .clearIngests()
       .then(onChanged)
+      .finally(() => setBusy(false))
+  }
+
+  /**
+   * 失敗した取り込みを続きから積み直す(#285)。
+   *
+   * 解決が済んでいるなら、そこからやり直す必要は無い。どの段階から始めるかはサーバーが
+   * 成果物を見て決める。
+   */
+  const retry = (slug: string): void => {
+    setBusy(true)
+    setError(null)
+    void api
+      .retryIngest(slug)
+      .then(onChanged)
+      .catch((error: unknown) => setError(error instanceof Error ? error.message : String(error)))
       .finally(() => setBusy(false))
   }
 
@@ -118,6 +136,7 @@ export function IngestsPane({ ingests, waiting, onChanged }: IngestsPaneProps) {
 
   return (
     <div className="ingests">
+      {error === null ? null : <p className="error">{error}</p>}
       {done > 0 && (
         <div className="ingests__actions">
           <button type="button" onClick={clear} disabled={busy}>
@@ -137,6 +156,19 @@ export function IngestsPane({ ingests, waiting, onChanged }: IngestsPaneProps) {
             <header>
               <code>{ingest.slug}</code>
               <span className="ingest__total">{duration(total)}</span>
+              {/* 失敗した取り込みは、続きからやり直せる(#285)。 */}
+              {ingest.status === 'failed' && (
+                <button
+                  type="button"
+                  className="ingest__retry"
+                  onClick={() => retry(ingest.slug)}
+                  disabled={busy}
+                  title="この取り込みを続きからやり直す"
+                  aria-label={`${ingest.slug} の取り込みをやり直す`}
+                >
+                  <RotateCcw size={ICON} aria-hidden />
+                </button>
+              )}
               {/* 失敗した取り込みは、捨てると半端な成果物も消える(#223)。 */}
               {ingest.status === 'failed' && (
                 <button
