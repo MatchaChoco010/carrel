@@ -356,6 +356,7 @@ export function App() {
               papers={papers}
               onOpenPaper={openPaper}
               subscribe={subscribe}
+              fontSize={reading.fontSize}
             />
           </div>
         </section>

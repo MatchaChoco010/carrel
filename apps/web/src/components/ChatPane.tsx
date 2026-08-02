@@ -37,6 +37,8 @@ export type ChatPaneProps = {
   onOpenPaper: (slug: string) => void
   /** ターンの進みの購読を親から受ける。 */
   subscribe: (handler: (event: { type: string; payload: unknown }) => void) => () => void
+  /** 読む文字の大きさ(px)。入力欄が高さを測り直すのに要る(#291)。 */
+  fontSize: number
 }
 
 const ICON = 15
@@ -72,7 +74,7 @@ const PHASE_LABEL: Record<TurnPhase, string> = {
 /** 選んだ画像と、送るまでの間だけ使う見せかけの場所。 */
 type Attachment = { file: File; preview: string }
 
-export function ChatPane({ id, onOpen, limits, papers, onOpenPaper, subscribe }: ChatPaneProps) {
+export function ChatPane({ id, onOpen, limits, papers, onOpenPaper, subscribe, fontSize }: ChatPaneProps) {
   const slugSpellings = useMemo(() => papers.map((paper) => paper.slug).sort(), [papers])
   // 本文の `@slug` を短く出すための対応表(0024)。発言ごとに作り直さないよう、ここで持つ。
   const mentions = useMemo(() => mentionsOf(papers), [papers])
@@ -572,6 +574,7 @@ export function ChatPane({ id, onOpen, limits, papers, onOpenPaper, subscribe }:
           sendOnEnter={sendKeys.enter}
           sendOnCtrlEnter={sendKeys.ctrlEnter}
           onSend={() => sendable && send()}
+          fontSize={fontSize}
         />
         {/* 送るボタンを入力欄の次に置く。Escape のあと Tab を 1 回で届くようにする。
             見た目の並びは CSS の order で戻す。 */}

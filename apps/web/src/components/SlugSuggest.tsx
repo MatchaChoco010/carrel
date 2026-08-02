@@ -11,6 +11,12 @@ export type SlugSuggestProps = {
   /** Ctrl+Enter(macOS では Cmd+Enter)で送るか。設定で選ぶ。 */
   sendOnCtrlEnter: boolean
   onSend: () => void
+  /**
+   * 読む文字の大きさ(px)。高さを測り直す合図として受け取る(#291)。
+   *
+   * 欄の文字の大きさは CSS の変数から来るので、この部品からは変わったことが見えない。
+   */
+  fontSize: number
 }
 
 const LIMIT = 8
@@ -28,6 +34,7 @@ export function SlugSuggest({
   sendOnEnter,
   sendOnCtrlEnter,
   onSend,
+  fontSize,
 }: SlugSuggestProps) {
   const [at, setAt] = useState(0)
   // カーソルの位置。本文の途中の `@` でも補完を出すために見る(#231)。
@@ -69,7 +76,7 @@ export function SlugSuggest({
     if (node === null) return
     node.style.height = 'auto'
     node.style.height = `${Math.min(Math.max(node.scrollHeight, MIN_HEIGHT), MAX_HEIGHT)}px`
-  }, [value, inputRef])
+  }, [value, fontSize, inputRef])
 
   const complete = (slug: string): void => {
     if (token === null) return
