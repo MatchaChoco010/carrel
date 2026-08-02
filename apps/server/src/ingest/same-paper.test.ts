@@ -106,3 +106,27 @@ test('まだ登録まで進んでいない取り込みも、同じ論文とし�
   })
   assert.equal(byTitle, 'olajos2026-clouds')
 })
+
+test('発音記号と ß の違いを越えて、同じ姓と判じる(#282)', () => {
+  // 同じ人の名前が、出所によって両方の綴りで出てくる。
+  assert.equal(familyName('Vincent Schüßler'), familyName('Vincent Schüssler'))
+  assert.equal(familyName('T. Müller'), familyName('Thomas Muller'))
+  assert.ok(sameFirstAuthor(['Vincent Schüßler', 'Eric Heitz'], ['Vincent Schüssler']))
+})
+
+test('綴りが揺れていても、題が同じなら同じ論文と判じる(#282)', () => {
+  const known: Candidate = {
+    slug: 'schussler2017-microfacet-normal-mapping',
+    title: 'Microfacet-based Normal Mapping for Robust Monte Carlo Path Tracing',
+    authors: ['Vincent Schüssler', 'Eric Heitz'],
+    doi: '10.1145/3130800.3130806',
+    arxivId: null,
+  }
+  const slug = findSamePaper([known], {
+    title: 'Microfacet-based Normal Mapping for Robust Monte Carlo Path Tracing',
+    authors: ['Vincent Schüßler', 'Eric Heitz'],
+    doi: null,
+    arxivId: null,
+  })
+  assert.equal(slug, 'schussler2017-microfacet-normal-mapping')
+})
