@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 
 export type Reading = {
-  /** 本文の文字の大きさ(px)。 */
+  /** 読む文字の大きさ(px)。 */
   fontSize: number
-  /** 本文の行の高さ(文字の大きさに対する倍率)。 */
+  /** 読む文字の行の高さ(文字の大きさに対する倍率)。 */
   lineHeight: number
 }
 
@@ -52,7 +52,7 @@ function stored(): Reading {
 }
 
 /**
- * 本文の読みやすさの設定。
+ * 読みやすさの設定。論文の本文とチャットの両方に効く(#291)。
  *
  * この端末にだけ保存する。スマホと PC では読みやすい大きさが違うので、
  * サーバーの設定に 1 つ持つと片方に合わせるともう片方が読みにくくなる。
