@@ -1495,9 +1495,11 @@ body {
   }
 }
 
+/* 発言も論文の本文と同じ設定で読む。読みやすい大きさは端末ごとに決まる(#291)。 */
 .turn .markdown {
   max-width: none;
-  font-size: 13px;
+  font-size: var(--reading-font-size, 14px);
+  line-height: var(--reading-line-height, 1.8);
 }
 
 .chat__compose {
@@ -1602,8 +1604,9 @@ body {
   color: var(--text);
   padding: 8px 10px;
   font: inherit;
-  font-size: 13px;
-  line-height: 1.7;
+  /* 書く文字も読む文字と揃える(#291)。高さは JS が測り直す。 */
+  font-size: var(--reading-font-size, 14px);
+  line-height: var(--reading-line-height, 1.8);
   /* 高さは中身に合わせて JS が決める。掴んで変えられる余地も残す。 */
   min-height: 96px;
   max-height: 320px;

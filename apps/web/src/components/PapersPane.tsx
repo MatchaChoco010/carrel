@@ -1,6 +1,7 @@
 import { FilePlus2, Loader2, Plus } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, type PaperDetail, type SearchFilter, type SearchHit } from '../api.ts'
+import { createScrollMemory, scrollingParent } from '../scroll-memory.ts'
 import { PaperCard } from './PaperCard.tsx'
 import { PaperFilters } from './PaperFilters.tsx'
 import { PaperView } from './PaperView.tsx'
@@ -56,6 +57,14 @@ export function PapersPane({
   /** 索引が変わったのに、まだ読み直していない(#273)。 */
   const [stale, setStale] = useState(false)
   const [url, setUrl] = useState('')
+  /** 論文を開いている間、一覧の送り位置を預かる(#292)。 */
+  const scroll = useRef(createScrollMemory())
+  const keepScroll = useCallback((node: HTMLDivElement | null) => {
+    scroll.current.attach(scrollingParent(node))
+  }, [])
+
+  /** 開いている論文。null なら一覧が出ている。 */
+  const open = trail.at(-1) ?? null
 
   const load = useCallback(async (): Promise<void> => {
     setLoading(true)
@@ -102,7 +111,8 @@ export function PapersPane({
     })
     watcher.observe(node)
     return () => watcher.disconnect()
-  }, [hits.length])
+    // 詳細から戻ると一覧は別の要素として出し直されるので、見張りも張り直す(#292)。
+  }, [hits.length, open])
 
   /**
    * 索引が変わったら、読み直しが要ることを覚える(#273)。
@@ -142,9 +152,8 @@ export function PapersPane({
     })
     watcher.observe(node)
     return () => watcher.disconnect()
-  }, [hits.length, limit])
-
-  const open = trail.at(-1) ?? null
+    // 詳細から戻ると一覧は別の要素として出し直されるので、見張りも張り直す(#292)。
+  }, [hits.length, limit, open])
 
   // 参考文献から移った論文は検索の結果に無いことがあるので、その場で読む。
   useEffect(() => {
@@ -250,7 +259,7 @@ export function PapersPane({
   }
 
   return (
-    <div className="papers">
+    <div className="papers" ref={keepScroll}>
       <div className="import">
         {/* 表示の言語は一覧と本文で共通にする。まとめて日本語で読むための切り替え。 */}
         <div className="lang">

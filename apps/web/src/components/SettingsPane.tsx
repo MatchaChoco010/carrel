@@ -13,7 +13,7 @@ import {
 export type SettingsPaneProps = {
   /** 索引を作り直したら、一覧を読み直させる。 */
   onChanged: () => void
-  /** この端末に保存している本文の読みやすさ。 */
+  /** この端末に保存している読みやすさ。論文の本文とチャットに効く(#291)。 */
   reading: Reading
   onReadingChange: (next: Reading) => void
 }
@@ -262,7 +262,7 @@ export function SettingsPane({ onChanged, reading, onReadingChange }: SettingsPa
       </section>
 
       <section className="settings__group">
-        <h3>本文の読みやすさ(この端末だけ)</h3>
+        <h3>読みやすさ(この端末だけ)</h3>
         <div className="settings__steps">
           <span className="settings__steps-label">文字の大きさ</span>
           {FONT_SIZE_STEPS.map((step) => (

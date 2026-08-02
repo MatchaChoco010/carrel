@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 
 export type Reading = {
-  /** 本文の文字の大きさ(px)。 */
+  /** 読む文字の大きさ(px)。 */
   fontSize: number
-  /** 本文の行の高さ(文字の大きさに対する倍率)。 */
+  /** 読む文字の行の高さ(文字の大きさに対する倍率)。 */
   lineHeight: number
 }
 
@@ -52,7 +52,7 @@ function stored(): Reading {
 }
 
 /**
- * 本文の読みやすさの設定。
+ * 読みやすさの設定。論文の本文とチャットの両方に効く(#291)。
  *
  * この端末にだけ保存する。スマホと PC では読みやすい大きさが違うので、
  * サーバーの設定に 1 つ持つと片方に合わせるともう片方が読みにくくなる。
@@ -60,11 +60,20 @@ function stored(): Reading {
 export function useReading(): [Reading, (next: Reading) => void] {
   const [reading, setReading] = useState<Reading>(stored)
 
-  useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(reading))
+  /*
+   * 変数は描く前に置く。
+   *
+   * 大きさを測る側(入力欄の高さ)は下の階層にあり、そちらの effect は親より先に走る。
+   * 通常の effect で置くと、測るときにはまだ前の大きさのままである(#291)。
+   */
+  useLayoutEffect(() => {
     const root = document.documentElement
     root.style.setProperty('--reading-font-size', `${reading.fontSize}px`)
     root.style.setProperty('--reading-line-height', String(reading.lineHeight))
+  }, [reading])
+
+  useEffect(() => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(reading))
   }, [reading])
 
   return [reading, useCallback((next: Reading) => setReading(next), [])]
