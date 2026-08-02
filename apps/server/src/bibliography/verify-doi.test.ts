@@ -1,47 +1,72 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { doiPointsAtPaper, type DoiLookup } from './verify-doi.ts'
+import { doiPointsAtPaper, parseDoiRecord, type DoiLookup, type DoiRecord } from './verify-doi.ts'
 
-const TITLE = 'Progressive Photorealistic Simplification'
-
-/** 引く先の代役。DOI ごとに返す題を決める。 */
-function lookup(table: Record<string, string>): DoiLookup {
-  return async (doi) => (doi in table ? { title: table[doi] as string } : null)
+const RECORD: DoiRecord = {
+  title: 'Progressive Photorealistic Simplification',
+  authors: ['Ana Rosenthal'],
+  year: 2026,
+  container: 'ACM SIGGRAPH 2026 Conference Papers',
 }
 
-test('その論文を指す DOI は受け取る(#287)', async () => {
-  const found = lookup({ '10.1145/3799902.3811083': 'Progressive Photorealistic Simplification' })
-  assert.equal(await doiPointsAtPaper('10.1145/3799902.3811083', TITLE, found), true)
+const found: DoiLookup = async () => RECORD
+const missing: DoiLookup = async () => null
+const yes = async (): Promise<boolean> => true
+const no = async (): Promise<boolean> => false
+
+test('この論文のものだと答えられた DOI は受け取る(#287)', async () => {
+  assert.equal(await doiPointsAtPaper('10.1145/3799902.3811083', found, yes), true)
 })
 
-test('別の文献を指す DOI は受け取らない(#287)', async () => {
-  // 実際に入っていた誤り。同じ予稿集の中の別の論文である。
-  const found = lookup({
-    '10.1145/3799902.3811050': 'Gradient Descent in the ALPS: Abstracted Low-Poly Stylization and Fabrication',
-  })
-  assert.equal(await doiPointsAtPaper('10.1145/3799902.3811050', TITLE, found), false)
+test('別の文献だと答えられた DOI は受け取らない(#287)', async () => {
+  assert.equal(await doiPointsAtPaper('10.1145/3799902.3811050', found, no), false)
 })
 
-test('どこも指さない DOI は受け取らない(#287)', async () => {
+test('どこも指さない DOI は判断を仰がずに捨てる(#287)', async () => {
   // 桁を落とした DOI が実際に入っていた。
-  assert.equal(await doiPointsAtPaper('10.1145/3799902.381122', TITLE, lookup({})), false)
+  let asked = false
+  const judge = async (): Promise<boolean> => {
+    asked = true
+    return true
+  }
+  assert.equal(await doiPointsAtPaper('10.1145/3799902.381122', missing, judge), false)
+  assert.equal(asked, false)
 })
 
 test('引けなかったときは受け取らない(#287)', async () => {
   const broken: DoiLookup = async () => {
     throw new Error('通信に失敗した')
   }
-  assert.equal(await doiPointsAtPaper('10.1145/3799902.3811083', TITLE, broken), false)
+  assert.equal(await doiPointsAtPaper('10.1145/3799902.3811083', broken, yes), false)
 })
 
-test('副題や記号の違いは同じ論文と認める(#287)', async () => {
-  const asked = 'PQ-Free HD: Priority-Queue-Free Hausdorff Distance for Triangle Meshes on GPU'
-  const found = lookup({ '10.1145/3811324': 'PQ-Free HD — Priority Queue Free Hausdorff Distance for Triangle Meshes on GPU' })
-  assert.equal(await doiPointsAtPaper('10.1145/3811324', asked, found), true)
+test('判断そのものが失敗したときも受け取らない(#287)', async () => {
+  const broken = async (): Promise<boolean> => {
+    throw new Error('スレッドが落ちた')
+  }
+  assert.equal(await doiPointsAtPaper('10.1145/3799902.3811083', found, broken), false)
 })
 
-test('発音記号の違いも同じ論文と認める(#287)', async () => {
-  const asked = 'Über die Bewegung von Partikeln'
-  const found = lookup({ '10.1000/x': 'Uber die Bewegung von Partikeln' })
-  assert.equal(await doiPointsAtPaper('10.1000/x', asked, found), true)
+test('CSL JSON から判断に使う項目を取り出す(#287)', () => {
+  const record = parseDoiRecord({
+    title: ['PQ-Free HD: Priority-Queue-Free Hausdorff Distance'],
+    author: [
+      { given: 'Vincent', family: 'Schüßler' },
+      { literal: 'The Khronos Group' },
+      { family: 'Heitz' },
+    ],
+    issued: { 'date-parts': [[2026, 8, 2]] },
+    'container-title': ['ACM Transactions on Graphics'],
+  })
+  assert.deepEqual(record, {
+    title: 'PQ-Free HD: Priority-Queue-Free Hausdorff Distance',
+    authors: ['Vincent Schüßler', 'The Khronos Group', 'Heitz'],
+    year: 2026,
+    container: 'ACM Transactions on Graphics',
+  })
+})
+
+test('題の無い応答は登録内容として扱わない(#287)', () => {
+  assert.equal(parseDoiRecord({ author: [] }), null)
+  assert.equal(parseDoiRecord(null), null)
 })

@@ -4,7 +4,13 @@ import { runTurn, startWorkThread } from '../codex/threads.ts'
 import { normalizeDoi } from '../data/doi.ts'
 import { readPaper, writePaper, type PaperMeta } from '../data/paper.ts'
 import { extractArxivId } from '../ingest/arxiv.ts'
-import { BIBLIOGRAPHY_INSTRUCTIONS, BIBLIOGRAPHY_SCHEMA, buildBibliographyPrompt } from './prompt.ts'
+import {
+  BIBLIOGRAPHY_INSTRUCTIONS,
+  BIBLIOGRAPHY_SCHEMA,
+  DOI_CHECK_SCHEMA,
+  buildBibliographyPrompt,
+  buildDoiCheckPrompt,
+} from './prompt.ts'
 import { doiPointsAtPaper, lookupDoi, type DoiLookup } from './verify-doi.ts'
 
 export type BibliographyDeps = {
@@ -13,13 +19,7 @@ export type BibliographyDeps = {
   model: string
   effort: string
   serviceTier: string | null
-  /**
-   * その DOI を、コレクションの別の論文が既に持っているか(#283)。
-   *
-   * 渡さなければ何も弾かない。
-   */
-  takenDoi?: (doi: string, slug: string) => boolean
-  /** DOI から書誌を引く口(#287)。差し替えられるようにして、試験では通信しない。 */
+  /** DOI の登録内容を引く口(#287)。差し替えられるようにして、試験では通信しない。 */
   lookupDoi?: DoiLookup
 }
 
@@ -71,30 +71,33 @@ export function parseBibliography(text: string): Bibliography | null {
   }
 }
 
+/** 同じ論文かの答えを読む。読めなければ「違う」として扱い、誤った DOI を残さない。 */
+export function parseDoiCheck(text: string): boolean {
+  let raw: unknown
+  try {
+    raw = JSON.parse(text)
+  } catch {
+    return false
+  }
+  if (typeof raw !== 'object' || raw === null) return false
+  return (raw as Record<string, unknown>)['samePaper'] === true
+}
+
 /**
  * 確かめた書誌を frontmatter へ入れる。
  *
  * 触るのは標題と著者と出所に関わる項目だけである。slug・タグ・追加日時・`source_url` は、
  * 取り込みを始めたときの事実か、ユーザーだけが決めるものなので変えない(0020)。
  * 確かめられなかった項目は、いまの値をそのまま残す。
- *
- * `takenDoi` には、コレクションの別の論文が既に持っている DOI かを答える口を渡す。
- * DOI は出版物を一意に指すので、別の論文が持っているなら、その DOI はこの論文のもの
- * ではない(#283)。空のまま次へ進める。
  */
-export function mergeBibliography(
-  meta: PaperMeta,
-  found: Bibliography,
-  takenDoi: (doi: string) => boolean = () => false,
-): PaperMeta {
-  const doi = found.doi !== null && !takenDoi(found.doi) ? found.doi : meta.doi
+export function mergeBibliography(meta: PaperMeta, found: Bibliography): PaperMeta {
   return {
     ...meta,
     title: found.title ?? meta.title,
     authors: found.authors.length > 0 ? found.authors : meta.authors,
     venue: found.venue ?? meta.venue,
     year: found.year ?? meta.year,
-    doi,
+    doi: found.doi ?? meta.doi,
     arxivId: found.arxivId ?? meta.arxivId,
     pdfUrl: found.pdfUrl ?? meta.pdfUrl,
   }
@@ -135,12 +138,24 @@ export async function lookupBibliography(slug: string, deps: BibliographyDeps): 
 
   // 挙がった DOI がこの論文を指しているかを確かめる(#287)。同じ予稿集の中の別の論文の
   // 番号が入ることがあり、組み立てられる形なので当てずっぽうでも DOI らしく見える。
+  // 判断は同じスレッドに尋ねる。本文と検索の結果を見た文脈がそのまま残っている。
+  const doi = found.doi
   const pointsHere =
-    found.doi === null ||
-    (await doiPointsAtPaper(found.doi, found.title ?? paper.meta.title, deps.lookupDoi ?? lookupDoi))
+    doi === null ||
+    (await doiPointsAtPaper(doi, deps.lookupDoi ?? lookupDoi, async (record) => {
+      const answer = await runTurn(deps.codex, {
+        threadId,
+        input: textInput(
+          buildDoiCheckPrompt({ title: found.title ?? paper.meta.title, authors: found.authors }, { doi, ...record }),
+        ),
+        effort: deps.effort,
+        outputSchema: DOI_CHECK_SCHEMA,
+      })
+      return parseDoiCheck(answer.text)
+    }))
   const verified = pointsHere ? found : { ...found, doi: null }
 
-  const merged = mergeBibliography(paper.meta, verified, (doi) => deps.takenDoi?.(doi, slug) ?? false)
+  const merged = mergeBibliography(paper.meta, verified)
   await writePaper(deps.dataDir, merged, paper.body)
   return verified
 }

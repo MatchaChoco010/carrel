@@ -8,42 +8,70 @@
  * ので、当てずっぽうでも DOI らしく見えてしまう。
  */
 
-/** 突き合わせのために題を均す。発音記号と記号の違いを落とす。 */
-function fold(title: string): string[] {
-  return title
-    .normalize('NFKD')
-    .replace(/\p{M}+/gu, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim()
-    .split(' ')
-    .filter((word) => word.length > 2)
+/** DOI の登録内容。指す先が本当にこの論文かを判断する材料になる。 */
+export type DoiRecord = {
+  title: string
+  authors: string[]
+  year: number | null
+  /** 収録先の名前。予稿集や雑誌の名前が入る。 */
+  container: string | null
+}
+
+export type DoiLookup = (doi: string) => Promise<DoiRecord | null>
+
+/** 登録内容がこの論文のものかを答える。 */
+export type DoiJudge = (record: DoiRecord) => Promise<boolean>
+
+function asString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
+}
+
+/** CSL JSON の著者は姓名が分かれている。表示に使う 1 本の文字列へ戻す。 */
+function authorNames(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  const names: string[] = []
+  for (const entry of value) {
+    if (typeof entry !== 'object' || entry === null) continue
+    const e = entry as Record<string, unknown>
+    const literal = asString(e['literal'])
+    if (literal !== null) {
+      names.push(literal)
+      continue
+    }
+    const given = asString(e['given'])
+    const family = asString(e['family'])
+    const joined = [given, family].filter((part) => part !== null).join(' ')
+    if (joined.length > 0) names.push(joined)
+  }
+  return names
+}
+
+/** CSL JSON の日付は `date-parts` に年から順で入る。 */
+function issuedYear(value: unknown): number | null {
+  if (typeof value !== 'object' || value === null) return null
+  const parts = (value as Record<string, unknown>)['date-parts']
+  if (!Array.isArray(parts) || !Array.isArray(parts[0])) return null
+  const year = (parts[0] as unknown[])[0]
+  return typeof year === 'number' && Number.isInteger(year) ? year : null
+}
+
+/** CSL JSON から、判断に使う項目だけを取り出す。 */
+export function parseDoiRecord(body: unknown): DoiRecord | null {
+  if (typeof body !== 'object' || body === null) return null
+  const b = body as Record<string, unknown>
+  const raw = Array.isArray(b['title']) ? b['title'][0] : b['title']
+  const title = asString(raw)
+  if (title === null) return null
+  return {
+    title,
+    authors: authorNames(b['author']),
+    year: issuedYear(b['issued']),
+    container: asString(Array.isArray(b['container-title']) ? b['container-title'][0] : b['container-title']),
+  }
 }
 
 /**
- * 題がどれだけ重なるか。0 から 1。
- *
- * 副題の有無や記号の違いで語が数個外れるので、完全な一致は求めない。
- */
-function overlap(asked: string, got: string): number {
-  const want = [...new Set(fold(asked))]
-  if (want.length === 0) return 0
-  const have = new Set(fold(got))
-  return want.filter((word) => have.has(word)).length / want.length
-}
-
-/**
- * 同じ論文と認める重なりの下限。
- *
- * 本番の 199 本で測ると、正しい組は 183 本すべてが 0.83 以上で、うち 181 本は 1.00
- * だった。別の文献を指していた 6 本は 0.14 以下である。間は空いているので、半分に置く。
- */
-const MATCH_RATIO = 0.5
-
-export type DoiLookup = (doi: string) => Promise<{ title: string } | null>
-
-/**
- * DOI から書誌を引く。
+ * DOI から登録内容を引く。
  *
  * `doi.org` は登録機関を問わず解決する。content negotiation で書誌が JSON で返るので、
  * Crossref・DataCite・Eurographics のどれに登録されていても同じ経路で引ける。
@@ -54,24 +82,27 @@ export const lookupDoi: DoiLookup = async (doi) => {
     redirect: 'follow',
   })
   if (!response.ok) return null
-  const body = (await response.json()) as { title?: unknown }
-  const title = typeof body.title === 'string' ? body.title : Array.isArray(body.title) ? body.title[0] : null
-  return typeof title === 'string' && title.trim().length > 0 ? { title: title.trim() } : null
+  return parseDoiRecord(await response.json())
 }
 
 /**
  * その DOI をこの論文のものとして受け取ってよいか。
  *
- * 引けなかったときは受け取らない。どこも指さない DOI(桁を落としたものなど)を入れると、
- * 出所を辿れないうえ、後から誤りだと気づく手掛かりも無い。
+ * 引けなかったときと判断がつかなかったときは受け取らない。DOI は無くても論文は読めるが、
+ * 誤った DOI は別の論文と同一視される。取りこぼすほうの間違いを選ぶ。
  */
-export async function doiPointsAtPaper(doi: string, title: string, lookup: DoiLookup): Promise<boolean> {
-  let found: { title: string } | null
+export async function doiPointsAtPaper(doi: string, lookup: DoiLookup, judge: DoiJudge): Promise<boolean> {
+  let record: DoiRecord | null
   try {
-    found = await lookup(doi)
+    record = await lookup(doi)
   } catch {
     return false
   }
-  if (found === null) return false
-  return overlap(title, found.title) >= MATCH_RATIO
+  // どこも指さない DOI は捨てる。出所を辿れないうえ、後から誤りだと気づく手掛かりも無い。
+  if (record === null) return false
+  try {
+    return await judge(record)
+  } catch {
+    return false
+  }
 }

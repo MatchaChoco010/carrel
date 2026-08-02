@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { PaperMeta } from '../data/paper.ts'
-import { mergeBibliography, parseBibliography } from './run.ts'
+import { mergeBibliography, parseBibliography, parseDoiCheck } from './run.ts'
 
 const META: PaperMeta = {
   slug: 'sun2026-minimal-surfaces',
@@ -132,20 +132,13 @@ test('slug とタグと出所の URL は変えない', () => {
   assert.deepEqual(merged.authors, META.authors)
 })
 
-test('別の論文が持っている DOI は入れない(#283)', () => {
-  const merged = mergeBibliography(
-    { ...META, doi: null },
-    { title: null, authors: [], venue: null, year: null, doi: '10.1145/3799902.3811050', arxivId: null, pdfUrl: null },
-    (doi) => doi === '10.1145/3799902.3811050',
-  )
-  assert.equal(merged.doi, null)
+test('同じ論文かの答えを読む(#287)', () => {
+  assert.equal(parseDoiCheck('{"samePaper": true, "reason": "標題と著者が一致する"}'), true)
+  assert.equal(parseDoiCheck('{"samePaper": false, "reason": "同じ予稿集の別の論文"}'), false)
 })
 
-test('誰も持っていない DOI は入れる(#283)', () => {
-  const merged = mergeBibliography(
-    { ...META, doi: null },
-    { title: null, authors: [], venue: null, year: null, doi: '10.1145/3799902.3811050', arxivId: null, pdfUrl: null },
-    () => false,
-  )
-  assert.equal(merged.doi, '10.1145/3799902.3811050')
+test('答えが読めなければ DOI を受け取らない(#287)', () => {
+  assert.equal(parseDoiCheck('JSON ではない'), false)
+  assert.equal(parseDoiCheck('{"reason": "分からない"}'), false)
+  assert.equal(parseDoiCheck('null'), false)
 })
