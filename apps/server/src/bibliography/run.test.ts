@@ -131,21 +131,3 @@ test('slug とタグと出所の URL は変えない', () => {
   assert.equal(merged.title, META.title)
   assert.deepEqual(merged.authors, META.authors)
 })
-
-test('別の論文が持っている DOI は入れない(#283)', () => {
-  const merged = mergeBibliography(
-    { ...META, doi: null },
-    { title: null, authors: [], venue: null, year: null, doi: '10.1145/3799902.3811050', arxivId: null, pdfUrl: null },
-    (doi) => doi === '10.1145/3799902.3811050',
-  )
-  assert.equal(merged.doi, null)
-})
-
-test('誰も持っていない DOI は入れる(#283)', () => {
-  const merged = mergeBibliography(
-    { ...META, doi: null },
-    { title: null, authors: [], venue: null, year: null, doi: '10.1145/3799902.3811050', arxivId: null, pdfUrl: null },
-    () => false,
-  )
-  assert.equal(merged.doi, '10.1145/3799902.3811050')
-})

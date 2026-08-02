@@ -12,12 +12,6 @@ export type BibliographyDeps = {
   model: string
   effort: string
   serviceTier: string | null
-  /**
-   * その DOI を、コレクションの別の論文が既に持っているか(#283)。
-   *
-   * 渡さなければ何も弾かない。
-   */
-  takenDoi?: (doi: string, slug: string) => boolean
 }
 
 /** 確かめた結果。確かめられなかった項目は null で返る。 */
@@ -74,24 +68,15 @@ export function parseBibliography(text: string): Bibliography | null {
  * 触るのは標題と著者と出所に関わる項目だけである。slug・タグ・追加日時・`source_url` は、
  * 取り込みを始めたときの事実か、ユーザーだけが決めるものなので変えない(0020)。
  * 確かめられなかった項目は、いまの値をそのまま残す。
- *
- * `takenDoi` には、コレクションの別の論文が既に持っている DOI かを答える口を渡す。
- * DOI は出版物を一意に指すので、別の論文が持っているなら、その DOI はこの論文のもの
- * ではない(#283)。空のまま次へ進める。
  */
-export function mergeBibliography(
-  meta: PaperMeta,
-  found: Bibliography,
-  takenDoi: (doi: string) => boolean = () => false,
-): PaperMeta {
-  const doi = found.doi !== null && !takenDoi(found.doi) ? found.doi : meta.doi
+export function mergeBibliography(meta: PaperMeta, found: Bibliography): PaperMeta {
   return {
     ...meta,
     title: found.title ?? meta.title,
     authors: found.authors.length > 0 ? found.authors : meta.authors,
     venue: found.venue ?? meta.venue,
     year: found.year ?? meta.year,
-    doi,
+    doi: found.doi ?? meta.doi,
     arxivId: found.arxivId ?? meta.arxivId,
     pdfUrl: found.pdfUrl ?? meta.pdfUrl,
   }
@@ -130,7 +115,7 @@ export async function lookupBibliography(slug: string, deps: BibliographyDeps): 
   const found = parseBibliography(outcome.text)
   if (found === null) return null
 
-  const merged = mergeBibliography(paper.meta, found, (doi) => deps.takenDoi?.(doi, slug) ?? false)
+  const merged = mergeBibliography(paper.meta, found)
   await writePaper(deps.dataDir, merged, paper.body)
   return found
 }
