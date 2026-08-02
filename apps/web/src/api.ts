@@ -53,6 +53,8 @@ export type Ingest = {
   sourceUrl: string
   stage: IngestStage
   status: 'inProgress' | 'failed' | 'done'
+  /** 解決が読み取った題。失敗した取り込みを探し直すときの手掛かりに出す(#279)。 */
+  title: string | null
   startedAt: number
   updatedAt: number
   lastError: string | null
@@ -287,6 +289,13 @@ export const api = {
   rebuildIndex: () => sendJson<ScanResult>('POST', '/api/index/rebuild', {}),
   /** 済んだ取り込みの記録を消す。論文は残る(#223)。 */
   clearIngests: () => sendJson<{ cleared: number }>('POST', '/api/ingests/clear', {}),
+  /** 失敗した取り込みを、済んだ段階の続きから積み直す(#285)。 */
+  retryIngest: (slug: string) =>
+    sendJson<{ kind: 'resumed' | 'restarted'; slug: string; stage?: IngestStage }>(
+      'POST',
+      `/api/ingests/${encodeURIComponent(slug)}/retry`,
+      {},
+    ),
   /** 失敗した取り込みを捨てる。半端な成果物も消える(#223)。 */
   discardIngest: (slug: string) =>
     sendJson<{ discarded: string; cancelledJobs: number }>(

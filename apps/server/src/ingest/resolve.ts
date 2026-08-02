@@ -227,14 +227,15 @@ export async function resolveSource(sourceUrl: string, deps: ResolveDeps): Promi
 /**
  * 手元の原本の先頭から書誌を読み取る指示。
  *
- * web は探させない。学会名と DOI を確かめるのは後の段階の仕事である(0020)。ここで要るのは
- * slug を決めるための名前と、重複を判じるための題名だけである(0021)。
+ * web は探させない。学会名を確かめるのは後の段階の仕事である(0020)。ここで要るのは
+ * slug を決めるための名前と、重複を判じるための題名と DOI である(0021、#282)。
  */
 const HEAD_INSTRUCTIONS = [
   'あなたは論文の原本の先頭から書誌情報を読み取る。',
   '渡されるのは PDF の先頭 2 ページ分である。文字層か、そのページの画像で届く。',
   '所属機関のリポジトリが付けた表紙が先頭にあることがある。表紙ではなく論文そのものの標題を選ぶ。',
   '著者は紙面の書式をそのまま写さない。全部を大文字にした表記は、通常の表記に直す。',
+  'DOI は紙面に印字されていることがある。この論文自身のものだけを取り、参考文献に出てくるものは取らない。',
   '読み取れない項目は null にする。web は使わない。',
   '要求された JSON だけを返す。',
 ].join('\n')
@@ -245,6 +246,10 @@ const HEAD_SCHEMA = {
     title: { type: ['string', 'null'], description: '論文の標題。' },
     authors: { type: 'array', items: { type: 'string' }, description: '著者。順序を保つ。' },
     year: { type: ['integer', 'null'], description: '紙面から読める出版年。無ければ null。' },
+    doi: {
+      type: ['string', 'null'],
+      description: 'この論文自身の DOI。紙面に印字されていれば取る。10. で始まる形。無ければ null。',
+    },
     abstract: { type: ['string', 'null'], description: 'abstract の本文。無ければ null。' },
     slugKeepWords: {
       type: 'array',
@@ -253,7 +258,7 @@ const HEAD_SCHEMA = {
         '題の中の語のうち、冠詞・前置詞・姓の前置き(von など)でありながら固有名詞の一部であるもの。例: von Mises-Fisher の von。無ければ空の配列。',
     },
   },
-  required: ['title', 'authors', 'year', 'abstract', 'slugKeepWords'],
+  required: ['title', 'authors', 'year', 'doi', 'abstract', 'slugKeepWords'],
   additionalProperties: false,
 }
 
@@ -289,7 +294,7 @@ export async function resolveFromOriginal(pdf: string, deps: ResolveOriginalDeps
     const same = deps.known.samePaper({
       title: source.title,
       authors: source.authors,
-      doi: null,
+      doi: source.doi,
       arxivId: null,
     })
     if (same !== null) return { kind: 'duplicate', slug: same, reason: 'bibliography' }
@@ -328,7 +333,8 @@ function parseHeadResult(text: string): ResolvedSource | null {
     venue: null,
     abstract: asString(r['abstract']),
     arxivId: null,
-    doi: null,
+    // 紙面に印字されていれば取る。重複の判定が最初に見る手掛かりである(#282)。
+    doi: normalizeDoi(asString(r['doi'])),
     slugKeepWords: asWords(r['slugKeepWords']),
     via: 'original',
   }

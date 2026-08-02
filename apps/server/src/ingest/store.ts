@@ -110,15 +110,26 @@ export class IngestStore {
     this.#db
       .prepare(`update ingests set stage = ?, status = 'inProgress', updated_at = ?, last_error = null where slug = ?`)
       .run(stage, now, slug)
+    // 前に走っていた段階は、失敗したところで開いたまま残っている。閉じてから始めないと、
+    // 画面の時計が止まらない(#280)。
+    this.#closeOpenStages(slug, now)
     this.startStage(slug, stage, now)
   }
 
-  advance(slug: string, stage: IngestStage): void {
+  /**
+   * 次の段階へ進める。動かせなければ false を返す(#289)。
+   *
+   * 段階のジョブは走っている間に取り込みが失敗することがある。実行中でなくなった
+   * 記録を進めると、失敗したまま段階だけが先へ動き、記録が実際と食い違う。
+   */
+  advance(slug: string, stage: IngestStage): boolean {
+    const record = this.get(slug)
+    if (record === null || record.status !== 'inProgress') return false
     const now = this.#now()
-    const current = this.get(slug)?.stage
-    if (current !== undefined) this.finishStage(slug, current, now)
+    this.finishStage(slug, record.stage, now)
     this.startStage(slug, stage, now)
     this.#db.prepare('update ingests set stage = ?, updated_at = ? where slug = ?').run(stage, now, slug)
+    return true
   }
 
   startStage(slug: string, stage: IngestStage, at = this.#now()): void {
@@ -136,6 +147,18 @@ export class IngestStore {
       .run(at, slug, stage)
   }
 
+  /**
+   * 開いたままの段階をすべて閉じる(#280)。
+   *
+   * 画面は終わりを持たない段階を「まだ走っている」とみなして、いまの時刻との差を出す。
+   * 終端の状態へ移るときに閉じておかないと、時計が止まらない。
+   */
+  #closeOpenStages(slug: string, at: number): void {
+    this.#db
+      .prepare('update ingest_stages set finished_at = ? where slug = ? and finished_at is null')
+      .run(at, slug)
+  }
+
   /** 実行中の段階は finishedAt が null になる。 */
   stages(slug: string): Array<{ stage: IngestStage; startedAt: number; finishedAt: number | null }> {
     const rows = this.#db
@@ -144,18 +167,26 @@ export class IngestStore {
     return rows.map((r) => ({ stage: r.stage as IngestStage, startedAt: r.started_at, finishedAt: r.finished_at }))
   }
 
-  finish(slug: string): void {
-    const current = this.get(slug)?.stage
-    if (current !== undefined) this.finishStage(slug, current)
+  /** 取り込みを終わりにする。既に失敗している記録は動かさず、false を返す(#289)。 */
+  finish(slug: string): boolean {
+    const record = this.get(slug)
+    if (record === null || record.status !== 'inProgress') return false
+    const now = this.#now()
+    // 飛ばした段階が開いたまま残ることがあるので、まとめて閉じる(#280)。
+    this.#closeOpenStages(slug, now)
     this.#db
       .prepare(`update ingests set status = 'done', stage = 'register', updated_at = ? where slug = ?`)
-      .run(this.#now(), slug)
+      .run(now, slug)
+    return true
   }
 
   fail(slug: string, message: string): void {
+    const now = this.#now()
+    // 走っていた段階を閉じる。閉じないと、失敗した後も時計が動き続ける(#280)。
+    this.#closeOpenStages(slug, now)
     this.#db
       .prepare(`update ingests set status = 'failed', updated_at = ?, last_error = ? where slug = ?`)
-      .run(this.#now(), message, slug)
+      .run(now, message, slug)
   }
 
   remove(slug: string): void {

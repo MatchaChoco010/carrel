@@ -1011,6 +1011,36 @@ body {
   font-size: 13px;
 }
 
+/* 失敗した取り込みを続きからやり直す(#285)。捨てるボタンと同じ形にする。 */
+.ingest__retry {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  background: transparent;
+  border: 0;
+  padding: 2px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.ingest__retry:hover:not(:disabled),
+.ingest__retry:focus-visible {
+  color: var(--accent);
+}
+
+.ingest__retry:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* 失敗した取り込みに添える論文の題(#279)。写して探し直すために、選びやすい形で置く。 */
+.ingest__title {
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  user-select: text;
+}
+
 .ingest__total {
   display: inline-flex;
   align-items: center;

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { PaperMeta } from '../data/paper.ts'
-import { mergeBibliography, parseBibliography } from './run.ts'
+import { mergeBibliography, parseBibliography, parseDoiCheck } from './run.ts'
 
 const META: PaperMeta = {
   slug: 'sun2026-minimal-surfaces',
@@ -130,4 +130,15 @@ test('slug とタグと出所の URL は変えない', () => {
   assert.equal(merged.addedAt, META.addedAt)
   assert.equal(merged.title, META.title)
   assert.deepEqual(merged.authors, META.authors)
+})
+
+test('同じ論文かの答えを読む(#287)', () => {
+  assert.equal(parseDoiCheck('{"samePaper": true, "reason": "標題と著者が一致する"}'), true)
+  assert.equal(parseDoiCheck('{"samePaper": false, "reason": "同じ予稿集の別の論文"}'), false)
+})
+
+test('答えが読めなければ DOI を受け取らない(#287)', () => {
+  assert.equal(parseDoiCheck('JSON ではない'), false)
+  assert.equal(parseDoiCheck('{"reason": "分からない"}'), false)
+  assert.equal(parseDoiCheck('null'), false)
 })

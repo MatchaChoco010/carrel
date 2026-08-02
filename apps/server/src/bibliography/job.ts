@@ -26,7 +26,6 @@ export function registerBibliography(
     } catch (error) {
       console.log(`書誌を確かめられなかった: ${slug}: ${error instanceof Error ? error.message : String(error)}`)
     }
-    deps.ingests.advance(slug, 'translate')
-    deps.onDone(slug)
+    if (deps.ingests.advance(slug, 'translate')) deps.onDone(slug)
   })
 }

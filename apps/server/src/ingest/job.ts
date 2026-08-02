@@ -2,9 +2,10 @@ import type { CodexClient } from '../codex/client.ts'
 import type { IndexDb } from '../db/index-db.ts'
 import type { JobQueue } from '../jobs/queue.ts'
 import type { Job } from '../jobs/types.ts'
+import type { IngestStage } from './types.ts'
 import { extractArxivId } from './arxiv.ts'
 import type { HeadPaths } from './head.ts'
-import { ingestFromUpload, ingestFromUrl, type IngestResult } from './pipeline.ts'
+import { ingestFromUpload, ingestFromUrl, planResume, type IngestResult } from './pipeline.ts'
 import { readStaged, removeStaged } from './staging.ts'
 import type { IngestStore } from './store.ts'
 
@@ -32,6 +33,8 @@ export type ResolveDeps = {
   onImported: (slug: string) => void
   /** フィードから取り込んだ論文を結びつける。同じ論文を二度取り込ませないため。 */
   linkFeed: (arxivId: string, slug: string) => void
+  /** 失敗していた取り込みを、済んだ段階の続きから積む(#285)。 */
+  resumeIngest: (slug: string, stage: IngestStage) => Promise<Job>
 }
 
 /**
@@ -65,11 +68,22 @@ export function registerResolve(queue: JobQueue, deps: ResolveDeps): void {
       return
     }
 
-    // 前の取り込みが失敗した URL は、解決の側からは重複に見える。仕事も失敗にして、
-    // 一覧で理由が読めるようにする。
+    // 前に失敗した取り込みと同じ論文だと分かったら、続きから進める(#285)。
+    //
+    // 投げ直しても直らないうえ、再試行の待ちに入った仕事が「未解決」として一覧に残り、
+    // 押すたびに増えていく。解決は済んでいるので、やり直すのは落ちた段階からでよい。
     if (result.state === 'failed') {
       const record = deps.ingests.get(result.slug)
-      throw new Error(record?.lastError ?? `前の取り込みが失敗している: ${result.slug}`)
+      if (record === null) throw new Error(`前の取り込みが失敗している: ${result.slug}`)
+      const plan = await planResume(deps.dataDir, record)
+      if (plan.kind !== 'continue') {
+        throw new Error(
+          `前の取り込みが失敗しており、続きから進められない: ${result.slug}` +
+            `${plan.kind === 'unavailable' ? ` (${plan.reason})` : ''}`,
+        )
+      }
+      deps.ingests.resume(plan.slug, plan.stage)
+      await deps.resumeIngest(plan.slug, plan.stage)
     }
   })
 }

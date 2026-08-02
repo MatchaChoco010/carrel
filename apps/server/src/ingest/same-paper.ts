@@ -8,12 +8,29 @@ export function normalizeTitle(title: string): string {
 }
 
 /**
+ * 名前を、綴りの揺れを落とした形にする(#282)。
+ *
+ * 同じ人の名前が、出所によって `Schüßler` と `Schüssler` の両方で出てくる。発音記号を
+ * 分解して落とし、`ß` は `ss` に開いて、どちらも同じ形にする。slug を作る側(0002)も
+ * 同じ均し方をしている。
+ */
+function foldName(name: string): string {
+  return name
+    .replace(/\u00df/g, 'ss')
+    .normalize('NFKD')
+    .replace(/\p{M}+/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+/**
  * 著者の姓を取り出して均す。
  *
  * 出所によって `T. Müller` と `Thomas Müller` のように書き方が変わるので、姓だけを見る。
  */
 export function familyName(name: string): string {
-  const parts = normalizeTitle(name).split(' ').filter((part) => part.length > 0)
+  const parts = foldName(name).split(' ').filter((part) => part.length > 0)
   return parts.at(-1) ?? ''
 }
 

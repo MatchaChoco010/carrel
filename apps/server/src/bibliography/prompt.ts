@@ -64,3 +64,54 @@ export function buildBibliographyPrompt(question: BibliographyQuestion): string 
     question.head.slice(0, HEAD_CHARS),
   ].join('\n')
 }
+
+/**
+ * 挙がった DOI が、その論文を指しているかを尋ねる(#287)。
+ *
+ * 題の表記は出所ごとに揺れる。副題を付けるか落とすか、数式や記号をどう書くか、綴りの
+ * 飾りを残すかが、紙面と登録内容で揃わない。文字の一致で切ると、正しい DOI まで落ちる。
+ * 揺れを吸収する判断は Codex に任せ、こちらは指す先の登録内容を渡すことに徹する。
+ */
+export const DOI_CHECK_SCHEMA = {
+  type: 'object',
+  properties: {
+    samePaper: { type: 'boolean', description: 'DOI の登録内容がこの論文のものなら true。' },
+    reason: { type: 'string', description: 'そう判断した理由を一文で。' },
+  },
+  required: ['samePaper', 'reason'],
+  additionalProperties: false,
+}
+
+/** DOI が指す先の登録内容。 */
+export type DoiCheckQuestion = {
+  doi: string
+  title: string
+  authors: string[]
+  year: number | null
+  container: string | null
+}
+
+export function buildDoiCheckPrompt(paper: { title: string; authors: string[] }, found: DoiCheckQuestion): string {
+  const registered = [`標題: ${found.title}`]
+  if (found.authors.length > 0) registered.push(`著者: ${found.authors.join(', ')}`)
+  if (found.year !== null) registered.push(`出版年: ${found.year}`)
+  if (found.container !== null) registered.push(`収録先: ${found.container}`)
+  return [
+    `${found.doi} の登録内容を取ってきた。これがいま扱っている論文のものかを判断してほしい。`,
+    '',
+    'いま扱っている論文:',
+    `標題: ${paper.title}`,
+    ...(paper.authors.length > 0 ? [`著者: ${paper.authors.join(', ')}`] : []),
+    '',
+    'DOI の登録内容:',
+    ...registered,
+    '',
+    '判断の基準:',
+    '副題の付け外し、数式や記号の書き方、綴りの飾り、大文字小文字、著者名の表記の違いは、同じ論文とみなす。',
+    '同じ論文のプレプリントと出版版も、同じ論文とみなす。題や収録先が揃わなくてよい。',
+    '題が近いだけの別の論文、同じ予稿集の中の別の論文、内容を足した続きの論文は、同じ論文とみなさない。',
+    '判断がつかないときは false にする。',
+    'web 検索はしない。渡した 2 つだけを比べる。',
+    '要求された JSON だけを返す。',
+  ].join('\n')
+}
