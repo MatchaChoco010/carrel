@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { forkThread } from '../chat/branch.ts'
 import type { CodexClient } from './client.ts'
 import { resumeThread, startConversationThread } from './threads.ts'
 
@@ -11,6 +12,7 @@ function recorder(fail = false): { client: CodexClient; sent: Array<{ method: st
       sent.push({ method, params })
       if (fail) throw new Error('スレッドが残っていない')
       if (method === 'thread/start') return { threadId: 'th_1' }
+      if (method === 'thread/fork') return { thread: { id: 'th_2' } }
       return {}
     },
   }
@@ -44,4 +46,19 @@ test('道具の場所を渡さなければ、余計な設定を送らない', as
 test('残っていないスレッドは false になる', async () => {
   const { client } = recorder(true)
   assert.equal(await resumeThread(client, 'th_1', { mcpUrl: MCP_URL }), false)
+})
+
+test('写して分けるときにも道具を渡す(#313)', async () => {
+  const { client, sent } = recorder()
+  await forkThread(client, 'th_1', 'turn_3', MCP_URL)
+
+  assert.equal(sent[0]?.method, 'thread/fork')
+  const params = sent[0]?.params as {
+    threadId: string
+    lastTurnId: string
+    config?: { mcp_servers?: Record<string, { url: string }> }
+  }
+  assert.equal(params.threadId, 'th_1')
+  assert.equal(params.lastTurnId, 'turn_3')
+  assert.equal(params.config?.mcp_servers?.['pct']?.url, MCP_URL)
 })
