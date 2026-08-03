@@ -6,8 +6,8 @@ import { translatePaper, type TranslateDeps } from './run.ts'
 export const TRANSLATE_JOB = 'translate'
 
 /** 翻訳のジョブを積む。枠が尽きたときは待機に入る(0003)。 */
-export function enqueueTranslate(queue: JobQueue, slug: string): Job {
-  return queue.enqueue({ kind: TRANSLATE_JOB, target: slug, resource: 'codex', priority: 'foreground' })
+export function enqueueTranslate(queue: JobQueue, slug: string, orderKey?: number): Job {
+  return queue.enqueue({ kind: TRANSLATE_JOB, target: slug, resource: 'codex', priority: 'foreground', orderKey })
 }
 
 export function registerTranslate(
@@ -16,6 +16,7 @@ export function registerTranslate(
 ): void {
   queue.register(TRANSLATE_JOB, async (job) => {
     const slug = job.target
+    deps.ingests.beginStage(slug, 'translate')
     try {
       const outcomes = await translatePaper(slug, deps)
       const breached = outcomes.filter((o) => o.breach !== null)

@@ -1083,6 +1083,12 @@ body {
   color: var(--accent);
 }
 
+/* キューに入っているだけの段階(0026)。走っている段階と見分けが付くように色を落とす。 */
+.ingest__stage.queued {
+  border-top-color: var(--text-muted);
+  color: var(--text-muted);
+}
+
 .ingest__stage.failed {
   border-top-color: var(--warn);
   color: var(--warn);

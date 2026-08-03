@@ -58,7 +58,12 @@ export type Ingest = {
   startedAt: number
   updatedAt: number
   lastError: string | null
-  stages: Array<{ stage: IngestStage; startedAt: number; finishedAt: number | null }>
+  /**
+   * 段階ごとの時刻(0026)。3 つの埋まり方で 待機 / 実行中 / 完了 が決まる。
+   *
+   * 記録に無い段階は、まだそこまで来ていない。
+   */
+  stages: Array<{ stage: IngestStage; queuedAt: number; startedAt: number | null; finishedAt: number | null }>
 }
 
 export type ChatRole = 'user' | 'assistant'
@@ -128,6 +133,8 @@ export type FeedItem = {
   read: boolean
   /** 取り込み済みならその slug。 */
   slug: string | null
+  /** 取り込みがいま進んでいるか(#295)。 */
+  importing: boolean
 }
 
 /** サーバーが持つ設定。編集して書き戻す(0001)。 */

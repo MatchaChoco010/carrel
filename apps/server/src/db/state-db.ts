@@ -108,6 +108,38 @@ const MIGRATIONS: Migration[] = [
       alter table ingests add column doi text;
     `,
   },
+  {
+    version: 8,
+    up: `
+      -- 取り込み 1 本を 1 つの順序として扱うための鍵(0026)。
+      -- 既にある仕事は積まれた順のままにしたいので、作られた時刻をそのまま入れる。
+      alter table jobs add column order_key integer not null default 0;
+      update jobs set order_key = created_at;
+
+      drop index jobs_pick;
+      create index jobs_pick on jobs (resource, state, available_at, priority, order_key);
+    `,
+  },
+  {
+    version: 9,
+    up: `
+      -- 段階の記録に「積んだ時刻」を足し、「走り出した時刻」を空にできるようにする(0026)。
+      -- SQLite は列を null 許容へ変えられないので、作り直して移す。
+      -- 既にある記録は待ちの長さが残っていないので、積んだ時刻を走り出した時刻に合わせる。
+      create table ingest_stages_new (
+        slug text not null,
+        stage text not null,
+        queued_at integer not null,
+        started_at integer,
+        finished_at integer,
+        primary key (slug, stage)
+      );
+      insert into ingest_stages_new (slug, stage, queued_at, started_at, finished_at)
+        select slug, stage, started_at, started_at, finished_at from ingest_stages;
+      drop table ingest_stages;
+      alter table ingest_stages_new rename to ingest_stages;
+    `,
+  },
 ]
 
 /**

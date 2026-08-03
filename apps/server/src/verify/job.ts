@@ -13,8 +13,8 @@ export const VERIFY_JOB = 'verify'
  *
  * 資源クラスは Codex で、枠が尽きたときは待機に入る(0003)。
  */
-export function enqueueVerify(queue: JobQueue, slug: string): Job {
-  return queue.enqueue({ kind: VERIFY_JOB, target: slug, resource: 'codex', priority: 'foreground' })
+export function enqueueVerify(queue: JobQueue, slug: string, orderKey?: number): Job {
+  return queue.enqueue({ kind: VERIFY_JOB, target: slug, resource: 'codex', priority: 'foreground', orderKey })
 }
 
 export function registerVerify(
@@ -23,6 +23,7 @@ export function registerVerify(
 ): void {
   queue.register(VERIFY_JOB, async (job) => {
     const slug = job.target
+    deps.ingests.beginStage(slug, 'verify')
     try {
       // 原本が HTML の論文はページ画像を作れないため、この段階を飛ばす(0004、0022)。
       // 飛ばすときは、変換の結果をそのまま本文にする。照合が本文を確定させる役目も

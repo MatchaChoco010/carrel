@@ -17,6 +17,13 @@ export type Job = {
   attempts: number
   /** この時刻まで実行しない。再試行の間隔を空けるのに使う。 */
   availableAt: number
+  /**
+   * 実行の順序を決める鍵。小さいほど先に走る(0026)。
+   *
+   * 取り込みの鎖に属する仕事は、その取り込みを受け付けた時刻を全段階で共有する。
+   * これにより、先に受け付けた論文がどの段階でも後の論文より先に走る。
+   */
+  orderKey: number
   createdAt: number
   updatedAt: number
   payload: unknown
@@ -29,6 +36,12 @@ export type NewJob = {
   resource: ResourceClass
   priority?: Priority
   payload?: unknown
+  /**
+   * 実行の順序を決める鍵(0026)。渡さなければ積まれた時刻になる。
+   *
+   * 取り込みの鎖の外から積むときは渡すものが無いので、`undefined` も受ける。
+   */
+  orderKey?: number | undefined
 }
 
 export type JobHandler = (job: Job) => Promise<void>

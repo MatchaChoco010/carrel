@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { Ingest } from './api.ts'
-import { clockFor, stageElapsed, totalElapsed } from './ingest-timing.ts'
+import { clockFor, stageElapsed, stageState, totalElapsed } from './ingest-timing.ts'
 
 const NOW = 1_000_000
 
@@ -65,4 +65,27 @@ test('走っている取り込みの合計は、いまの時刻まで伸びる',
     stages: [{ stage: 'resolve', startedAt: 0, finishedAt: null }],
   })
   assert.equal(totalElapsed(running, 900), 900)
+})
+
+test('段階の状態は 3 つの時刻だけで決まる(0026)', () => {
+  assert.equal(stageState({ startedAt: null, finishedAt: null }), 'queued')
+  assert.equal(stageState({ startedAt: 100, finishedAt: null }), 'running')
+  assert.equal(stageState({ startedAt: 100, finishedAt: 200 }), 'done')
+})
+
+test('待っている段階に所要時間は無い(0026)', () => {
+  assert.equal(stageElapsed({ startedAt: null, finishedAt: null }, 9000), 0)
+})
+
+test('取り込みの合計に待ち時間を足さない(0026)', () => {
+  const ingest = {
+    status: 'inProgress' as const,
+    updatedAt: 0,
+    stages: [
+      // 走った 2 秒だけを数える。積んでから走り出すまでの 10 秒は入れない。
+      { startedAt: 11_000, finishedAt: 13_000 },
+      { startedAt: null, finishedAt: null },
+    ],
+  }
+  assert.equal(totalElapsed(ingest, 30_000), 2_000)
 })

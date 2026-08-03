@@ -113,7 +113,7 @@ export class IngestStore {
     // 前に走っていた段階は、失敗したところで開いたまま残っている。閉じてから始めないと、
     // 画面の時計が止まらない(#280)。
     this.#closeOpenStages(slug, now)
-    this.startStage(slug, stage, now)
+    this.queueStage(slug, stage, now)
   }
 
   /**
@@ -127,44 +127,81 @@ export class IngestStore {
     if (record === null || record.status !== 'inProgress') return false
     const now = this.#now()
     this.finishStage(slug, record.stage, now)
-    this.startStage(slug, stage, now)
+    this.queueStage(slug, stage, now)
     this.#db.prepare('update ingests set stage = ?, updated_at = ? where slug = ?').run(stage, now, slug)
     return true
   }
 
-  startStage(slug: string, stage: IngestStage, at = this.#now()): void {
+  /**
+   * 段階を積む(0026)。走り出すまでは待機として残る。
+   *
+   * 積むのは取り込みの鎖で、走り出したと記すのはその段階の仕事である。書き手を分けて
+   * あるので、積まれてから走り出すまでの間が記録に残る。
+   */
+  queueStage(slug: string, stage: IngestStage, at = this.#now()): void {
     this.#db
       .prepare(
-        `insert into ingest_stages (slug, stage, started_at, finished_at) values (?, ?, ?, null)
-         on conflict (slug, stage) do update set started_at = excluded.started_at, finished_at = null`,
+        `insert into ingest_stages (slug, stage, queued_at, started_at, finished_at) values (?, ?, ?, null, null)
+         on conflict (slug, stage) do update set queued_at = excluded.queued_at, started_at = null, finished_at = null`,
       )
       .run(slug, stage, at)
   }
 
+  /**
+   * 段階が走り出したと記す(0026)。
+   *
+   * 中断して走り直したときは上書きする。所要時間は走り直したぶんだけになる。
+   */
+  beginStage(slug: string, stage: IngestStage, at = this.#now()): void {
+    this.#db
+      .prepare('update ingest_stages set started_at = ?, finished_at = null where slug = ? and stage = ?')
+      .run(at, slug, stage)
+  }
+
   finishStage(slug: string, stage: IngestStage, at = this.#now()): void {
     this.#db
-      .prepare('update ingest_stages set finished_at = ? where slug = ? and stage = ? and finished_at is null')
+      .prepare(
+        'update ingest_stages set finished_at = ? where slug = ? and stage = ? and started_at is not null and finished_at is null',
+      )
       .run(at, slug, stage)
   }
 
   /**
-   * 開いたままの段階をすべて閉じる(#280)。
+   * 終わっていない段階を片付ける(#280、0026)。
    *
-   * 画面は終わりを持たない段階を「まだ走っている」とみなして、いまの時刻との差を出す。
-   * 終端の状態へ移るときに閉じておかないと、時計が止まらない。
+   * 走り出していた段階は、そこで終わったことにする。閉じないと、画面の時計が止まらない。
+   * 積まれただけで走らなかった段階は記録から消す。終わりの時刻を入れると完了と見分けが
+   * つかなくなるうえ、実際には起きていない段階だからである。
    */
   #closeOpenStages(slug: string, at: number): void {
+    this.#db
+      .prepare('delete from ingest_stages where slug = ? and started_at is null and finished_at is null')
+      .run(slug)
     this.#db
       .prepare('update ingest_stages set finished_at = ? where slug = ? and finished_at is null')
       .run(at, slug)
   }
 
-  /** 実行中の段階は finishedAt が null になる。 */
-  stages(slug: string): Array<{ stage: IngestStage; startedAt: number; finishedAt: number | null }> {
+  /**
+   * 段階ごとの時刻。3 つの埋まり方で 待機 / 実行中 / 完了 が決まる(0026)。
+   *
+   * 待機は `startedAt` が null、実行中は `finishedAt` が null、完了は両方が埋まっている。
+   */
+  stages(slug: string): Array<{
+    stage: IngestStage
+    queuedAt: number
+    startedAt: number | null
+    finishedAt: number | null
+  }> {
     const rows = this.#db
-      .prepare('select stage, started_at, finished_at from ingest_stages where slug = ? order by started_at')
-      .all(slug) as Array<{ stage: string; started_at: number; finished_at: number | null }>
-    return rows.map((r) => ({ stage: r.stage as IngestStage, startedAt: r.started_at, finishedAt: r.finished_at }))
+      .prepare('select stage, queued_at, started_at, finished_at from ingest_stages where slug = ? order by queued_at')
+      .all(slug) as Array<{ stage: string; queued_at: number; started_at: number | null; finished_at: number | null }>
+    return rows.map((r) => ({
+      stage: r.stage as IngestStage,
+      queuedAt: r.queued_at,
+      startedAt: r.started_at,
+      finishedAt: r.finished_at,
+    }))
   }
 
   /** 取り込みを終わりにする。既に失敗している記録は動かさず、false を返す(#289)。 */

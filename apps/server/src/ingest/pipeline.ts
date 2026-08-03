@@ -316,7 +316,9 @@ export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<Inge
     },
     startedAt,
   )
-  deps.ingests.startStage(slug, 'resolve', startedAt)
+  // 解決は受け付けた時点で積まれ、この仕事が走り出した時点で動き始めている(0026)。
+  deps.ingests.queueStage(slug, 'resolve', startedAt)
+  deps.ingests.beginStage(slug, 'resolve')
 
   try {
     // abstract を paper.md へ書かないのは、本文を照合が確定させるためである。
@@ -400,7 +402,9 @@ export async function ingestFromUpload(staged: StagedOriginal, deps: IngestDeps)
     },
     startedAt,
   )
-  deps.ingests.startStage(slug, 'resolve', startedAt)
+  // 解決は受け付けた時点で積まれ、この仕事が走り出した時点で動き始めている(0026)。
+  deps.ingests.queueStage(slug, 'resolve', startedAt)
+  deps.ingests.beginStage(slug, 'resolve')
 
   try {
     await writePaper(deps.dataDir, toMeta(slug, source, null), '')
@@ -447,7 +451,9 @@ async function takeOverFailed(
     },
     startedAt,
   )
-  deps.ingests.startStage(slug, 'resolve', startedAt)
+  // 解決は受け付けた時点で積まれ、この仕事が走り出した時点で動き始めている(0026)。
+  deps.ingests.queueStage(slug, 'resolve', startedAt)
+  deps.ingests.beginStage(slug, 'resolve')
   deps.ingests.advance(slug, 'fetch')
 
   await mkdir(paperDir(deps.dataDir, slug), { recursive: true })

@@ -220,7 +220,7 @@ export function App() {
     return (jobs?.jobs ?? [])
       .filter((job) => job.kind === 'resolve' && (job.state === 'pending' || job.state === 'running'))
       .filter((job) => !started.has(job.target) && !ingests.some((i) => i.sourceUrl.startsWith(`${job.target}/`)))
-      .map((job) => ({ id: job.id, target: job.target, createdAt: job.createdAt }))
+      .map((job) => ({ id: job.id, target: job.target, createdAt: job.createdAt, running: job.state === 'running' }))
   }, [jobs, ingests])
 
   return (
@@ -315,6 +315,7 @@ export function App() {
                   revision={revision}
                   onUnread={setUnread}
                   onChanged={() => setRevision((n) => n + 1)}
+                  subscribe={subscribe}
                 />
               </div>
             )}
