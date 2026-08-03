@@ -23,6 +23,13 @@ export type IngestDeps = {
   model: string
   /** 原本の先頭を読む道具(0021、0025)。 */
   head: HeadPaths
+  /**
+   * この取り込みを受け付けた時刻(解決の仕事が積まれた時刻)。
+   *
+   * 記録ができるのは解決が終わってからなので、その時点では受け付けた時刻が分からない。
+   * 呼ぶ側から持ち回る(#311)。
+   */
+  acceptedAt: number
 }
 
 export type IngestResult =
@@ -271,9 +278,9 @@ async function fetchWithRetry(
 
 /** 解決と取得までを行う。 */
 export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<IngestResult> {
-  // 解決は web を探すので数十秒かかる。記録ができるのはその後なので、始まりの時刻を
-  // ここで取っておき、解決の段階の始まりとして刻む(#238)。
-  const startedAt = Date.now()
+  // 解決は web を探すので数十秒かかる。記録ができるのはその後なので、走り出した時刻を
+  // ここで取っておき、解決の段階が動き始めた時刻として刻む(#238、#311)。
+  const ranAt = Date.now()
   const outcome = await resolveSource(url, {
     codex: deps.codex,
     model: deps.model,
@@ -314,11 +321,10 @@ export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<Inge
       title: source.title,
       doi: source.doi,
     },
-    startedAt,
+    deps.acceptedAt,
   )
-  // 解決は受け付けた時点で積まれ、この仕事が走り出した時点で動き始めている(0026)。
-  deps.ingests.queueStage(slug, 'resolve', startedAt)
-  deps.ingests.beginStage(slug, 'resolve')
+  deps.ingests.queueStage(slug, 'resolve', deps.acceptedAt)
+  deps.ingests.beginStage(slug, 'resolve', ranAt)
 
   try {
     // abstract を paper.md へ書かないのは、本文を照合が確定させるためである。
@@ -352,7 +358,9 @@ export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<Inge
  * 始まらなかったときは、預かった原本も置き場に残さない。
  */
 export async function ingestFromUpload(staged: StagedOriginal, deps: IngestDeps): Promise<IngestResult> {
-  const startedAt = Date.now()
+  // 原本の先頭を読むのに時間がかかる。記録ができるのはその後なので、走り出した時刻を
+  // ここで取っておく(#311)。
+  const ranAt = Date.now()
   const outcome = await resolveFromOriginal(staged.path, {
     codex: deps.codex,
     model: deps.model,
@@ -369,7 +377,7 @@ export async function ingestFromUpload(staged: StagedOriginal, deps: IngestDeps)
     // 失敗した取り込みと同じ論文なら、選ばれた原本を入れ替えてそこから続ける(#263)。
     // 別の slug を立てると、題も DOI も同じ論文が 2 つ並ぶ。
     if (record !== null && record.status === 'failed') {
-      await takeOverFailed(record.slug, staged, deps, startedAt)
+      await takeOverFailed(record.slug, staged, deps, ranAt)
       return { kind: 'imported', slug: record.slug, stagesRun: ['resolve', 'fetch'] }
     }
     const state = record === null ? 'imported' : record.status === 'done' ? 'imported' : record.status
@@ -400,11 +408,10 @@ export async function ingestFromUpload(staged: StagedOriginal, deps: IngestDeps)
       title: source.title,
       doi: source.doi,
     },
-    startedAt,
+    deps.acceptedAt,
   )
-  // 解決は受け付けた時点で積まれ、この仕事が走り出した時点で動き始めている(0026)。
-  deps.ingests.queueStage(slug, 'resolve', startedAt)
-  deps.ingests.beginStage(slug, 'resolve')
+  deps.ingests.queueStage(slug, 'resolve', deps.acceptedAt)
+  deps.ingests.beginStage(slug, 'resolve', ranAt)
 
   try {
     await writePaper(deps.dataDir, toMeta(slug, source, null), '')
@@ -437,7 +444,7 @@ async function takeOverFailed(
   slug: string,
   staged: StagedOriginal,
   deps: IngestDeps,
-  startedAt: number,
+  ranAt: number,
 ): Promise<void> {
   const record = deps.ingests.get(slug)
   deps.ingests.start(
@@ -449,11 +456,10 @@ async function takeOverFailed(
       title: record?.title ?? null,
       doi: record?.doi ?? null,
     },
-    startedAt,
+    deps.acceptedAt,
   )
-  // 解決は受け付けた時点で積まれ、この仕事が走り出した時点で動き始めている(0026)。
-  deps.ingests.queueStage(slug, 'resolve', startedAt)
-  deps.ingests.beginStage(slug, 'resolve')
+  deps.ingests.queueStage(slug, 'resolve', deps.acceptedAt)
+  deps.ingests.beginStage(slug, 'resolve', ranAt)
   deps.ingests.advanceRunning(slug, 'fetch')
 
   await mkdir(paperDir(deps.dataDir, slug), { recursive: true })

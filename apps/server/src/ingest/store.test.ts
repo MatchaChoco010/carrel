@@ -411,3 +411,24 @@ test('鎖の中でそのまま走る段階は、積むと同時に走り出す(#
     h.close()
   }
 })
+
+test('解決は受け付けた時刻に積まれ、走り出した時刻から数える(#311)', () => {
+  const h = harness()
+  try {
+    // 記録ができるのは原本の先頭を読み終えた後だが、積んだ時刻と走り出した時刻は
+    // それぞれ後から名指しで刻める。
+    h.ingests.start({ slug: 'a2020-x', sourceUrl: 'u', arxivId: null, originalUrl: null }, 1000)
+    h.ingests.queueStage('a2020-x', 'resolve', 1000)
+    h.ingests.beginStage('a2020-x', 'resolve', 5000)
+    h.ingests.advanceRunning('a2020-x', 'fetch')
+
+    const resolve = h.ingests.stages('a2020-x').find((s) => s.stage === 'resolve')
+    assert.equal(resolve?.queuedAt, 1000, '積んだのは受け付けた時刻')
+    assert.equal(resolve?.startedAt, 5000, '走り出したのは仕事が動き始めた時刻')
+    assert.ok(resolve !== undefined && resolve.finishedAt !== null && resolve.finishedAt >= 5000)
+    // 枠を待った 4 秒は所要時間に入らない。
+    assert.equal(h.ingests.get('a2020-x')?.startedAt, 1000)
+  } finally {
+    h.close()
+  }
+})
