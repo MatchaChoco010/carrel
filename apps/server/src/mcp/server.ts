@@ -101,7 +101,7 @@ const IMPORT_INPUT = {
 }
 
 export function describeFound(found: { slug: string; title: string } | null): string {
-  if (found === null) return 'コレクションにこの論文は無い。取り込むなら import_paper を呼ぶこと。'
+  if (found === null) return 'コレクションにこの論文は無い。取り込むかどうかはユーザーが決めるので、勝手に積まない。'
   return [`コレクションにある。`, `- slug: ${found.slug}`, `- 題: ${found.title}`].join('\n')
 }
 
@@ -148,7 +148,8 @@ export function createMcpServer(deps: McpDeps): McpServer {
     {
       title: '論文の取り込みを積む',
       description:
-        '論文の取り込みを積む。引数は URL か題名で、1 回の呼びで 1 本だけ積む。積んだところで返り、取り込みの完了は待たない。ユーザーが取り込みを望んだときに呼ぶこと。',
+        '論文の取り込みを積む。引数は URL か題名で、1 回の呼びで 1 本だけ積む。積んだところで返り、取り込みの完了は待たない。' +
+        'ユーザーに取り込むよう明示的に言われたときだけ呼ぶこと。探すよう言われただけなら、調べた結果を会話で示すだけにして、この道具を呼ばない。',
       inputSchema: IMPORT_INPUT,
     },
     async (args) => text(describeImport(deps.importPaper((args as { target: string }).target))),

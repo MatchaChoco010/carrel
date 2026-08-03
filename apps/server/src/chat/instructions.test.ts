@@ -49,3 +49,9 @@ test('覚えの無いスレッドへは pct の指示ごと差し込む', () => 
 test('ユーザーの指示が空でも pct の指示は載る', () => {
   assert.match(fullInstructionNotice(''), /@<slug>\/assets\/<画像のファイル名>/)
 })
+
+test('探すよう言われただけでは取り込まないことを伝える(#296)', () => {
+  const instructions = chatInstructions('')
+  assert.match(instructions, /探すよう言われただけなら/)
+  assert.match(instructions, /取り込むよう明示的に言われたときだけ/)
+})

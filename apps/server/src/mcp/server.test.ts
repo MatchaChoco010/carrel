@@ -129,9 +129,11 @@ test('引き当ての道具は当たった論文の slug を返す', async () =>
   assert.match(await response.text(), /kerbl2023-3dgs/)
 })
 
-test('引き当てが外れたら、次の手を示す', () => {
+test('引き当てが外れたら、無いことと、勝手に積まないことを示す(#296)', () => {
   assert.match(describeFound(null), /コレクションにこの論文は無い/)
-  assert.match(describeFound(null), /import_paper/)
+  // 無いと分かった流れで取り込みへ進ませない。取り込むかどうかはユーザーが決める。
+  assert.doesNotMatch(describeFound(null), /import_paper/)
+  assert.match(describeFound(null), /勝手に積まない/)
 })
 
 test('取り込みの結果は、積んだのか既にあるのかで書き分ける', () => {
