@@ -1,7 +1,7 @@
 # 取り込みを頼んだ順に 1 本ずつ流し、進みを実行時間で見せる
 
 - created: 2026-08-03
-- status: ready for review
+- status: reviewing
 - implementation: not-started
 
 ## 解決したい問題
