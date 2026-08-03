@@ -133,6 +133,18 @@ export class IngestStore {
   }
 
   /**
+   * 段階を積み、そのまま走り出したと記す(#307)。
+   *
+   * 取得のように自分の仕事を持たず、前の段階の仕事の中で続けて走る段階に使う。
+   * 待つ相手がいないので、積まれた瞬間が走り出した瞬間でもある。
+   */
+  advanceRunning(slug: string, stage: IngestStage): boolean {
+    if (!this.advance(slug, stage)) return false
+    this.beginStage(slug, stage)
+    return true
+  }
+
+  /**
    * 段階を積む(0026)。走り出すまでは待機として残る。
    *
    * 積むのは取り込みの鎖で、走り出したと記すのはその段階の仕事である。書き手を分けて
