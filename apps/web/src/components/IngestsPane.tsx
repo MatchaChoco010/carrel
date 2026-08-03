@@ -1,7 +1,7 @@
-import { Check, CircleDashed, Eraser, Loader2, RotateCcw, Trash2, X } from 'lucide-react'
+import { Check, CircleDashed, Ellipsis, Eraser, Loader2, RotateCcw, Trash2, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api, type Ingest, type IngestStage } from '../api.ts'
-import { clockFor, stageElapsed, totalElapsed } from '../ingest-timing.ts'
+import { clockFor, stageElapsed, stageState, totalElapsed } from '../ingest-timing.ts'
 
 export type IngestsPaneProps = {
   ingests: Ingest[]
@@ -11,7 +11,7 @@ export type IngestsPaneProps = {
    * 記録ができるのは解決が終わって slug が決まってからなので、それまでの数十秒は
    * 押した相手が画面に出ない。積んである解決の仕事をそのまま出す。
    */
-  waiting: Array<{ id: number; target: string; createdAt: number }>
+  waiting: Array<{ id: number; target: string; createdAt: number; running: boolean }>
   /** 記録を消した後に一覧を読み直す。 */
   onChanged: () => void
 }
@@ -70,7 +70,7 @@ function useNow(active: boolean): number {
  * slug は解決が終わるまで決まらないので `未解決` と出し、解決の段階だけが走っている
  * 状態にする。進みの見た目を他と変えないためである。
  */
-function pending(job: { id: number; target: string; createdAt: number }): Ingest {
+function pending(job: { id: number; target: string; createdAt: number; running: boolean }): Ingest {
   return {
     slug: '未解決',
     sourceUrl: job.target,
@@ -80,7 +80,15 @@ function pending(job: { id: number; target: string; createdAt: number }): Ingest
     startedAt: job.createdAt,
     updatedAt: job.createdAt,
     lastError: null,
-    stages: [{ stage: 'resolve', queuedAt: job.createdAt, startedAt: job.createdAt, finishedAt: null }],
+    // 解決の仕事が枠を待っているのか走っているのかを、そのまま段階の状態にする(0026)。
+    stages: [
+      {
+        stage: 'resolve',
+        queuedAt: job.createdAt,
+        startedAt: job.running ? job.createdAt : null,
+        finishedAt: null,
+      },
+    ],
   }
 }
 
@@ -187,23 +195,29 @@ export function IngestsPane({ ingests, waiting, onChanged }: IngestsPaneProps) {
             <ol className="ingest__stages">
               {STAGES.map((stage, index) => {
                 const record = byStage.get(stage)
-                const done = record !== undefined && record.finishedAt !== null
-                const running = ingest.status === 'inProgress' && index === at
                 const failed = ingest.status === 'failed' && index === at
-                const elapsed = record === undefined ? null : stageElapsed(record, clock)
+                // 段階の状態は記録の 3 つの時刻だけで決まる(0026)。記録が無ければ、まだ来ていない。
+                const state = record === undefined ? null : stageState(record)
+                const done = state === 'done'
+                const running = state === 'running'
+                const queued = state === 'queued'
+                // 待っている段階に所要時間は無い。出すのは走った時間だけである。
+                const elapsed = record === undefined || record.startedAt === null ? null : stageElapsed(record, clock)
 
                 return (
                   <li
                     key={stage}
-                    className={`ingest__stage ${done ? 'done' : ''} ${running ? 'running' : ''} ${failed ? 'failed' : ''}`}
+                    className={`ingest__stage ${done ? 'done' : ''} ${running && !failed ? 'running' : ''} ${queued ? 'queued' : ''} ${failed ? 'failed' : ''}`}
                   >
                     <span className="ingest__mark">
                       {failed ? (
                         <X size={ICON} aria-hidden />
-                      ) : running ? (
-                        <Loader2 size={ICON} className="spin" aria-hidden />
                       ) : done ? (
                         <Check size={ICON} aria-hidden />
+                      ) : running ? (
+                        <Loader2 size={ICON} className="spin" aria-hidden />
+                      ) : queued ? (
+                        <Ellipsis size={ICON} aria-hidden />
                       ) : (
                         <CircleDashed size={ICON} aria-hidden />
                       )}
