@@ -83,7 +83,7 @@ async function rewind(
   const source = chat.meta.codexThreadId
   const lastTurn = remaining[remaining.length - 1]?.turnId ?? null
   if (lastTurn !== null && source !== null && (await deps.isResumable(source))) {
-    const forked = await forkThread(deps.codex, source, lastTurn)
+    const forked = await forkThread(deps.codex, source, lastTurn, deps.mcpUrl)
     deps.inForce.copy(source, forked)
     deps.markResumed(forked)
     return { threadId: forked, forked: true }

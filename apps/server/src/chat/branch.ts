@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import type { CodexClient } from '../codex/client.ts'
 import { METHODS, imagesAndTextInput } from '../codex/protocol.ts'
-import { runTurn, startConversationThread } from '../codex/threads.ts'
+import { mcpConfig, runTurn, startConversationThread } from '../codex/threads.ts'
 import {
   chatPathFor,
   newChatId,
@@ -86,7 +86,7 @@ export async function branchChat(absolutePath: string, selected: number, deps: B
   const canFork = turnId !== null && (await deps.isResumable(source.meta.codexThreadId))
 
   const threadId = canFork
-    ? await forkThread(deps.codex, source.meta.codexThreadId as string, turnId as string)
+    ? await forkThread(deps.codex, source.meta.codexThreadId as string, turnId as string, deps.mcpUrl)
     : await primeThread(source, absolutePath, messages, model, deps)
   // 写したスレッドは元の指示をそのまま持つ(0014)。
   if (canFork) deps.inForce.copy(source.meta.codexThreadId as string, threadId)
@@ -119,9 +119,23 @@ export async function branchChat(absolutePath: string, selected: number, deps: B
   return { id: next.meta.id, forked: canFork }
 }
 
-/** 指定した turn までを写した新しいスレッドを立てる(0012、0018)。 */
-export async function forkThread(codex: CodexClient, threadId: string, lastTurn: string): Promise<string> {
-  const result = (await codex.request(METHODS.threadFork, { threadId, lastTurnId: lastTurn })) as {
+/**
+ * 指定した turn までを写した新しいスレッドを立てる(0012、0018)。
+ *
+ * 写した先は元のスレッドの MCP の接続を引き継がないので、道具の場所をここでも渡す(#313)。
+ * 渡し忘れると写した会話は以後ずっと道具を持たないので、任意にせず必ず受け取る。
+ */
+export async function forkThread(
+  codex: CodexClient,
+  threadId: string,
+  lastTurn: string,
+  mcpUrl: string,
+): Promise<string> {
+  const result = (await codex.request(METHODS.threadFork, {
+    threadId,
+    lastTurnId: lastTurn,
+    config: mcpConfig(mcpUrl),
+  })) as {
     thread?: { id?: unknown }
   }
   const id = result.thread?.id
