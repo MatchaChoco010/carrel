@@ -34,6 +34,16 @@ function readThreadId(result: unknown): string {
   throw new Error('thread/start が threadId を返さなかった')
 }
 
+/**
+ * pct の道具をスレッドへ宣言する設定(#313)。
+ *
+ * MCP の接続は app-server の生存に紐づくので、スレッドを立てるとき、読み込み直すとき、
+ * 写して分けるときのすべてで渡す。渡さないと、そのスレッドは以後ずっと道具を持たない。
+ */
+export function mcpConfig(mcpUrl: string): NonNullable<ThreadStartParams['config']> {
+  return { mcp_servers: { [MCP_SERVER_NAME]: { url: mcpUrl } } }
+}
+
 /** 議論に使うスレッド。コレクションを読め、モデルと effort は呼び出し側が選ぶ。 */
 export async function startConversationThread(
   client: CodexClient,
@@ -45,9 +55,7 @@ export async function startConversationThread(
     model: options.model,
   }
   if (options.instructions !== undefined) params.baseInstructions = options.instructions
-  if (options.mcpUrl !== undefined) {
-    params.config = { mcp_servers: { [MCP_SERVER_NAME]: { url: options.mcpUrl } } }
-  }
+  if (options.mcpUrl !== undefined) params.config = mcpConfig(options.mcpUrl)
   return readThreadId(await client.request(METHODS.threadStart, params))
 }
 
@@ -57,9 +65,7 @@ export async function startConversationThread(
  * Codex の保存領域はマシンの入れ替えや掃除で失われる(0006)。また app-server を
  * 起動し直すとスレッドは記憶から降りるので、ターンを流す前に一度ここを通す。
  *
- * **道具の宣言は読み込み直しのたびに渡す(#277)。** スレッドの中身は Codex 側に
- * 残るが、MCP の接続は app-server の生存に紐づく。渡さないと、読み込み直した会話は
- * 以後ずっと pct の道具を持たない。
+ * 道具の宣言は読み込み直しのたびに渡す(#277。→ `mcpConfig`)。
  */
 export async function resumeThread(
   client: CodexClient,
@@ -68,9 +74,7 @@ export async function resumeThread(
 ): Promise<boolean> {
   try {
     const params: Record<string, unknown> = { threadId }
-    if (options.mcpUrl !== undefined) {
-      params.config = { mcp_servers: { [MCP_SERVER_NAME]: { url: options.mcpUrl } } }
-    }
+    if (options.mcpUrl !== undefined) params.config = mcpConfig(options.mcpUrl)
     await client.request(METHODS.threadResume, params)
     return true
   } catch {
