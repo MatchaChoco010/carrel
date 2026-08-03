@@ -50,8 +50,10 @@ export function enqueueResolve(queue: JobQueue, url: string): Job {
 export function registerResolve(queue: JobQueue, deps: ResolveDeps): void {
   queue.register(RESOLVE_JOB, async (job) => {
     const url = job.target
+    // 取り込みを受け付けたのは、この仕事が積まれた時刻である(#311)。
+    const acceptedAt = job.createdAt
     const result = url.startsWith(UPLOAD_PREFIX)
-      ? await resolveUpload(url.slice(UPLOAD_PREFIX.length), deps)
+      ? await resolveUpload(url.slice(UPLOAD_PREFIX.length), deps, acceptedAt)
       : await ingestFromUrl(url, {
           dataDir: deps.dataDir,
           index: deps.index,
@@ -59,6 +61,7 @@ export function registerResolve(queue: JobQueue, deps: ResolveDeps): void {
           codex: deps.codex,
           model: deps.model(),
           head: deps.head,
+          acceptedAt,
         })
 
     const arxivId = extractArxivId(url)
@@ -94,7 +97,7 @@ export function registerResolve(queue: JobQueue, deps: ResolveDeps): void {
  * 取り込みが始まらなかったときも、預かった原本を置き場に残さない(0021)。取り込みが
  * 始まったときは、取得の段階がコレクションへ移した時点で置き場から無くなっている。
  */
-async function resolveUpload(id: string, deps: ResolveDeps): Promise<IngestResult> {
+async function resolveUpload(id: string, deps: ResolveDeps, acceptedAt: number): Promise<IngestResult> {
   const staged = await readStaged(deps.stateDir, id)
   if (staged === null) throw new Error(`預かった原本が見つからない: ${id}`)
 
@@ -106,6 +109,7 @@ async function resolveUpload(id: string, deps: ResolveDeps): Promise<IngestResul
       codex: deps.codex,
       model: deps.model(),
       head: deps.head,
+      acceptedAt,
     })
   } finally {
     await removeStaged(deps.stateDir, id)
