@@ -121,24 +121,34 @@ async function main(): Promise<void> {
   })
 
   /**
+   * その論文の取り込みを受け付けた時刻(0026)。
+   *
+   * 鎖のどの段階を積むときもこの値を順序キーにするので、先に受け付けた論文が
+   * どの段階でも後の論文より先に走る。取り込みの記録が無い積み直しでは、
+   * 順序キーを決めるものが無いので積まれた時刻に任せる。
+   */
+  const acceptedAt = (slug: string): number | undefined => ingests.get(slug)?.startedAt
+
+  /**
    * 失敗した取り込みを続きから積む(#220、#285)。
    *
    * どの段階から始めるかは記録と成果物が決める。解決の仕事と画面のやり直しの両方から使う。
    */
   const resumeIngest = async (slug: string, stage: IngestStage): Promise<Job> => {
+    const order = acceptedAt(slug)
     switch (stage) {
       case 'convert':
-        return enqueueConvert(jobs, slug, (await originalKind(dataDir, slug)) ?? 'pdf')
+        return enqueueConvert(jobs, slug, (await originalKind(dataDir, slug)) ?? 'pdf', order)
       case 'verify':
-        return enqueueVerify(jobs, slug)
+        return enqueueVerify(jobs, slug, order)
       case 'bibliography':
-        return enqueueBibliography(jobs, slug)
+        return enqueueBibliography(jobs, slug, order)
       case 'translate':
-        return enqueueTranslate(jobs, slug)
+        return enqueueTranslate(jobs, slug, order)
       case 'references':
-        return enqueueReferences(jobs, slug)
+        return enqueueReferences(jobs, slug, 'foreground', order)
       default:
-        return enqueueRegister(jobs, slug)
+        return enqueueRegister(jobs, slug, order)
     }
   }
 
@@ -156,7 +166,9 @@ async function main(): Promise<void> {
     model: () => config.ingest.model,
     // 原本の種別で走らせ方が変わるので、置いてある原本を見てから積む(0022)。
     onImported: (slug) => {
-      void originalKind(dataDir, slug).then((kind: 'pdf' | 'html' | null) => enqueueConvert(jobs, slug, kind ?? 'pdf'))
+      void originalKind(dataDir, slug).then((kind: 'pdf' | 'html' | null) =>
+        enqueueConvert(jobs, slug, kind ?? 'pdf', acceptedAt(slug)),
+      )
     },
     linkFeed: (arxivId, slug) => feed.setSlug(arxivId, slug),
     resumeIngest,
@@ -172,7 +184,7 @@ async function main(): Promise<void> {
       llamaLibDir: config.converter.llamaLibDir,
     },
     htmlScript: htmlScript(),
-    onDone: (slug) => enqueueVerify(jobs, slug),
+    onDone: (slug) => enqueueVerify(jobs, slug, acceptedAt(slug)),
   })
 
   registerVerify(jobs, {
@@ -183,7 +195,7 @@ async function main(): Promise<void> {
     effort: config.ingest.effort,
     serviceTier: config.ingest.serviceTier,
     textLayer: { python: config.converter.python, script: textLayerScript() },
-    onDone: (slug) => enqueueBibliography(jobs, slug),
+    onDone: (slug) => enqueueBibliography(jobs, slug, acceptedAt(slug)),
   })
 
   registerBibliography(jobs, {
@@ -193,7 +205,7 @@ async function main(): Promise<void> {
     model: config.ingest.model,
     effort: config.ingest.effort,
     serviceTier: config.ingest.serviceTier,
-    onDone: (slug) => enqueueTranslate(jobs, slug),
+    onDone: (slug) => enqueueTranslate(jobs, slug, acceptedAt(slug)),
   })
 
   registerTranslate(jobs, {
@@ -203,7 +215,7 @@ async function main(): Promise<void> {
     model: config.ingest.model,
     effort: config.ingest.effort,
     serviceTier: config.ingest.serviceTier,
-    onDone: (slug) => enqueueReferences(jobs, slug),
+    onDone: (slug) => enqueueReferences(jobs, slug, 'foreground', acceptedAt(slug)),
   })
 
   // 分かち書きは索引を作るときと問い合わせるときの両方で通す(0019)。辞書の読み込みは
@@ -237,7 +249,7 @@ async function main(): Promise<void> {
     model: config.ingest.model,
     effort: config.ingest.effort,
     serviceTier: config.ingest.serviceTier,
-    onDone: (slug) => enqueueRegister(jobs, slug),
+    onDone: (slug) => enqueueRegister(jobs, slug, acceptedAt(slug)),
   })
 
   // 語の索引が空なら、いまあるチャンクから作り直す(0019)。移行の直後に 1 度だけ走る。

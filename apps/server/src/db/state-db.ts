@@ -108,6 +108,18 @@ const MIGRATIONS: Migration[] = [
       alter table ingests add column doi text;
     `,
   },
+  {
+    version: 8,
+    up: `
+      -- 取り込み 1 本を 1 つの順序として扱うための鍵(0026)。
+      -- 既にある仕事は積まれた順のままにしたいので、作られた時刻をそのまま入れる。
+      alter table jobs add column order_key integer not null default 0;
+      update jobs set order_key = created_at;
+
+      drop index jobs_pick;
+      create index jobs_pick on jobs (resource, state, available_at, priority, order_key);
+    `,
+  },
 ]
 
 /**

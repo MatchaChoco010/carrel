@@ -13,8 +13,8 @@ export const VERIFY_JOB = 'verify'
  *
  * 資源クラスは Codex で、枠が尽きたときは待機に入る(0003)。
  */
-export function enqueueVerify(queue: JobQueue, slug: string): Job {
-  return queue.enqueue({ kind: VERIFY_JOB, target: slug, resource: 'codex', priority: 'foreground' })
+export function enqueueVerify(queue: JobQueue, slug: string, orderKey?: number): Job {
+  return queue.enqueue({ kind: VERIFY_JOB, target: slug, resource: 'codex', priority: 'foreground', orderKey })
 }
 
 export function registerVerify(
