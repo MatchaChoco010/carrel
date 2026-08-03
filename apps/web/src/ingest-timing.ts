@@ -12,6 +12,20 @@ export function clockFor(ingest: Pick<Ingest, 'status' | 'updatedAt'>, now: numb
 }
 
 /** 1 つの段階にかかった時間。始まりより前の時刻を渡されても負にしない。 */
+/** 段階が取りうる状態。記録が無い段階は、まだそこまで来ていない(0026)。 */
+export type StageState = 'queued' | 'running' | 'done'
+
+/**
+ * 段階の状態を、記録の 3 つの時刻だけから決める(0026)。
+ *
+ * 取り込みの記録が持つ「いまどの段階か」と突き合わせないので、両者が食い違っても
+ * 表示は壊れない。
+ */
+export function stageState(stage: { startedAt: number | null; finishedAt: number | null }): StageState {
+  if (stage.finishedAt !== null) return 'done'
+  return stage.startedAt === null ? 'queued' : 'running'
+}
+
 export function stageElapsed(stage: { startedAt: number | null; finishedAt: number | null }, clock: number): number {
   // 走り出していない段階に所要時間は無い。待っていた時間は所要時間に含めない(0026)。
   if (stage.startedAt === null) return 0
