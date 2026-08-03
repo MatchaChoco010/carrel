@@ -16,6 +16,7 @@ export function registerTranslate(
 ): void {
   queue.register(TRANSLATE_JOB, async (job) => {
     const slug = job.target
+    deps.ingests.beginStage(slug, 'translate')
     try {
       const outcomes = await translatePaper(slug, deps)
       const breached = outcomes.filter((o) => o.breach !== null)

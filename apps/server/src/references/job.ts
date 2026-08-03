@@ -25,7 +25,8 @@ export function registerReferences(
     // 終わっている取り込みを途中の状態へ戻さない。
     const record = deps.ingests.get(slug)
     const inChain = record !== null && record.status === 'inProgress'
-    if (!inChain) deps.ingests.startStage(slug, 'references')
+    if (!inChain) deps.ingests.queueStage(slug, 'references')
+    deps.ingests.beginStage(slug, 'references')
 
     try {
       await structureReferences(slug, deps)

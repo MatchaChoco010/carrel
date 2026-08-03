@@ -252,16 +252,89 @@ test('やり直すときは、開いたままの段階を閉じてから始め�
   }
 })
 
-test('終わったら、飛ばした段階も閉じる(#280)', () => {
+test('終わったら、走っていた段階も閉じる(#280)', () => {
   const h = harness()
   try {
     h.ingests.start({ slug: 'a2020-x', sourceUrl: 'u', arxivId: null, originalUrl: null })
-    // 照合を飛ばす経路(0022)を真似て、開いたままの段階を残す。
-    h.ingests.startStage('a2020-x', 'verify')
+    // 照合を飛ばす経路(0022)を真似て、走ったまま閉じていない段階を残す。
+    h.ingests.queueStage('a2020-x', 'verify')
+    h.ingests.beginStage('a2020-x', 'verify')
     h.ingests.advance('a2020-x', 'register')
     h.ingests.finish('a2020-x')
 
-    assert.deepEqual(h.ingests.stages('a2020-x').filter((s) => s.finishedAt === null), [])
+    const open = h.ingests.stages('a2020-x').filter((s) => s.startedAt !== null && s.finishedAt === null)
+    assert.deepEqual(open, [])
+  } finally {
+    h.close()
+  }
+})
+
+test('積まれただけで走らなかった段階は記録から消える(0026)', () => {
+  const h = harness()
+  try {
+    h.ingests.start({ slug: 'a2020-x', sourceUrl: 'u', arxivId: null, originalUrl: null })
+    h.ingests.advance('a2020-x', 'register')
+    // 登録は積まれたが走っていない。終わりの時刻を入れると完了と見分けがつかなくなる。
+    h.ingests.finish('a2020-x')
+
+    assert.equal(
+      h.ingests.stages('a2020-x').some((s) => s.stage === 'register'),
+      false,
+    )
+  } finally {
+    h.close()
+  }
+})
+
+test('段階の 3 つの時刻で 待機 / 実行中 / 完了 が決まる(0026)', () => {
+  const h = harness()
+  try {
+    h.ingests.start({ slug: 'a2020-x', sourceUrl: 'u', arxivId: null, originalUrl: null })
+    h.ingests.queueStage('a2020-x', 'convert')
+
+    const queued = h.ingests.stages('a2020-x').find((s) => s.stage === 'convert')
+    assert.ok(queued !== undefined && queued.queuedAt > 0)
+    assert.equal(queued.startedAt, null)
+    assert.equal(queued.finishedAt, null)
+
+    h.ingests.beginStage('a2020-x', 'convert')
+    const running = h.ingests.stages('a2020-x').find((s) => s.stage === 'convert')
+    assert.ok(running !== undefined && running.startedAt !== null)
+    assert.equal(running.finishedAt, null)
+
+    h.ingests.finishStage('a2020-x', 'convert')
+    const done = h.ingests.stages('a2020-x').find((s) => s.stage === 'convert')
+    assert.ok(done !== undefined && done.startedAt !== null && done.finishedAt !== null)
+  } finally {
+    h.close()
+  }
+})
+
+test('走り出していない段階は終わらない(0026)', () => {
+  const h = harness()
+  try {
+    h.ingests.start({ slug: 'a2020-x', sourceUrl: 'u', arxivId: null, originalUrl: null })
+    h.ingests.queueStage('a2020-x', 'convert')
+    h.ingests.finishStage('a2020-x', 'convert')
+
+    assert.equal(h.ingests.stages('a2020-x').find((s) => s.stage === 'convert')?.finishedAt, null)
+  } finally {
+    h.close()
+  }
+})
+
+test('走り直すと走り出した時刻を上書きする(0026)', () => {
+  const h = harness()
+  try {
+    h.ingests.start({ slug: 'a2020-x', sourceUrl: 'u', arxivId: null, originalUrl: null })
+    h.ingests.queueStage('a2020-x', 'convert', 1000)
+    h.ingests.beginStage('a2020-x', 'convert', 2000)
+    // 途中でサーバーが落ち、積み直されて走り直した。
+    h.ingests.beginStage('a2020-x', 'convert', 5000)
+
+    const stage = h.ingests.stages('a2020-x').find((s) => s.stage === 'convert')
+    assert.equal(stage?.queuedAt, 1000)
+    assert.equal(stage?.startedAt, 5000)
   } finally {
     h.close()
   }

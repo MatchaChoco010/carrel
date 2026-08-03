@@ -12,7 +12,9 @@ export function clockFor(ingest: Pick<Ingest, 'status' | 'updatedAt'>, now: numb
 }
 
 /** 1 つの段階にかかった時間。始まりより前の時刻を渡されても負にしない。 */
-export function stageElapsed(stage: { startedAt: number; finishedAt: number | null }, clock: number): number {
+export function stageElapsed(stage: { startedAt: number | null; finishedAt: number | null }, clock: number): number {
+  // 走り出していない段階に所要時間は無い。待っていた時間は所要時間に含めない(0026)。
+  if (stage.startedAt === null) return 0
   return Math.max(0, (stage.finishedAt ?? clock) - stage.startedAt)
 }
 

@@ -80,7 +80,7 @@ function pending(job: { id: number; target: string; createdAt: number }): Ingest
     startedAt: job.createdAt,
     updatedAt: job.createdAt,
     lastError: null,
-    stages: [{ stage: 'resolve', startedAt: job.createdAt, finishedAt: null }],
+    stages: [{ stage: 'resolve', queuedAt: job.createdAt, startedAt: job.createdAt, finishedAt: null }],
   }
 }
 

@@ -20,6 +20,7 @@ export function registerBibliography(
 ): void {
   queue.register(BIBLIOGRAPHY_JOB, async (job) => {
     const slug = job.target
+    deps.ingests.beginStage(slug, 'bibliography')
     // 確かめられなくても取り込みは進める。学会名が空でも論文は読める(0020)。
     try {
       await lookupBibliography(slug, deps)
