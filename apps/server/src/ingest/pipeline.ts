@@ -24,10 +24,10 @@ export type IngestDeps = {
   /** 原本の先頭を読む道具(0021、0025)。 */
   head: HeadPaths
   /**
-   * この取り込みを受け付けた時刻(#311)。
+   * この取り込みを受け付けた時刻(解決の仕事が積まれた時刻)。
    *
-   * 解決の仕事が積まれた時刻である。記録ができるのは解決が終わってからなので、
-   * 順序キーと解決の段階を積んだ時刻には、この値を使う(0026)。
+   * 記録ができるのは解決が終わってからなので、その時点では受け付けた時刻が分からない。
+   * 呼ぶ側から持ち回る(#311)。
    */
   acceptedAt: number
 }
@@ -323,7 +323,6 @@ export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<Inge
     },
     deps.acceptedAt,
   )
-  // 解決は受け付けた時点で積まれ、この仕事が走り出した時点で動き始めている(0026、#311)。
   deps.ingests.queueStage(slug, 'resolve', deps.acceptedAt)
   deps.ingests.beginStage(slug, 'resolve', ranAt)
 
@@ -411,7 +410,6 @@ export async function ingestFromUpload(staged: StagedOriginal, deps: IngestDeps)
     },
     deps.acceptedAt,
   )
-  // 解決は受け付けた時点で積まれ、この仕事が走り出した時点で動き始めている(0026、#311)。
   deps.ingests.queueStage(slug, 'resolve', deps.acceptedAt)
   deps.ingests.beginStage(slug, 'resolve', ranAt)
 
@@ -460,7 +458,6 @@ async function takeOverFailed(
     },
     deps.acceptedAt,
   )
-  // 解決は受け付けた時点で積まれ、この仕事が走り出した時点で動き始めている(0026、#311)。
   deps.ingests.queueStage(slug, 'resolve', deps.acceptedAt)
   deps.ingests.beginStage(slug, 'resolve', ranAt)
   deps.ingests.advanceRunning(slug, 'fetch')
