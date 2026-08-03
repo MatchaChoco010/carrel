@@ -315,6 +315,7 @@ export function App() {
                   revision={revision}
                   onUnread={setUnread}
                   onChanged={() => setRevision((n) => n + 1)}
+                  subscribe={subscribe}
                 />
               </div>
             )}

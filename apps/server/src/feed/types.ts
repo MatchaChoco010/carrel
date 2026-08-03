@@ -16,4 +16,6 @@ export type FeedItem = FeedEntry & {
   /** この論文を取り込んだときの slug。まだなら null。 */
   slug: string | null
   addedAt: number
+  /** 取り込みがいま進んでいるか(#295)。記録を読むときに決まるので、保存はしない。 */
+  importing?: boolean
 }

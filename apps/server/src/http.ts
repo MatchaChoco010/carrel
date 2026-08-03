@@ -9,6 +9,7 @@ import { knownPaper } from './ingest/known.ts'
 import { ChatSessions } from './chat/session.ts'
 import type { CodexModel } from './codex/models.ts'
 import { readChat, writeChat, type Chat } from './data/chat.ts'
+import { isImporting, resolvingArxivIds } from './feed/importing.ts'
 import { FeedStore } from './feed/store.ts'
 import { discardIngest, planResume } from './ingest/pipeline.ts'
 import { uploadTarget } from './ingest/job.ts'
@@ -468,7 +469,15 @@ export function createApp(deps: AppDeps): Hono {
     return c.json({ id: sent.id })
   })
 
-  app.get('/api/feed', (c) => c.json({ items: deps.feed.list(), unread: deps.feed.unreadCount() }))
+  app.get('/api/feed', (c) => {
+    // 押した論文がすぐ実行中に見えるようにする(#295)。記録になる前の解決も数える。
+    const resolving = resolvingArxivIds(deps.jobs.list(['pending', 'running']))
+    const items = deps.feed.list().map((item) => ({
+      ...item,
+      importing: isImporting(item.arxivId, deps.ingests.byArxivId(item.arxivId), resolving),
+    }))
+    return c.json({ items, unread: deps.feed.unreadCount() })
+  })
 
   // 画面に出た項目を既読にする。何を出したかを知っているのはクライアントだけ。
   app.post('/api/feed/read', async (c) => {
