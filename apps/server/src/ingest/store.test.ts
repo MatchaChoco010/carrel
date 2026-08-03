@@ -224,7 +224,7 @@ test('失敗したら、走っていた段階を閉じる(#280)', () => {
   const h = harness()
   try {
     h.ingests.start({ slug: 'a2020-x', sourceUrl: 'u', arxivId: null, originalUrl: null })
-    h.ingests.advance('a2020-x', 'fetch')
+    h.ingests.advanceRunning('a2020-x', 'fetch')
     h.ingests.fail('a2020-x', '原本を取得できなかった')
 
     const open = h.ingests.stages('a2020-x').filter((s) => s.finishedAt === null)
@@ -238,7 +238,7 @@ test('やり直すときは、開いたままの段階を閉じてから始め�
   const h = harness()
   try {
     h.ingests.start({ slug: 'a2020-x', sourceUrl: 'u', arxivId: null, originalUrl: null })
-    h.ingests.advance('a2020-x', 'fetch')
+    h.ingests.advanceRunning('a2020-x', 'fetch')
     h.ingests.fail('a2020-x', '取得に失敗した')
     h.ingests.resume('a2020-x', 'convert')
 
@@ -391,6 +391,22 @@ test('記録の無い slug は進められない(#289)', () => {
   try {
     assert.equal(h.ingests.advance('無い', 'convert'), false)
     assert.equal(h.ingests.finish('無い'), false)
+  } finally {
+    h.close()
+  }
+})
+
+test('鎖の中でそのまま走る段階は、積むと同時に走り出す(#307)', () => {
+  const h = harness()
+  try {
+    h.ingests.start({ slug: 'a2020-x', sourceUrl: 'u', arxivId: null, originalUrl: null })
+    // 取得は自分の仕事を持たず、解決の仕事の中で続けて走る。
+    h.ingests.advanceRunning('a2020-x', 'fetch')
+    h.ingests.advance('a2020-x', 'convert')
+
+    const fetch = h.ingests.stages('a2020-x').find((s) => s.stage === 'fetch')
+    assert.ok(fetch !== undefined && fetch.startedAt !== null, '走り出した時刻が入る')
+    assert.ok(fetch.finishedAt !== null, '次へ進むときに閉じる')
   } finally {
     h.close()
   }
