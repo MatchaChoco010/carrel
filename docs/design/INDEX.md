@@ -30,6 +30,6 @@ pct(paper collection tool)の設計判断の記録。
 | [0023](0023_slug_keyword.md) | slug の語幹を題の語から作る | approved | done (2026-08-01) |
 | [0024](0024_chat_paper_mention.md) | チャットの論文参照を短く見せる | approved | done (2026-08-01) |
 | [0025](0025_original_is_the_asked_paper.md) | 取得した原本が頼んだ論文かを確かめる | approved | done (2026-08-01) |
-| [0026](0026_ingest_one_paper_at_a_time.md) | 取り込みを頼んだ順に 1 本ずつ流し、進みを実行時間で見せる | reviewing | not-started |
+| [0026](0026_ingest_one_paper_at_a_time.md) | 取り込みを受け付けた順に 1 本ずつ流し、進みを実行時間で見せる | reviewing | not-started |
 
 件数: 26
