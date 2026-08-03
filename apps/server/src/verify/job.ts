@@ -23,6 +23,7 @@ export function registerVerify(
 ): void {
   queue.register(VERIFY_JOB, async (job) => {
     const slug = job.target
+    deps.ingests.beginStage(slug, 'verify')
     try {
       // 原本が HTML の論文はページ画像を作れないため、この段階を飛ばす(0004、0022)。
       // 飛ばすときは、変換の結果をそのまま本文にする。照合が本文を確定させる役目も

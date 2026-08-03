@@ -50,6 +50,7 @@ export function registerRegister(
 ): void {
   queue.register(REGISTER_JOB, async (job) => {
     const slug = job.target
+    deps.ingests.beginStage(slug, 'register')
     try {
       await registerPaper(slug, deps)
       // 全段階が成功したので、ここで初めて検索の対象になる(0004)。
