@@ -115,12 +115,29 @@ test('衝突したら連番を付ける', () => {
   assert.equal(slug, 'mildenhall2020-nerf-3')
 })
 
-test('著者か年が取れないときはフォールバックする', () => {
+test('著者や年が取れなくても、題から作った語幹は残す(#308)', () => {
   const noAuthor = buildSlug({ authors: [], year: 2020, title: 'NeRF: x', identity: 'x' }, never)
-  assert.match(noAuthor, /^unknown2020-[0-9a-f]{8}$/)
+  assert.equal(noAuthor, 'unknown2020-nerf')
 
   const noYear = buildSlug({ authors: ['Ben Mildenhall'], year: null, title: 'NeRF: x', identity: 'x' }, never)
-  assert.match(noYear, /^unknown0000-[0-9a-f]{8}$/)
+  assert.equal(noYear, 'mildenhall0000-nerf')
+
+  const neither = buildSlug({ authors: [], year: null, title: 'NeRF: x', identity: 'x' }, never)
+  assert.equal(neither, 'unknown0000-nerf')
+})
+
+test('本の 1 章で年が読めなくても、何の論文かが残る(#308)', () => {
+  // 本番で `unknown0000-d45395cc` になった論文である。
+  const slug = buildSlug(
+    {
+      authors: ['J. P. Collomosse'],
+      year: null,
+      title: 'Evolutionary search for the artistic rendering of photographs',
+      identity: 'x',
+    },
+    never,
+  )
+  assert.equal(slug, 'collomosse0000-evolutionary-search-artistic-rendering')
 })
 
 test('名指しされた語を含めて、題の先頭から拾う(0023)', () => {
@@ -153,7 +170,12 @@ test('題に出てこない語は名指しされても使えない(0023)', () =>
 
 test('語幹が取れないときも一意な slug になる', () => {
   const slug = buildSlug({ authors: ['Ben Mildenhall'], year: 2020, title: '', identity: 'x' }, never)
-  assert.match(slug, /^mildenhall2020-[0-9a-f]{4}$/)
+  assert.match(slug, /^mildenhall2020-[0-9a-f]{8}$/)
+})
+
+test('何も読めないときだけ、固有の文字列に落ちる(#308)', () => {
+  const slug = buildSlug({ authors: [], year: null, title: '', identity: 'x' }, never)
+  assert.match(slug, /^unknown0000-[0-9a-f]{8}$/)
 })
 
 test('同じ入力からは同じ slug が出る', () => {

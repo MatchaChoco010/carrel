@@ -327,7 +327,7 @@ export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<Inge
     if (source.abstract !== null && source.abstract.length > 0) {
       await writePaperSideFile(deps.dataDir, slug, 'abstract', source.abstract, 'en')
     }
-    deps.ingests.advance(slug, 'fetch')
+    deps.ingests.advanceRunning(slug, 'fetch')
 
     const taken = await fetchWithRetry(slug, source, deps, looksLikeUrl(sourceUrl) ? sourceUrl : null)
     // 別の所在から取れたときは、原本の場所をそこへ直す。
@@ -411,7 +411,7 @@ export async function ingestFromUpload(staged: StagedOriginal, deps: IngestDeps)
     if (source.abstract !== null && source.abstract.length > 0) {
       await writePaperSideFile(deps.dataDir, slug, 'abstract', source.abstract, 'en')
     }
-    deps.ingests.advance(slug, 'fetch')
+    deps.ingests.advanceRunning(slug, 'fetch')
 
     await mkdir(paperDir(deps.dataDir, slug), { recursive: true })
     await moveFile(staged.path, paperOriginalPdf(deps.dataDir, slug))
@@ -454,7 +454,7 @@ async function takeOverFailed(
   // 解決は受け付けた時点で積まれ、この仕事が走り出した時点で動き始めている(0026)。
   deps.ingests.queueStage(slug, 'resolve', startedAt)
   deps.ingests.beginStage(slug, 'resolve')
-  deps.ingests.advance(slug, 'fetch')
+  deps.ingests.advanceRunning(slug, 'fetch')
 
   await mkdir(paperDir(deps.dataDir, slug), { recursive: true })
   await rm(paperOriginalHtml(deps.dataDir, slug), { force: true })
