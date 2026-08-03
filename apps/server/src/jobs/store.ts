@@ -10,6 +10,7 @@ type Row = {
   state: string
   attempts: number
   available_at: number
+  order_key: number
   created_at: number
   updated_at: number
   payload: string
@@ -26,6 +27,7 @@ function toJob(row: Row): Job {
     state: row.state as JobState,
     attempts: row.attempts,
     availableAt: row.available_at,
+    orderKey: row.order_key,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     payload: row.payload.length > 0 ? (JSON.parse(row.payload) as unknown) : null,
@@ -46,8 +48,8 @@ export class JobStore {
     const now = this.#now()
     const row = this.#db
       .prepare(
-        `insert into jobs (kind, target, resource, priority, state, attempts, available_at, created_at, updated_at, payload, last_error)
-         values (?, ?, ?, ?, 'pending', 0, ?, ?, ?, ?, null)
+        `insert into jobs (kind, target, resource, priority, state, attempts, available_at, order_key, created_at, updated_at, payload, last_error)
+         values (?, ?, ?, ?, 'pending', 0, ?, ?, ?, ?, ?, null)
          returning *`,
       )
       .get(
@@ -56,6 +58,7 @@ export class JobStore {
         job.resource,
         job.priority ?? 'background',
         now,
+        job.orderKey ?? now,
         now,
         now,
         JSON.stringify(job.payload ?? null),
@@ -66,15 +69,15 @@ export class JobStore {
   /**
    * 次に走らせる仕事を選ぶ。
    *
-   * 前景を先に、同じ優先度では古いものから。再試行の待ち時間が明けていない
-   * ものは対象にしない。
+   * 前景を先に、同じ優先度では順序キーの小さいものから(0026)。順序キーが同じなら
+   * 積まれた順に流す。再試行の待ち時間が明けていないものは対象にしない。
    */
   nextRunnable(resource: ResourceClass): Job | null {
     const row = this.#db
       .prepare(
         `select * from jobs
          where resource = ? and state = 'pending' and available_at <= ?
-         order by case priority when 'foreground' then 0 else 1 end, created_at, id
+         order by case priority when 'foreground' then 0 else 1 end, order_key, created_at, id
          limit 1`,
       )
       .get(resource, this.#now()) as Row | undefined

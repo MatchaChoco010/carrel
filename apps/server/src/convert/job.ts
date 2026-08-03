@@ -29,12 +29,13 @@ export type ConvertDeps = {
  *
  * HTML の原本は GPU を使わず、図の画像を落とすぶんだけ通信するので network にする(0022)。
  */
-export function enqueueConvert(queue: JobQueue, slug: string, kind: OriginalKind = 'pdf'): Job {
+export function enqueueConvert(queue: JobQueue, slug: string, kind: OriginalKind = 'pdf', orderKey?: number): Job {
   return queue.enqueue({
     kind: CONVERT_JOB,
     target: slug,
     resource: kind === 'html' ? 'network' : 'gpu',
     priority: 'foreground',
+    orderKey,
   })
 }
 

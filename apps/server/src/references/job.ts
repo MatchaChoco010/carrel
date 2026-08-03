@@ -11,8 +11,8 @@ export const REFERENCES_JOB = 'references'
  * 取り込みの途中で積むときは、その論文が読めるようになるまでの行程の一部なので
  * 前面で走らせる。取り込みが終わった論文へ積み直すときは背景で走らせる。
  */
-export function enqueueReferences(queue: JobQueue, slug: string, priority: Priority = 'foreground'): Job {
-  return queue.enqueue({ kind: REFERENCES_JOB, target: slug, resource: 'codex', priority })
+export function enqueueReferences(queue: JobQueue, slug: string, priority: Priority = 'foreground', orderKey?: number): Job {
+  return queue.enqueue({ kind: REFERENCES_JOB, target: slug, resource: 'codex', priority, orderKey })
 }
 
 export function registerReferences(

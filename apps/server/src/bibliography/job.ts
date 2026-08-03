@@ -10,8 +10,8 @@ export const BIBLIOGRAPHY_JOB = 'bibliography'
  *
  * 資源クラスは Codex で、枠が尽きたときは待機に入る(0003)。
  */
-export function enqueueBibliography(queue: JobQueue, slug: string): Job {
-  return queue.enqueue({ kind: BIBLIOGRAPHY_JOB, target: slug, resource: 'codex', priority: 'foreground' })
+export function enqueueBibliography(queue: JobQueue, slug: string, orderKey?: number): Job {
+  return queue.enqueue({ kind: BIBLIOGRAPHY_JOB, target: slug, resource: 'codex', priority: 'foreground', orderKey })
 }
 
 export function registerBibliography(
