@@ -128,6 +128,8 @@ export type FeedItem = {
   read: boolean
   /** 取り込み済みならその slug。 */
   slug: string | null
+  /** 取り込みがいま進んでいるか(#295)。 */
+  importing: boolean
 }
 
 /** サーバーが持つ設定。編集して書き戻す(0001)。 */

@@ -12,6 +12,13 @@ export type FeedPaneProps = {
   /** 未読数を伝える。アイコンのバッジがこれを出す。 */
   onUnread: (count: number) => void
   onChanged: () => void
+  /**
+   * 仕事の動きを親から受ける(#295)。
+   *
+   * 取り込みが失敗しても論文は増えないので、論文の増減だけを見ていると実行中の表示が
+   * 残り続ける。
+   */
+  subscribe: (handler: (event: { type: string; payload: unknown }) => void) => () => void
 }
 
 const ICON = 15
@@ -21,7 +28,7 @@ function day(at: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-export function FeedPane({ lang, onLangChange, visible, revision, onUnread, onChanged }: FeedPaneProps) {
+export function FeedPane({ lang, onLangChange, visible, revision, onUnread, onChanged, subscribe }: FeedPaneProps) {
   const [items, setItems] = useState<FeedItem[]>([])
   const [error, setError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
@@ -46,6 +53,28 @@ export function FeedPane({ lang, onLangChange, visible, revision, onUnread, onCh
     load()
   }, [load, visible, revision])
 
+  /**
+   * 仕事が動いたら読み直して、取り込みの表示を追う(#295)。
+   *
+   * 取り込み 1 本で仕事は何度も動くので、まとめて 1 回にする。
+   */
+  useEffect(() => {
+    if (!visible) return
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const stop = subscribe((event) => {
+      if (event.type !== 'job.changed') return
+      if (timer !== null) return
+      timer = setTimeout(() => {
+        timer = null
+        load()
+      }, 500)
+    })
+    return () => {
+      if (timer !== null) clearTimeout(timer)
+      stop()
+    }
+  }, [load, visible, subscribe])
+
   // 画面に出た時点で既読にする(0004)。他のタブに移っている間は出ていないので既読にしない。
   useEffect(() => {
     if (!visible) return
@@ -63,6 +92,12 @@ export function FeedPane({ lang, onLangChange, visible, revision, onUnread, onCh
       .finally(() => setRefreshing(false))
   }
 
+  /**
+   * 取り込みを積む(#295)。
+   *
+   * 押した直後は返事を待つ間だけこちらで実行中にし、返った後はサーバーの `importing` に
+   * 任せる。積むところまでしか返らないので、これを解除の合図にすると実行中が一瞬で消える。
+   */
   const importPaper = (item: FeedItem): void => {
     setImporting(item.arxivId)
     void api
@@ -99,19 +134,20 @@ export function FeedPane({ lang, onLangChange, visible, revision, onUnread, onCh
             <article key={item.arxivId} className={`feed-item ${item.read ? '' : 'feed-item--unread'}`}>
               <header>
                 <h3>{item.title}</h3>
-                {item.slug === null ? (
-                  <button type="button" onClick={() => importPaper(item)} disabled={importing === item.arxivId}>
-                    {importing === item.arxivId ? (
-                      <Loader2 size={ICON} className="spin" aria-hidden />
-                    ) : (
-                      <Download size={ICON} aria-hidden />
-                    )}
-                    取り込む
-                  </button>
-                ) : (
+                {item.slug !== null ? (
                   <span className="feed-item__done">
                     <Check size={ICON} aria-hidden /> 取り込み済み
                   </span>
+                ) : item.importing || importing === item.arxivId ? (
+                  <button type="button" disabled>
+                    <Loader2 size={ICON} className="spin" aria-hidden />
+                    取り込み中
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => importPaper(item)}>
+                    <Download size={ICON} aria-hidden />
+                    取り込む
+                  </button>
                 )}
               </header>
               <p className="feed-item__meta">
