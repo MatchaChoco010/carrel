@@ -188,18 +188,24 @@ export function buildSlug(source: SlugSource, isTaken: SlugTaken): string {
   return `${base}-${shortHash(source.identity)}`
 }
 
+/**
+ * 読み取れなかった項目に置く代わりの値(#308)。
+ *
+ * 姓と年と題は別々に読み取れる。1 つ欠けたからといって、読めた残りまで捨てない。
+ */
+const UNKNOWN_NAME = 'unknown'
+const UNKNOWN_YEAR = '0000'
+
 function baseSlug(source: SlugSource): string {
   const lastName = source.authors.map(lastNameOf).find((name) => name.length > 0) ?? ''
   const year = source.year !== null && Number.isInteger(source.year) ? String(source.year) : ''
   const keyword = keywordFromTitle(source.title, wordsInTitle(source.keepWords ?? [], source.title))
 
-  if (lastName.length === 0 || year.length === 0) {
-    return `unknown${year.length > 0 ? year : '0000'}-${shortHash(source.identity)}`
-  }
-  if (keyword.length === 0) {
-    return `${lastName}${year}-${shortHash(source.identity).slice(0, 4)}`
-  }
-  return `${lastName}${year}-${keyword}`
+  const head = `${lastName.length > 0 ? lastName : UNKNOWN_NAME}${year.length > 0 ? year : UNKNOWN_YEAR}`
+  // 語幹まで作れないときだけ、その論文に固有の文字列へ落とす。ここまで来ると
+  // ディレクトリ名から論文を辿る手掛かりが何も無くなる。
+  if (keyword.length === 0) return `${head}-${shortHash(source.identity).slice(0, 8)}`
+  return `${head}-${keyword}`
 }
 
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/

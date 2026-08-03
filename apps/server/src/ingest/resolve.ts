@@ -236,6 +236,7 @@ const HEAD_INSTRUCTIONS = [
   '所属機関のリポジトリが付けた表紙が先頭にあることがある。表紙ではなく論文そのものの標題を選ぶ。',
   '著者は紙面の書式をそのまま写さない。全部を大文字にした表記は、通常の表記に直す。',
   'DOI は紙面に印字されていることがある。この論文自身のものだけを取り、参考文献に出てくるものは取らない。',
+  '出版年は標題のページに無いことがある。著作権表示の行や、ページの端の書誌の行、本の 1 章なら本自体の出版年を見る。',
   '読み取れない項目は null にする。web は使わない。',
   '要求された JSON だけを返す。',
 ].join('\n')
@@ -245,7 +246,10 @@ const HEAD_SCHEMA = {
   properties: {
     title: { type: ['string', 'null'], description: '論文の標題。' },
     authors: { type: 'array', items: { type: 'string' }, description: '著者。順序を保つ。' },
-    year: { type: ['integer', 'null'], description: '紙面から読める出版年。無ければ null。' },
+    year: {
+      type: ['integer', 'null'],
+      description: '紙面から読める出版年。著作権表示やページの端の書誌の行にあることもある。無ければ null。',
+    },
     doi: {
       type: ['string', 'null'],
       description: 'この論文自身の DOI。紙面に印字されていれば取る。10. で始まる形。無ければ null。',
