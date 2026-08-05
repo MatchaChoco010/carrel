@@ -1,6 +1,6 @@
-appId: dev.matchachoco010.pct
-productName: pct
-artifactName: pct-${version}.${arch}.${ext}
+appId: dev.matchachoco010.carrel
+productName: carrel
+artifactName: carrel-${version}.${arch}.${ext}
 directories:
   output: release
 afterPack: scripts/after-pack.cjs
@@ -12,10 +12,10 @@ linux:
   target:
     - AppImage
   category: Science
-  executableName: pct
+  executableName: carrel
   desktop:
     entry:
-      Name: pct
+      Name: carrel
       Comment: 論文を集めて読み、エージェントと議論する
       Categories: Science;Education;
 asar: true

@@ -214,7 +214,7 @@ export class ChatSessions {
 
     try {
       // 設定の指示が変わっていたら、この発言の前に差し込む(0014)。記録には残さない。
-      // 覚えの無いスレッドは pct の指示を持たないことがあるので、そのときは全体を載せる。
+      // 覚えの無いスレッドは carrel の指示を持たないことがあるので、そのときは全体を載せる。
       const instructions = this.#deps.instructions()
       const known = this.#deps.inForce.inForce(threadId)
       const changed = known !== instructions

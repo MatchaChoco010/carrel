@@ -5,7 +5,7 @@
 harness/scripts/node_modules/
 # --- agent-harness sync: end of managed block ---
 
-# --- pct ---
+# --- carrel ---
 node_modules/
 dist/
 *.tsbuildinfo

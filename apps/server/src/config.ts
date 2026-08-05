@@ -63,7 +63,7 @@ export type Config = {
 }
 
 export const defaultConfig: Config = {
-  dataDir: join(homedir(), 'pct-data'),
+  dataDir: join(homedir(), 'carrel-data'),
   server: { host: '0.0.0.0', port: 7817 },
   arxiv: {
     categories: ['cs.GR'],

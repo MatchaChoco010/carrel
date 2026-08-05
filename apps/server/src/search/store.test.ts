@@ -8,7 +8,7 @@ import { cosine, fromBlob, toBlob } from './embed.ts'
 import { ChunkStore } from './store.ts'
 
 function harness() {
-  const root = mkdtempSync(join(tmpdir(), 'pct-store-'))
+  const root = mkdtempSync(join(tmpdir(), 'carrel-store-'))
   const index = new IndexDb(join(root, 'index.sqlite'))
   return { index, chunks: new ChunkStore(index.db), close: () => (index.close(), rmSync(root, { recursive: true, force: true })) }
 }

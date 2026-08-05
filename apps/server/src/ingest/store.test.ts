@@ -10,7 +10,7 @@ import { StateDb } from '../db/state-db.ts'
 import { IngestStore } from './store.ts'
 
 function harness() {
-  const root = mkdtempSync(join(tmpdir(), 'pct-ingest-'))
+  const root = mkdtempSync(join(tmpdir(), 'carrel-ingest-'))
   const state = new StateDb(join(root, 'state.sqlite'))
   const index = new IndexDb(join(root, 'index.sqlite'))
   const ingests = new IngestStore(state.db)

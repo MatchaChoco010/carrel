@@ -33,7 +33,7 @@ export type ChatMeta = {
 export type Chat = {
   meta: ChatMeta
   messages: ChatMessage[]
-  /** `$PCT_DATA` からの相対パス。 */
+  /** `$CARREL_DATA` からの相対パス。 */
   path: string
   mtimeMs: number
 }

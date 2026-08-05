@@ -1,7 +1,7 @@
 """PDF の指定したページを画像にする。
 
 使い方:
-    pct_pages.py <PDF> <出力ディレクトリ> --pages 0,1 --scale 2.0
+    carrel_pages.py <PDF> <出力ディレクトリ> --pages 0,1 --scale 2.0
 
 返すのは次の形で、標準出力へ書く。
 

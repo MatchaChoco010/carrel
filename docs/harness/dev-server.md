@@ -7,15 +7,15 @@
 | | 本番 | 開発 |
 | --- | --- | --- |
 | 実行物 | 本番用に別途 clone したリポジトリの `apps/server/dist/main.js` | このリポジトリの `apps/server/src/main.ts`(watch) |
-| 立ち上げ | systemd の user service `pct-server.service`(常時) | `pnpm dev`(作業中だけ) |
+| 立ち上げ | systemd の user service `carrel-server.service`(常時) | `pnpm dev`(作業中だけ) |
 | 待ち受け | 7817 | 7818 |
-| 設定 | `~/.config/pct/config.json` | `<repo>/.dev/config/pct/config.json` |
-| 索引と状態 | `~/.local/state/pct` | `<repo>/.dev/state/pct` |
+| 設定 | `~/.config/carrel/config.json` | `<repo>/.dev/config/carrel/config.json` |
+| 索引と状態 | `~/.local/state/carrel` | `<repo>/.dev/state/carrel` |
 | コレクション | 設定の `dataDir` | `<repo>/.dev/data` |
 | arXiv の購読 | 設定の通り | 空 |
 
 本番を別の clone にしているのは、開発中のビルドが動いている本番の実行物を置き換えないようにするためである。
-`pct-server.service` は設定と状態の置き場所を焼き込んで持つので、まわりの環境変数では動かない。
+`carrel-server.service` は設定と状態の置き場所を焼き込んで持つので、まわりの環境変数では動かない。
 
 ## 開発用のサーバー
 
@@ -32,7 +32,7 @@
 ## 本番に触らない
 
 - 動作確認は 7818 で行う。7817 を叩かない。ブラウザで開くのも開発用の口(`http://localhost:5173` か 7818)だけにする。
-- 本番の設定(`~/.config/pct/config.json`)を書き替えない。開発中の画面から設定を保存すると、回す先が本番だった場合はここが書き換わる。
+- 本番の設定(`~/.config/carrel/config.json`)を書き替えない。開発中の画面から設定を保存すると、回す先が本番だった場合はここが書き換わる。
 - 論文や会話を消す確認は開発用のコレクションで行う。
 - **vite を動かしたままブランチを切り替えない。** vite は `vite.config.ts` が変わると自分を立ち上げ直すので、切り替え先のブランチの指定を読み直す。回す先を `.dev/` の設定から読むより前のブランチへ切り替えて、本番へ回っていたことがある。作業を中断するときは止める。
 
@@ -52,7 +52,7 @@ pnpm install
 pnpm build
 # ユニットの内容が変わったときだけ
 apps/server/scripts/install-service.sh
-systemctl --user restart pct-server
+systemctl --user restart carrel-server
 ```
 
 `install-service.sh` は導入する時点の置き場所をユニットへ焼き込むので、`XDG_CONFIG_HOME` や `XDG_STATE_HOME` を持つ shell からは実行しない(スクリプト側でも拒否する)。

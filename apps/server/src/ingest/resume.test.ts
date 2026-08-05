@@ -22,7 +22,7 @@ const RECORD: IngestRecord = {
 }
 
 async function withPaper(files: string[], run: (dataDir: string) => Promise<void>): Promise<void> {
-  const dir = await mkdtemp(join(tmpdir(), 'pct-resume-'))
+  const dir = await mkdtemp(join(tmpdir(), 'carrel-resume-'))
   try {
     await mkdir(paperDir(dir, RECORD.slug), { recursive: true })
     for (const file of files) await writeFile(join(paperDir(dir, RECORD.slug), file), 'x', 'utf8')

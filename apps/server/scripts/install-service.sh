@@ -1,5 +1,5 @@
 #!/bin/sh
-# pct サーバーを systemd の user service として導入する。
+# carrel サーバーを systemd の user service として導入する。
 # 取り除くときは uninstall-service.sh を実行する。
 
 set -eu
@@ -11,11 +11,11 @@ entry="$server_dir/dist/main.js"
 config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
 state_home="${XDG_STATE_HOME:-$HOME/.local/state}"
 unit_dir="$config_home/systemd/user"
-unit="$unit_dir/pct-server.service"
+unit="$unit_dir/carrel-server.service"
 
 if [ ! -f "$entry" ]; then
   echo "ビルド結果が見つからない: $entry" >&2
-  echo "先に 'pnpm --filter @pct/server build' を実行すること。" >&2
+  echo "先に 'pnpm --filter @carrel/server build' を実行すること。" >&2
   exit 1
 fi
 
@@ -36,7 +36,7 @@ node_bin=$(command -v node)
 mkdir -p "$unit_dir"
 sed -e "s#@NODE@#$node_bin#" -e "s#@SERVER_ENTRY@#$entry#" \
   -e "s#@XDG_CONFIG_HOME@#$config_home#" -e "s#@XDG_STATE_HOME@#$state_home#" \
-  "$server_dir/build/pct-server.service" > "$unit"
+  "$server_dir/build/carrel-server.service" > "$unit"
 
 # ログインしていない状態でもサービスを動かすために lingering を有効にする。
 if ! loginctl show-user "$(id -un)" --property=Linger 2>/dev/null | grep -q 'Linger=yes'; then
@@ -45,10 +45,10 @@ if ! loginctl show-user "$(id -un)" --property=Linger 2>/dev/null | grep -q 'Lin
 fi
 
 systemctl --user daemon-reload
-systemctl --user enable --now pct-server.service
+systemctl --user enable --now carrel-server.service
 
 echo "導入した: $unit"
 echo "  実行物: $entry"
-echo "  設定:   $config_home/pct"
-echo "  状態:   $state_home/pct"
-systemctl --user --no-pager status pct-server.service || true
+echo "  設定:   $config_home/carrel"
+echo "  状態:   $state_home/carrel"
+systemctl --user --no-pager status carrel-server.service || true

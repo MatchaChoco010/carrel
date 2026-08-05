@@ -15,7 +15,7 @@ import {
 const png = (byte: number): Uint8Array => Uint8Array.from([0x89, 0x50, 0x4e, 0x47, byte])
 
 async function chatDir(): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), 'pct-attach-'))
+  const root = await mkdtemp(join(tmpdir(), 'carrel-attach-'))
   return join(root, 'chats/2026/07/31/20260731T120000-abc123')
 }
 

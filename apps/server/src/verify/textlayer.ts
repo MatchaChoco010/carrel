@@ -31,7 +31,7 @@ export async function readTextLayer(
   paths: TextLayerPaths,
 ): Promise<TextLayer> {
   const regions: Region[] = blocks.map((b) => ({ id: b.id, page: b.page, bbox: b.bbox }))
-  const dir = await mkdtemp(join(tmpdir(), 'pct-textlayer-'))
+  const dir = await mkdtemp(join(tmpdir(), 'carrel-textlayer-'))
   try {
     const requestFile = join(dir, 'request.json')
     await writeFile(requestFile, JSON.stringify({ regions }), 'utf8')

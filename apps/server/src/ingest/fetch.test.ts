@@ -14,7 +14,7 @@ function fakeFetch(body: Buffer, contentType = 'application/pdf'): typeof fetch 
 }
 
 test('取れた原本を書き、大きさと content-type を返す', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'pct-fetch-'))
+  const root = mkdtempSync(join(tmpdir(), 'carrel-fetch-'))
   try {
     const body = Buffer.from('%PDF-1.7\n本文')
     const result = await fetchOriginal(root, 'kerbl2023-3dgs', 'https://example.com/a.pdf', 'pdf', {
@@ -29,7 +29,7 @@ test('取れた原本を書き、大きさと content-type を返す', async () 
 })
 
 test('上限を超えたら失敗し、書きかけを残さない', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'pct-fetch-'))
+  const root = mkdtempSync(join(tmpdir(), 'carrel-fetch-'))
   try {
     await assert.rejects(
       fetchOriginal(root, 'kerbl2023-3dgs', 'https://example.com/big.pdf', 'pdf', {
@@ -45,7 +45,7 @@ test('上限を超えたら失敗し、書きかけを残さない', async () =>
 })
 
 test('応答が失敗なら取りに行かない', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'pct-fetch-'))
+  const root = mkdtempSync(join(tmpdir(), 'carrel-fetch-'))
   try {
     const failing = (async () => new Response('', { status: 403 })) as unknown as typeof fetch
     await assert.rejects(

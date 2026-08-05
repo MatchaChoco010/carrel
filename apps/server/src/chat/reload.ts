@@ -33,7 +33,7 @@ export function buildReloadInput(chat: Chat, dataDir: string, knownSlug: (slug: 
     '',
     '## 会話の記録',
     '',
-    // turn の識別子は pct が分岐に使う値で、議論の中身ではない。
+    // turn の識別子は carrel が分岐に使う値で、議論の中身ではない。
     serializeMessages(withoutTurnIds(chat.messages)),
   ]
   if (papers.length > 0) {

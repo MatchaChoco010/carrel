@@ -44,7 +44,7 @@ export async function readOriginalHead(pdf: string, paths: HeadPaths): Promise<O
     .trim()
   if (text.length >= MIN_CHARS) return { kind: 'text', text }
 
-  const dir = await mkdtemp(join(tmpdir(), 'pct-head-'))
+  const dir = await mkdtemp(join(tmpdir(), 'carrel-head-'))
   const wanted = Array.from({ length: HEAD_PAGES }, (_, i) => i).join(',')
   const { stdout } = await run(paths.python, [paths.pages, pdf, dir, '--pages', wanted], {
     maxBuffer: 16 * 1024 * 1024,

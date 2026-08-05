@@ -1,7 +1,7 @@
-"""PDF を変換し、pct が求める形の JSON と画像を書き出す。
+"""PDF を変換し、carrel が求める形の JSON と画像を書き出す。
 
 使い方:
-    pct_convert.py <PDF> <出力ディレクトリ>
+    carrel_convert.py <PDF> <出力ディレクトリ>
 
 出力ディレクトリには次を作る。
 
@@ -30,7 +30,7 @@ import pypdfium2  # noqa: E402
 from marker.config.parser import ConfigParser  # noqa: E402
 from marker.models import create_model_dict  # noqa: E402
 
-# 変換器のブロック種別を pct の種別へ写す。ここに無いものは other になる。
+# 変換器のブロック種別を carrel の種別へ写す。ここに無いものは other になる。
 BLOCK_KINDS = {
     "Text": "text",
     "TextInlineMath": "text",

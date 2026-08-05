@@ -1,7 +1,7 @@
 """PDF の文字層を、ページと領域の単位で取り出して JSON で返す。
 
 使い方:
-    pct_textlayer.py <PDF> <要求の JSON>
+    carrel_textlayer.py <PDF> <要求の JSON>
 
 要求は次の形で標準入力ではなく引数のファイルから読む。
 

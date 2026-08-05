@@ -7,7 +7,7 @@ import { StateDb } from '../db/state-db.ts'
 import { JobStore } from './store.ts'
 
 function makeHarness() {
-  const root = mkdtempSync(join(tmpdir(), 'pct-job-store-'))
+  const root = mkdtempSync(join(tmpdir(), 'carrel-job-store-'))
   const state = new StateDb(join(root, 'state.sqlite'))
   return {
     store: new JobStore(state.db),

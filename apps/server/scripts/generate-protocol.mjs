@@ -46,7 +46,7 @@ function walk(dir) {
   return files
 }
 
-const staging = mkdtempSync(join(tmpdir(), 'pct-protocol-'))
+const staging = mkdtempSync(join(tmpdir(), 'carrel-protocol-'))
 try {
   execFileSync('codex', ['app-server', 'generate-ts', '--out', staging], { stdio: 'inherit' })
 

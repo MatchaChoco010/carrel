@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 
-const STORAGE_KEY = 'pct.split'
+const STORAGE_KEY = 'carrel.split'
 /** どちらの欄も読める幅を残すための下限と上限。 */
 const MIN = 20
 const MAX = 80

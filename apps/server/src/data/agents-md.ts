@@ -2,16 +2,16 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 /**
- * `$PCT_DATA/AGENTS.md` を置く。
+ * `$CARREL_DATA/AGENTS.md` を置く。
  *
- * 会話スレッドは `$PCT_DATA` を作業ディレクトリとして立つので(0003)、Codex は
+ * 会話スレッドは `$CARREL_DATA` を作業ディレクトリとして立つので(0003)、Codex は
  * ここを自分の指示として読む。コレクションの構造と検索の使い方を伝える先が要る(0002)。
  *
- * 起動のたびに書き直す。ユーザーが書き換えるための場所ではなく、pct が持つ説明である。
+ * 起動のたびに書き直す。ユーザーが書き換えるための場所ではなく、carrel が持つ説明である。
  */
 const BODY = `# このディレクトリについて
 
-ここは pct(paper collection tool)が管理する論文のコレクションである。
+ここは carrel が管理する論文のコレクションである。
 論文とその和訳、そして論文についての議論の記録が置かれている。
 
 ## 構造
@@ -36,7 +36,7 @@ chats/YYYY/MM/DD/<id>/
 
 ## 論文を探す
 
-pct の MCP の道具を使う。
+carrel の MCP の道具を使う。
 
 - \`search_papers\` — 語句と条件で論文を探す。語句は日本語でも英語でもよい。日本語の問い合わせで英語の本文にも当たる。
 - \`list_tags\` — 付いているタグと、それぞれの論文の数を返す。

@@ -2,7 +2,7 @@ const { chmod, rename, writeFile } = require('node:fs/promises')
 const path = require('node:path')
 
 /** ラッパーの中身は src/wrapper.ts が正。ここは配置だけを行う。 */
-const EXECUTABLE = 'pct'
+const EXECUTABLE = 'carrel'
 
 module.exports = async function afterPack(context) {
   if (context.electronPlatformName !== 'linux') return
