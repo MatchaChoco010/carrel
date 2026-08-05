@@ -78,7 +78,7 @@ export function parseDoiRecord(body: unknown): DoiRecord | null {
  */
 export const lookupDoi: DoiLookup = async (doi) => {
   const response = await fetch(`https://doi.org/${encodeURIComponent(doi)}`, {
-    headers: { accept: 'application/vnd.citationstyles.csl+json', 'user-agent': 'pct/0.1 (paper collection tool)' },
+    headers: { accept: 'application/vnd.citationstyles.csl+json', 'user-agent': 'carrel/0.1 (https://github.com/MatchaChoco010/carrel)' },
     redirect: 'follow',
   })
   if (!response.ok) return null

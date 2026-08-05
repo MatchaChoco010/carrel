@@ -25,7 +25,7 @@ test('スレッドを立てるときに道具を渡す', async () => {
   const { client, sent } = recorder()
   await startConversationThread(client, { dataDir: '/data', model: 'gpt-5.6-sol', mcpUrl: MCP_URL })
   const params = sent[0]?.params as { config?: { mcp_servers?: Record<string, { url: string }> } }
-  assert.equal(params.config?.mcp_servers?.['pct']?.url, MCP_URL)
+  assert.equal(params.config?.mcp_servers?.['carrel']?.url, MCP_URL)
 })
 
 test('読み込み直すときにも道具を渡す(#277)', async () => {
@@ -34,7 +34,7 @@ test('読み込み直すときにも道具を渡す(#277)', async () => {
   assert.equal(sent[0]?.method, 'thread/resume')
   const params = sent[0]?.params as { threadId: string; config?: { mcp_servers?: Record<string, { url: string }> } }
   assert.equal(params.threadId, 'th_1')
-  assert.equal(params.config?.mcp_servers?.['pct']?.url, MCP_URL)
+  assert.equal(params.config?.mcp_servers?.['carrel']?.url, MCP_URL)
 })
 
 test('道具の場所を渡さなければ、余計な設定を送らない', async () => {
@@ -60,5 +60,5 @@ test('写して分けるときにも道具を渡す(#313)', async () => {
   }
   assert.equal(params.threadId, 'th_1')
   assert.equal(params.lastTurnId, 'turn_3')
-  assert.equal(params.config?.mcp_servers?.['pct']?.url, MCP_URL)
+  assert.equal(params.config?.mcp_servers?.['carrel']?.url, MCP_URL)
 })

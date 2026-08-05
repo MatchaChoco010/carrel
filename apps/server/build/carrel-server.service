@@ -1,6 +1,6 @@
 [Unit]
-Description=pct (paper collection tool) server
-Documentation=https://github.com/MatchaChoco010/paper-collection-tool
+Description=carrel server
+Documentation=https://github.com/MatchaChoco010/carrel
 After=network-online.target
 Wants=network-online.target
 
@@ -19,7 +19,7 @@ Environment=XDG_CONFIG_HOME=@XDG_CONFIG_HOME@
 Environment=XDG_STATE_HOME=@XDG_STATE_HOME@
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=pct
+SyslogIdentifier=carrel
 
 [Install]
 WantedBy=default.target

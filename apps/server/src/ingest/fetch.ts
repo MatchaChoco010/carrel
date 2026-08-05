@@ -34,7 +34,7 @@ export async function fetchOriginal(
   const maxBytes = options.maxBytes ?? MAX_BYTES
   const response = await (options.fetcher ?? fetch)(url, {
     redirect: 'follow',
-    headers: { 'user-agent': 'pct/0.1 (paper collection tool)' },
+    headers: { 'user-agent': 'carrel/0.1 (https://github.com/MatchaChoco010/carrel)' },
   })
   if (!response.ok) throw new Error(`原本を取得できなかった (${response.status}): ${url}`)
   if (response.body === null) throw new Error(`原本の中身が返らなかった: ${url}`)

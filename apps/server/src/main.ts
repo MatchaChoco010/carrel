@@ -436,7 +436,7 @@ async function main(): Promise<void> {
   const stale = backfillEmbeddings()
   if (stale > 0) console.log(`埋め込みを持たない論文 ${stale} 件を積んだ`)
 
-  // まだ発言が検索の索引に載っていない会話を積む。初回と、pct を止めている間に
+  // まだ発言が検索の索引に載っていない会話を積む。初回と、carrel を止めている間に
   // 増えたぶんがここで入る。
   const indexedChats = chatChunks.indexedChatIds()
   for (const chat of index.listChats()) {
@@ -451,7 +451,7 @@ async function main(): Promise<void> {
   )
   feedTimer.unref()
 
-  // 会話スレッドが pct の MCP の口を呼ぶため、HTTP を開いた後に起動する。
+  // 会話スレッドが carrel の MCP の口を呼ぶため、HTTP を開いた後に起動する。
   try {
     await codex.start()
     const limits = codex.rateLimits

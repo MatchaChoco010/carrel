@@ -64,7 +64,7 @@ export class CodexClient extends EventEmitter {
     this.#options = {
       command: options.command ?? 'codex',
       args: options.args ?? ['app-server'],
-      clientName: options.clientName ?? 'pct',
+      clientName: options.clientName ?? 'carrel',
       clientVersion: options.clientVersion ?? '0.1.0',
       requestTimeoutMs: options.requestTimeoutMs ?? 120_000,
     }
@@ -89,7 +89,7 @@ export class CodexClient extends EventEmitter {
     this.#reader.on('line', (line) => this.#handleLine(line))
 
     await this.request(METHODS.initialize, {
-      clientInfo: { name: this.#options.clientName, title: 'pct', version: this.#options.clientVersion },
+      clientInfo: { name: this.#options.clientName, title: 'carrel', version: this.#options.clientVersion },
       capabilities: null,
     })
   }
@@ -223,7 +223,7 @@ export class CodexClient extends EventEmitter {
     const timer = setTimeout(() => {
       if (!this.#unanswered.has(request.id)) return
       console.error(`${request.method} に誰も答えなかったので断る`)
-      this.respond(request.id, { error: { code: -32601, message: `pct は ${request.method} を扱わない` } })
+      this.respond(request.id, { error: { code: -32601, message: `carrel は ${request.method} を扱わない` } })
     }, UNANSWERED_MS)
     timer.unref()
     this.emit('serverRequest', request)

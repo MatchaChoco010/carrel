@@ -80,7 +80,7 @@ test('識別子だけを落とし、本文と時刻は変えない', () => {
 })
 
 test('会話は識別子のディレクトリの中の chat.md に置く', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'pct-chat-'))
+  const dir = await mkdtemp(join(tmpdir(), 'carrel-chat-'))
   try {
     const at = new Date('2026-07-30T09:00:00+09:00')
     const id = '20260730T090000-abc123'
@@ -92,7 +92,7 @@ test('会話は識別子のディレクトリの中の chat.md に置く', async
 })
 
 test('タイトルを変えても置き場所は変わらない', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'pct-chat-'))
+  const dir = await mkdtemp(join(tmpdir(), 'carrel-chat-'))
   try {
     const at = new Date('2026-07-30T09:00:00+09:00')
     const id = '20260730T090000-abc123'

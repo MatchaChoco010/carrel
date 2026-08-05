@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 export type Lang = 'en' | 'ja'
 
-const STORAGE_KEY = 'pct.lang'
+const STORAGE_KEY = 'carrel.lang'
 
 function stored(): Lang {
   return window.localStorage.getItem(STORAGE_KEY) === 'ja' ? 'ja' : 'en'

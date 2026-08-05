@@ -8,7 +8,7 @@
  */
 
 /** リンクの行き先に使う印。本文のリンクと見分けるために付ける。 */
-export const MENTION_SCHEME = 'pct-paper:'
+export const MENTION_SCHEME = 'carrel-paper:'
 
 /** 打つときに補完が入れる形と同じ綴り。 */
 const MENTION = /@([a-z0-9]+(?:-[a-z0-9]+)*)/g

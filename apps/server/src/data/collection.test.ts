@@ -29,7 +29,7 @@ const meta = (over: Partial<PaperMeta> = {}): PaperMeta => ({
 })
 
 before(async () => {
-  root = await mkdtemp(join(tmpdir(), 'pct-test-'))
+  root = await mkdtemp(join(tmpdir(), 'carrel-test-'))
   dataDir = join(root, 'data')
   index = new IndexDb(join(root, 'index.sqlite'))
   collection = new Collection(dataDir, index)
@@ -155,7 +155,7 @@ async function watched(): Promise<{
   changed: string[]
   close: () => Promise<void>
 }> {
-  const dir = await mkdtemp(join(tmpdir(), 'pct-watch-'))
+  const dir = await mkdtemp(join(tmpdir(), 'carrel-watch-'))
   const db = new IndexDb(join(dir, 'index.sqlite'))
   const data = join(dir, 'data')
   const changed: string[] = []

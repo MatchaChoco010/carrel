@@ -48,7 +48,7 @@ export async function readPageHint(url: string): Promise<PageHint | null> {
   try {
     const response = await fetch(url, {
       redirect: 'follow',
-      headers: { 'user-agent': 'pct/0.1 (paper collection tool)' },
+      headers: { 'user-agent': 'carrel/0.1 (https://github.com/MatchaChoco010/carrel)' },
     })
     if (!response.ok) return null
     if (!(response.headers.get('content-type') ?? '').includes('html')) return null

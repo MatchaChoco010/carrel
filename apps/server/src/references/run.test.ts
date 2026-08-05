@@ -50,7 +50,7 @@ test('JSON として読めない応答は null になる', () => {
 })
 
 test('書いた参考文献をそのまま読み戻せる', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'pct-references-'))
+  const root = mkdtempSync(join(tmpdir(), 'carrel-references-'))
   try {
     const meta: PaperMeta = {
       slug: 'belcour2018-clipped-spherical-harmonics',
@@ -79,7 +79,7 @@ test('書いた参考文献をそのまま読み戻せる', async () => {
 })
 
 test('段階が走っていない論文の参考文献は null になる', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'pct-references-'))
+  const root = mkdtempSync(join(tmpdir(), 'carrel-references-'))
   try {
     assert.equal(await readReferences(root, 'nobody2020-nothing'), null)
   } finally {

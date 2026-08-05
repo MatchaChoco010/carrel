@@ -57,8 +57,8 @@ test('範囲の外れた値は既定値のまま残す', () => {
 })
 
 test('未知のキーは捨てる', () => {
-  const merged = mergeConfig({ unknownKey: 'x', dataDir: '/mnt/nas/pct' })
-  assert.equal(merged.dataDir, '/mnt/nas/pct')
+  const merged = mergeConfig({ unknownKey: 'x', dataDir: '/mnt/nas/carrel' })
+  assert.equal(merged.dataDir, '/mnt/nas/carrel')
   assert.equal('unknownKey' in merged, false)
 })
 
@@ -107,7 +107,7 @@ test('置き場所は絶対パスでなければ断る', async () => {
 })
 
 test('置き場所が無いときは、作れるかを親で判断する', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'pct-config-'))
+  const root = mkdtempSync(join(tmpdir(), 'carrel-config-'))
   try {
     assert.equal(await unusableDataDir(join(root, 'papers')), null)
     assert.match((await unusableDataDir(join(root, 'a', 'b'))) ?? '', /親のディレクトリが無い/)
@@ -117,7 +117,7 @@ test('置き場所が無いときは、作れるかを親で判断する', async
 })
 
 test('置き場所がファイルなら断る', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'pct-config-'))
+  const root = mkdtempSync(join(tmpdir(), 'carrel-config-'))
   try {
     const file = join(root, 'papers')
     writeFileSync(file, '')
@@ -128,7 +128,7 @@ test('置き場所がファイルなら断る', async () => {
 })
 
 test('置き場所に書き込めなければ断る', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'pct-config-'))
+  const root = mkdtempSync(join(tmpdir(), 'carrel-config-'))
   try {
     const dir = join(root, 'papers')
     mkdirSync(dir, { mode: 0o500 })

@@ -6,7 +6,7 @@ import { test } from 'node:test'
 import { writeAgentsMd } from './agents-md.ts'
 
 test('取り込みは明示的に言われたときだけだと書いてある(#296)', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'pct-agents-'))
+  const root = mkdtempSync(join(tmpdir(), 'carrel-agents-'))
   try {
     await writeAgentsMd(root)
     const body = readFileSync(join(root, 'AGENTS.md'), 'utf8')

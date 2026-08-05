@@ -24,7 +24,7 @@ function meta(slug: string, over: Partial<PaperMeta> = {}): PaperMeta {
 }
 
 function harness() {
-  const root = mkdtempSync(join(tmpdir(), 'pct-index-db-'))
+  const root = mkdtempSync(join(tmpdir(), 'carrel-index-db-'))
   const index = new IndexDb(join(root, 'index.sqlite'))
   const put = (m: PaperMeta): void =>
     index.upsertPaper({ meta: m, body: '', mtimeMs: 0, bodyHash: 'x' } as Parameters<typeof index.upsertPaper>[0], true)
