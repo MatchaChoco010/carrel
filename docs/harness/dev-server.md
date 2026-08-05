@@ -40,7 +40,15 @@
 
 - **Codex の利用量**。本番も取り込みで使うので、週次の制限は共有である。
 - **GPU**。変換(marker)と埋め込み(Ollama)が奪い合う。両方で重い処理を同時に回さない。
-- **変換器の venv**。16GB あるので clone ごとには持たない。本番の設定の `converter.python` はこのリポジトリの `apps/converter/.venv/bin/python` を指す。この venv を動かす・消すときは本番の設定も直す。
+
+## 変換器の venv は clone ごとに持つ
+
+変換器の venv(`apps/converter/.venv`)は本番と開発でそれぞれ持ち、共有しない。
+1 つ 15GB あるが、共有すると開発の作業が本番の変換を止める。
+`setup.sh` は毎回 venv を作り直すので、依存を試すだけで本番から python が消える。
+clone のディレクトリ名を変えるだけでも本番が壊れる。
+
+本番の設定 `converter.python` は、本番の clone の中の venv を指す。
 
 ## 本番を新しくする
 
@@ -56,3 +64,5 @@ systemctl --user restart carrel-server
 ```
 
 `install-service.sh` は導入する時点の置き場所をユニットへ焼き込むので、`XDG_CONFIG_HOME` や `XDG_STATE_HOME` を持つ shell からは実行しない(スクリプト側でも拒否する)。
+
+変換器の依存が変わったときは、本番の clone でも `apps/converter/setup.sh` を走らせる。
