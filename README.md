@@ -1,39 +1,69 @@
+<p align="center">
+  <img src="logo/logo-large.png" alt="carrel." width="200">
+</p>
+
 # carrel.
 
-論文を収集して markdown として手元に保持し、セマンティック検索を備えたうえで、Codex のエージェントと論文について議論するためのアプリケーション。
+論文をローカルに保存して読み、検索し、Codex のエージェントと議論するためのアプリケーション。
 
-## 構成
+<p align="center">
+  <img src="screenshots/screenshot-0.jpeg" width="820">
+  <img src="screenshots/screenshot-1.jpeg" width="820">
+  <img src="screenshots/screenshot-2.jpeg" width="820">
+</p>
 
-| ディレクトリ | 中身 |
-|---|---|
-| `apps/server` | 常駐するサーバー。HTTP API・WebSocket・ジョブキュー・フィードの取得・MCP の口 |
-| `docs/design` | design doc |
+## できること
 
-論文とチャットは `$CARREL_DATA`(NAS のマウント先)に markdown で置く。
-設定は `$XDG_CONFIG_HOME/carrel/config.json`、検索用の索引と運用状態は `$XDG_STATE_HOME/carrel/` に置く。
+- **論文をローカルに保存する。** PDF を markdown に変換し、日本語訳を添えて保存する。
+- **保存した論文の内容を検索する。** 意味による検索に対応しており、日本語の語句でも英語で書かれた論文の内容を検索できる。題名・著者・学会名・出版年による絞り込みも併せて利用できる。
+- **Codex のエージェントと論文について議論する。** 対象の論文をエージェントに読ませたうえで質問できる。議論の記録はローカルに markdown ファイルとして保存される。
+- **arXiv の新着を購読する。** 購読するカテゴリを設定すると新着の論文が一覧に並ぶ。abstract の日本語訳を確認したうえで、保存する論文を選べる。
+- **議論の中から論文の保存を依頼する。** 会話の中でエージェントに論文の保存を依頼すると、取り込みの処理が始まる。保存済みの論文は `@` でメンションすると、エージェントがその内容を読んだうえで回答する。エージェント自身が保存済みの論文を検索することもできる。
 
-## 必要なもの
+## 動作環境
 
+- **ChatGPT の Codex の契約。** 論文の取り込みと議論に Codex を利用する。使用量が多いため、Pro プランを推奨する。
 - Node.js 22 以上、pnpm
-- Codex CLI(認証済み)
-- Ollama(埋め込みの生成に使う)
-- Python(PDF の変換に使う)
+- Ollama(埋め込みの生成に使用する。既定のモデルは `bge-m3`)
+- Python と GPU(PDF の変換に使用する)
+
+## 論文と議論の保存先
+
+論文と議論の記録は、アプリケーションとは別のディレクトリに保存する。
+保存先は設定画面から指定できるため、NAS のマウント先や同期対象のディレクトリを指定してもよい。
+
+設定ファイルは `$XDG_CONFIG_HOME/carrel/config.json`、検索の索引と実行状態は `$XDG_STATE_HOME/carrel/` に保存する。
+
+## 導入
+
+**このアプリケーションは作者の環境のみを対象として実装しており、配布物も用意していない。**
+
+利用する場合は、このリポジトリを clone したうえで、コーディングエージェントに自身の環境で動作するよう修正を依頼することを想定している。
+変換器の venv の位置、Ollama の待ち受け先、systemd の有無、GPU の有無といった前提が環境ごとに異なるため、その差を埋める作業が必要になる。
+
+作者の環境での手順は次のとおりである。
+
+```sh
+pnpm install
+pnpm --filter @carrel/server build
+apps/server/scripts/install-service.sh   # systemd の user service として登録する
+```
+
+## 認証について
+
+**carrel は認証の仕組みを持たない。**
+既定では `0.0.0.0:7817` で待ち受けるため、同じ LAN に接続した端末から、論文と議論の記録を誰でも閲覧および編集できる。
+
+作者自身のみが利用する環境を前提としてこの設計にしている。
+自分以外の利用者がいる LAN に設置する場合は、認証を別途実装する必要がある。
+リバースプロキシを前段に置くか、サーバー自体に認証を実装するかは環境によって異なる。
 
 ## 開発
 
 ```sh
 pnpm install
-pnpm --filter @carrel/server dev        # 型剥がしでそのまま実行する
-pnpm --filter @carrel/server typecheck
-pnpm --filter @carrel/server test
+pnpm dev          # 開発用のサーバー(待ち受けは 7818)
+pnpm dev:web      # 画面
+pnpm typecheck
+pnpm test
 ```
-
-## 導入
-
-```sh
-pnpm --filter @carrel/server build
-apps/server/scripts/install-service.sh
-```
-
-systemd の user service として登録し、PC の起動時から動くよう lingering を有効にする(この操作にだけ sudo が要る)。
-取り除くときは `apps/server/scripts/uninstall-service.sh` を実行する。
