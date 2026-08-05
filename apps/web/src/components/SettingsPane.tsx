@@ -383,11 +383,11 @@ export function SettingsPane({ onChanged, reading, onReadingChange }: SettingsPa
           <input
             value={dataDir ?? config.dataDir}
             onChange={(e) => setDataDir(e.target.value)}
-            aria-label="$PCT_DATA の場所"
+            aria-label="$CARREL_DATA の場所"
           />
           <button
             type="button"
-            onClick={() => save({ dataDir: nextDataDir }, '保存した。次に pct を起動したときから使う。')}
+            onClick={() => save({ dataDir: nextDataDir }, '保存した。次に carrel を起動したときから使う。')}
             disabled={!dataDirChanged}
           >
             <Check size={ICON} aria-hidden /> 変える

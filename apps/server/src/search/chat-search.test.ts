@@ -27,7 +27,7 @@ const fakeEmbed: Embedder = async (texts) =>
   })
 
 function harness() {
-  const root = mkdtempSync(join(tmpdir(), 'pct-chat-search-'))
+  const root = mkdtempSync(join(tmpdir(), 'carrel-chat-search-'))
   const index = new IndexDb(join(root, 'index.sqlite'))
   const chunks = new ChatChunkStore(index.db, segment)
   return { root, index, chunks, close: () => (index.close(), rmSync(root, { recursive: true, force: true })) }

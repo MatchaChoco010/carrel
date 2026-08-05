@@ -70,8 +70,8 @@ export function isContextCompactionItem(value: unknown): boolean {
 }
 
 /** 承認を求めるサーバ要求かどうか。 */
-/** pct が立てる MCP のサーバーの名前。会話スレッドの設定に載る。 */
-export const MCP_SERVER_NAME = 'pct'
+/** carrel が立てる MCP のサーバーの名前。会話スレッドの設定に載る。 */
+export const MCP_SERVER_NAME = 'carrel'
 
 /** MCP の道具を使ってよいかを訊いてくる要求。 */
 export const METHODS_ELICITATION = 'mcpServer/elicitation/request'

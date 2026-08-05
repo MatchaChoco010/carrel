@@ -1,7 +1,7 @@
 """HTML の原本から本文だけを取り出し、変換の成果物として書く(0022)。
 
 使い方:
-    pct_html.py <HTML> <出力ディレクトリ> [--base-url URL]
+    carrel_html.py <HTML> <出力ディレクトリ> [--base-url URL]
 
 出力は PDF の変換と同じ形にする。
 
@@ -40,7 +40,7 @@ PARAGRAPH_CHARS = 200
 MIN_PARAGRAPHS = 5
 
 # 画像を落とすときの名乗り。取りに行くのは素の HTTP である(0021)。
-USER_AGENT = "pct/0.1 (paper collection tool)"
+USER_AGENT = "carrel/0.1 (https://github.com/MatchaChoco010/carrel)"
 
 HEADINGS = {"h1": 1, "h2": 2, "h3": 3, "h4": 4, "h5": 5, "h6": 6}
 

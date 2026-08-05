@@ -7,7 +7,7 @@ export type Reading = {
   lineHeight: number
 }
 
-const STORAGE_KEY = 'pct.reading'
+const STORAGE_KEY = 'carrel.reading'
 
 export const READING_DEFAULT: Reading = { fontSize: 14, lineHeight: 1.8 }
 

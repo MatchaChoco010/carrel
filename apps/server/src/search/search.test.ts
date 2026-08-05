@@ -25,7 +25,7 @@ const fakeEmbed: Embedder = async (texts) =>
   })
 
 function harness() {
-  const root = mkdtempSync(join(tmpdir(), 'pct-search-'))
+  const root = mkdtempSync(join(tmpdir(), 'carrel-search-'))
   const index = new IndexDb(join(root, 'index.sqlite'))
   const chunks = new ChunkStore(index.db, segment)
   return { root, index, chunks, close: () => (index.close(), rmSync(root, { recursive: true, force: true })) }

@@ -35,7 +35,7 @@ export function healthUrl(origin: string): string {
 
 function configFile(): string {
   const base = process.env['XDG_CONFIG_HOME'] ?? join(homedir(), '.config')
-  return join(base, 'pct', 'config.json')
+  return join(base, 'carrel', 'config.json')
 }
 
 /** 設定が読めないときは既定の待ち受けを使う。窓は出して、繋がるのを待つ。 */

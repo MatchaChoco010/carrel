@@ -13,7 +13,7 @@ const FALLBACK_PORT = 7818
  */
 function devServerPort(): number {
   try {
-    const file = new URL('../../.dev/config/pct/config.json', import.meta.url)
+    const file = new URL('../../.dev/config/carrel/config.json', import.meta.url)
     const raw: unknown = JSON.parse(readFileSync(file, 'utf8'))
     const server = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>)['server'] : null
     const port = typeof server === 'object' && server !== null ? (server as Record<string, unknown>)['port'] : null

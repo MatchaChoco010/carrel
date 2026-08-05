@@ -11,7 +11,7 @@ import { FeedStore } from './store.ts'
 type Harness = { feed: FeedStore; close: () => void }
 
 function makeHarness(): Harness {
-  const root = mkdtempSync(join(tmpdir(), 'pct-feed-'))
+  const root = mkdtempSync(join(tmpdir(), 'carrel-feed-'))
   const state = new StateDb(join(root, 'state.sqlite'))
   return {
     feed: new FeedStore(state.db),

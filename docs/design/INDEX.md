@@ -1,11 +1,11 @@
 # Design Docs 索引
 
-pct(paper collection tool)の設計判断の記録。
+carrel の設計判断の記録。
 番号は意思決定が行われた順に振る。
 
 | # | タイトル | status | implementation |
 |---|---|---|---|
-| [0001](0001_architecture_and_deployment.md) | pct の全体アーキテクチャと配置 | approved | done (2026-07-30) |
+| [0001](0001_architecture_and_deployment.md) | carrel の全体アーキテクチャと配置 | approved | done (2026-07-30) |
 | [0002](0002_data_contract.md) | 論文とチャットのデータ契約 | approved | done (2026-07-27) |
 | [0003](0003_codex_integration.md) | Codex の使い分けとレート制限の運用 | approved | done (2026-07-27) |
 | [0004](0004_paper_ingestion_and_feed.md) | 論文の取り込みと arXiv フィード | approved | done (2026-07-29) |

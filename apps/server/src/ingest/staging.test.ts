@@ -7,7 +7,7 @@ import test from 'node:test'
 import { readStaged, removeStaged, safeName, stageOriginal, sweepStaged, uploadsDir } from './staging.ts'
 
 async function withDir(run: (dir: string) => Promise<void>): Promise<void> {
-  const dir = await mkdtemp(join(tmpdir(), 'pct-staging-'))
+  const dir = await mkdtemp(join(tmpdir(), 'carrel-staging-'))
   try {
     await run(dir)
   } finally {

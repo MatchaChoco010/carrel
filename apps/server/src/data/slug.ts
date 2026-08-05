@@ -213,7 +213,7 @@ const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 /**
  * ディレクトリ名として読み取った slug が扱える形かを確かめる。
  *
- * `$PCT_DATA` は人が触るので、想定外の名前のディレクトリが混ざりうる。
+ * `$CARREL_DATA` は人が触るので、想定外の名前のディレクトリが混ざりうる。
  */
 export function isValidSlug(value: string): boolean {
   return value.length > 0 && value.length <= 120 && SLUG_PATTERN.test(value)

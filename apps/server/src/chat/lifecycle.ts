@@ -9,7 +9,7 @@ import { nowIsoDateTime } from '../data/datetime.ts'
 export type LifecycleDeps = {
   dataDir: string
   codex: CodexClient
-  /** 索引から会話を外す。`$PCT_DATA` からの相対パスで指す。 */
+  /** 索引から会話を外す。`$CARREL_DATA` からの相対パスで指す。 */
   dropFromIndex: (path: string) => void
   /** 会話を索引へ載せ直す。 */
   reindex: (absolutePath: string) => Promise<void>
@@ -18,7 +18,7 @@ export type LifecycleDeps = {
 /**
  * アーカイブの状態を切り替える。
  *
- * pct 側の状態として frontmatter に持つ。Codex 側にも同名の操作があるが使わない。
+ * carrel 側の状態として frontmatter に持つ。Codex 側にも同名の操作があるが使わない。
  * ユーザーが整理するための概念であり、保存領域が失われても残る必要がある(0006)。
  */
 export async function setArchived(absolutePath: string, archived: boolean, deps: LifecycleDeps): Promise<void> {

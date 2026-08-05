@@ -1,7 +1,7 @@
 #!/bin/sh
-# 開発用の pct サーバーを、本番と別の場所・別の口で立ち上げる。
+# 開発用の carrel サーバーを、本番と別の場所・別の口で立ち上げる。
 #
-# 本番(systemd の pct-server.service)は ~/.config/pct と ~/.local/state/pct を使う。
+# 本番(systemd の carrel-server.service)は ~/.config/carrel と ~/.local/state/carrel を使う。
 # ここで XDG を差し替えるのは、動作確認の削除や設定の変更を本番へ届かせないためである。
 # 設定・状態・コレクションはリポジトリの中の .dev/ に置くので、消せば初期状態に戻る。
 
@@ -15,11 +15,11 @@ XDG_CONFIG_HOME="$dev/config"
 XDG_STATE_HOME="$dev/state"
 export XDG_CONFIG_HOME XDG_STATE_HOME
 
-# 変換と埋め込みを dGPU に載せる。理由は build/pct-server.service に書いてある。
+# 変換と埋め込みを dGPU に載せる。理由は build/carrel-server.service に書いてある。
 ROCR_VISIBLE_DEVICES="${ROCR_VISIBLE_DEVICES:-0}"
 export ROCR_VISIBLE_DEVICES
 
-config="$XDG_CONFIG_HOME/pct/config.json"
+config="$XDG_CONFIG_HOME/carrel/config.json"
 if [ ! -f "$config" ]; then
   mkdir -p "$(dirname -- "$config")"
   # 欠けたキーはサーバーが既定値で埋める。ここには本番と違えたい値だけを書く。
@@ -37,5 +37,5 @@ JSON
 fi
 
 echo "設定: $config"
-echo "状態: $XDG_STATE_HOME/pct"
-exec pnpm --filter @pct/server dev
+echo "状態: $XDG_STATE_HOME/carrel"
+exec pnpm --filter @carrel/server dev

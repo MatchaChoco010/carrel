@@ -61,7 +61,7 @@ export function registerConvert(queue: JobQueue, deps: ConvertDeps): void {
   queue.register(CONVERT_JOB, async (job) => {
     const slug = job.target
     deps.ingests.beginStage(slug, 'convert')
-    const work = await mkdtemp(join(tmpdir(), `pct-convert-${slug}-`))
+    const work = await mkdtemp(join(tmpdir(), `carrel-convert-${slug}-`))
     try {
       const kind = await originalKind(deps.dataDir, slug)
       if (kind === null) throw new Error(`原本が見つからない: ${slug}`)

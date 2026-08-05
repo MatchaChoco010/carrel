@@ -2,13 +2,13 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App.tsx'
 import './styles.css'
-// タブに出すアイコン。デスクトップアプリと同じ絵を使う。
+// タブに出すアイコン。
 // index.html から相対で辿ると vite の開発用サーバーでは届かないので、ここから読む。
-import iconUrl from '../../desktop/build/icon.svg'
+import iconUrl from '../../../logo/logo.png'
 
 const icon = document.createElement('link')
 icon.rel = 'icon'
-icon.type = 'image/svg+xml'
+icon.type = 'image/png'
 icon.href = iconUrl
 document.head.append(icon)
 

@@ -5,13 +5,13 @@ set -euo pipefail
 data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
 niri_dir="${XDG_CONFIG_HOME:-$HOME/.config}/niri"
 niri_config="$niri_dir/config.kdl"
-niri_include='include optional=true "pct.kdl"'
+niri_include='include optional=true "carrel.kdl"'
 
-rm -rf "$data_home/pct"
+rm -rf "$data_home/carrel"
 rm -f \
-  "$data_home/applications/dev.matchachoco010.pct.desktop" \
-  "$data_home/icons/hicolor/512x512/apps/dev.matchachoco010.pct.png" \
-  "$niri_dir/pct.kdl"
+  "$data_home/applications/dev.matchachoco010.carrel.desktop" \
+  "$data_home/icons/hicolor/512x512/apps/dev.matchachoco010.carrel.png" \
+  "$niri_dir/carrel.kdl"
 
 if [[ -f "$niri_config" ]] && grep -Fqx "$niri_include" "$niri_config"; then
   temporary="$(mktemp)"

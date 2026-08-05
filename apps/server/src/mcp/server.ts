@@ -119,7 +119,7 @@ export function describeImport(result: ReturnType<McpDeps['importPaper']>): stri
 }
 
 export function createMcpServer(deps: McpDeps): McpServer {
-  const server = new McpServer({ name: 'pct', version: '0.1.0' })
+  const server = new McpServer({ name: 'carrel', version: '0.1.0' })
 
   server.registerTool(
     'search_papers',

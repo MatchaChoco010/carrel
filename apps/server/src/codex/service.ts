@@ -18,7 +18,7 @@ export type CodexServiceEvents = {
 /**
  * app-server の常駐と、残枠の保持をまとめる。
  *
- * pct の HTTP を先に開いてから起動する。会話スレッドが MCP の口を呼ぶため、
+ * carrel の HTTP を先に開いてから起動する。会話スレッドが MCP の口を呼ぶため、
  * 逆順だと呼び出し先が用意できていない。
  */
 export class CodexService {
@@ -52,7 +52,7 @@ export class CodexService {
   /**
    * サーバーからの問いに答える。
    *
-   * MCP の道具を使う前に、app-server は使ってよいかを訊いてくる。pct 自身の口は
+   * MCP の道具を使う前に、app-server は使ってよいかを訊いてくる。carrel 自身の口は
    * 読み取りだけを公開しており(0005)、ユーザーが会話のために用意したものなので承ける。
    * ほかのサーバーは断る。誰も答えないとターンが完了しない。
    */

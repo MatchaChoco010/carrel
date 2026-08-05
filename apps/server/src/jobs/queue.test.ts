@@ -16,7 +16,7 @@ type Harness = {
 }
 
 function makeHarness(): Harness {
-  const root = mkdtempSync(join(tmpdir(), 'pct-jobs-'))
+  const root = mkdtempSync(join(tmpdir(), 'carrel-jobs-'))
   const state = new StateDb(join(root, 'state.sqlite'))
   return {
     root,
@@ -212,7 +212,7 @@ test('扱う処理が無い仕事は失敗として残す', async () => {
 })
 
 test('再起動をまたいで未完了の仕事が残り、実行中のものは待機へ戻る', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'pct-jobs-'))
+  const root = mkdtempSync(join(tmpdir(), 'carrel-jobs-'))
   const file = join(root, 'state.sqlite')
   try {
     const first = new StateDb(file)

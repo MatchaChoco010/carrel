@@ -27,7 +27,7 @@ torch は ROCm の安定版を URL で直接指定して入れる。
 ## 実行
 
 ```sh
-.venv/bin/python pct_convert.py <PDF> <出力ディレクトリ>
+.venv/bin/python carrel_convert.py <PDF> <出力ディレクトリ>
 ```
 
 出力ディレクトリに次ができる。
@@ -39,7 +39,7 @@ torch は ROCm の安定版を URL で直接指定して入れる。
 | `pages/` | 全ページの画像 |
 
 呼び出す側が依存するのは `document.json` の形だけである。
-モード・推論バックエンド・装置の指定は `pct_convert.py` の中で閉じている。
+モード・推論バックエンド・装置の指定は `carrel_convert.py` の中で閉じている。
 
 ## 更新するとき
 

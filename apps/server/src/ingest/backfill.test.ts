@@ -26,7 +26,7 @@ function meta(slug: string, over: Partial<PaperMeta> = {}): PaperMeta {
 }
 
 function harness() {
-  const root = mkdtempSync(join(tmpdir(), 'pct-backfill-'))
+  const root = mkdtempSync(join(tmpdir(), 'carrel-backfill-'))
   const state = new StateDb(join(root, 'state.sqlite'))
   const ingests = new IngestStore(state.db)
   const dataDir = join(root, 'data')

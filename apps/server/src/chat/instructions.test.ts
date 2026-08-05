@@ -2,14 +2,14 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { chatInstructions, fullInstructionNotice, instructionChangeNotice } from './instructions.ts'
 
-test('ユーザーの指示は pct の指示の後ろに置く', () => {
+test('ユーザーの指示は carrel の指示の後ろに置く', () => {
   const built = chatInstructions('常体で答える。')
 
-  assert.ok(built.startsWith('あなたは pct'), 'pct の指示が先に来る')
+  assert.ok(built.startsWith('あなたは carrel'), 'carrel の指示が先に来る')
   assert.ok(built.endsWith('常体で答える。'), 'ユーザーの指示が後に来る')
 })
 
-test('ユーザーの指示が空なら pct の指示だけを渡す', () => {
+test('ユーザーの指示が空なら carrel の指示だけを渡す', () => {
   assert.equal(chatInstructions(''), chatInstructions('   '))
   assert.ok(!chatInstructions('').endsWith('\n\n'))
 })
@@ -24,7 +24,7 @@ test('図の指し方を渡す', () => {
 test('差し込みは、入れ替わったことと応答しないことを書く', () => {
   const notice = instructionChangeNotice('常体で答える。')
 
-  assert.match(notice, /pct からの連絡/)
+  assert.match(notice, /carrel からの連絡/)
   assert.match(notice, /常体で答える。/)
   assert.match(notice, /応答しない/)
   assert.ok(notice.endsWith('---\n'), '続く発言と区切る')
@@ -34,19 +34,19 @@ test('指示を空にしたときは、取り消されたことを書く', () =>
   const notice = instructionChangeNotice('')
 
   assert.match(notice, /取り消された/)
-  assert.match(notice, /pct の指示だけに従う/)
+  assert.match(notice, /carrel の指示だけに従う/)
 })
 
-test('覚えの無いスレッドへは pct の指示ごと差し込む', () => {
+test('覚えの無いスレッドへは carrel の指示ごと差し込む', () => {
   const notice = fullInstructionNotice('常体で答える。')
 
-  assert.match(notice, /pct からの連絡/)
+  assert.match(notice, /carrel からの連絡/)
   assert.match(notice, /@<slug>\/assets\/<画像のファイル名>/, '図の指し方が載る')
   assert.match(notice, /常体で答える。/)
   assert.match(notice, /応答しない/)
 })
 
-test('ユーザーの指示が空でも pct の指示は載る', () => {
+test('ユーザーの指示が空でも carrel の指示は載る', () => {
   assert.match(fullInstructionNotice(''), /@<slug>\/assets\/<画像のファイル名>/)
 })
 

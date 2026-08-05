@@ -30,7 +30,7 @@ const meta = (slug: string): PaperMeta => ({
 })
 
 function harness() {
-  const root = mkdtempSync(join(tmpdir(), 'pct-register-'))
+  const root = mkdtempSync(join(tmpdir(), 'carrel-register-'))
   const index = new IndexDb(join(root, 'index.sqlite'))
   const chunks = new ChunkStore(index.db, segment)
   const deps = {

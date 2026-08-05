@@ -9,11 +9,11 @@ function xdg(envName: string, fallback: string): string {
 }
 
 export function configDir(): string {
-  return join(xdg('XDG_CONFIG_HOME', '.config'), 'pct')
+  return join(xdg('XDG_CONFIG_HOME', '.config'), 'carrel')
 }
 
 export function stateDir(): string {
-  return join(xdg('XDG_STATE_HOME', '.local/state'), 'pct')
+  return join(xdg('XDG_STATE_HOME', '.local/state'), 'carrel')
 }
 
 export function configFile(): string {
@@ -26,12 +26,12 @@ export function indexDbFile(): string {
 
 /** HTML の原本を変換する script(0022)。 */
 export function htmlScript(): string {
-  return join(converterDir(), 'pct_html.py')
+  return join(converterDir(), 'carrel_html.py')
 }
 
 /** ページを画像にする script(0021)。 */
 export function pagesScript(): string {
-  return join(converterDir(), 'pct_pages.py')
+  return join(converterDir(), 'carrel_pages.py')
 }
 
 export function stateDbFile(): string {
@@ -54,12 +54,12 @@ export function converterPython(): string {
 
 /** 変換スクリプト。リポジトリの中の位置は動かないので、実行ファイルから辿る。 */
 export function converterScript(): string {
-  return join(converterDir(), 'pct_convert.py')
+  return join(converterDir(), 'carrel_convert.py')
 }
 
 /** 文字層を取り出すスクリプト。 */
 export function textLayerScript(): string {
-  return join(converterDir(), 'pct_textlayer.py')
+  return join(converterDir(), 'carrel_textlayer.py')
 }
 
 /**
