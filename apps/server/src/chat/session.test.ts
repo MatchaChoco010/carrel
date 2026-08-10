@@ -31,7 +31,7 @@ function sessions(alive: (threadId: string) => boolean): { chats: ChatSessions; 
   return { chats, resumed }
 }
 
-/** 背景の調べが終わるまで待つ。 */
+/** 一覧を返した後の調べが終わるまで待つ。 */
 async function settle(): Promise<void> {
   for (let i = 0; i < 10; i += 1) await Promise.resolve()
 }
