@@ -140,6 +140,14 @@ const MIGRATIONS: Migration[] = [
       alter table ingest_stages_new rename to ingest_stages;
     `,
   },
+  {
+    version: 10,
+    up: `
+      -- 取り込む原本のページ数(#328)。想定より桁違いに長い原本を、変換が始まる前に見つける。
+      -- 既にある記録は数え直さないので、空のままにする。
+      alter table ingests add column pages integer;
+    `,
+  },
 ]
 
 /**

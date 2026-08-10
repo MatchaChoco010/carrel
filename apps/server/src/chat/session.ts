@@ -85,6 +85,8 @@ export class ChatSessions {
    * 否定の結果も覚えてよい。読み込み直しをしたときだけ書き換わる。
    */
   readonly #alive = new Map<string, boolean>()
+  /** いま調べている最中のスレッド。同じものを二重に調べないために持つ(#327)。 */
+  readonly #resolving = new Set<string>()
 
   constructor(deps: SessionDeps) {
     this.#deps = deps
@@ -118,6 +120,36 @@ export class ChatSessions {
   async stateOfThread(threadId: string | null): Promise<ChatState> {
     if (threadId === null) return 'new'
     return (await this.#isAlive(threadId)) ? 'resumable' : 'needsReload'
+  }
+
+  /**
+   * 既に調べ終えている状態だけを返す。まだなら null(#327)。
+   *
+   * 調べるには resume を投げるほかなく、会話の数だけ Codex に履歴を読み込ませることに
+   * なる。一覧はこれで即座に返し、まだ分からないものは {@link resolveStates} に任せる。
+   */
+  knownStateOfThread(threadId: string | null): ChatState | null {
+    if (threadId === null) return 'new'
+    const known = this.#alive.get(threadId)
+    if (known === undefined) return null
+    return known ? 'resumable' : 'needsReload'
+  }
+
+  /**
+   * まだ調べていないスレッドを、一覧を返した後で調べる(#327)。
+   *
+   * 分かったものから `onResolved` で知らせる。この呼び出しは待たずに返る。
+   * 同じスレッドを二重に調べないよう、調べている間は覚えておく。
+   */
+  resolveStates(threadIds: (string | null)[], onResolved: (threadId: string, state: ChatState) => void): void {
+    for (const threadId of threadIds) {
+      if (threadId === null || this.#alive.has(threadId) || this.#resolving.has(threadId)) continue
+      this.#resolving.add(threadId)
+      void this.#isAlive(threadId)
+        .then((alive) => onResolved(threadId, alive ? 'resumable' : 'needsReload'))
+        .catch(() => undefined)
+        .finally(() => this.#resolving.delete(threadId))
+    }
   }
 
   markResumed(threadId: string): void {

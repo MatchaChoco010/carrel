@@ -53,3 +53,15 @@ export async function readOriginalHead(pdf: string, paths: HeadPaths): Promise<O
   const files = Array.isArray(parsed.files) ? parsed.files.filter((f): f is string => typeof f === 'string') : []
   return { kind: 'images', files, dispose: () => rm(dir, { recursive: true, force: true }) }
 }
+
+/**
+ * 原本のページ数(#328)。
+ *
+ * 紙面を開かずに数えるので、何百ページある原本でも軽い。
+ */
+export async function countPages(pdf: string, paths: Pick<HeadPaths, 'python' | 'pages'>): Promise<number> {
+  const { stdout } = await run(paths.python, [paths.pages, pdf, '--count'])
+  const parsed = JSON.parse(stdout) as { pages?: unknown }
+  if (typeof parsed.pages !== 'number') throw new Error(`ページ数を読めなかった: ${stdout}`)
+  return parsed.pages
+}

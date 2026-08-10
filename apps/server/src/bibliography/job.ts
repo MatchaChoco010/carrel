@@ -1,3 +1,4 @@
+import { Stopped } from '../batches.ts'
 import type { IngestStore } from '../ingest/store.ts'
 import type { JobQueue } from '../jobs/queue.ts'
 import type { Job } from '../jobs/types.ts'
@@ -18,7 +19,7 @@ export function registerBibliography(
   queue: JobQueue,
   deps: BibliographyDeps & { ingests: IngestStore; onDone: (slug: string) => void },
 ): void {
-  queue.register(BIBLIOGRAPHY_JOB, async (job) => {
+  queue.register(BIBLIOGRAPHY_JOB, async (job, signal) => {
     const slug = job.target
     deps.ingests.beginStage(slug, 'bibliography')
     // 確かめられなくても取り込みは進める。学会名が空でも論文は読める(0020)。
@@ -27,6 +28,9 @@ export function registerBibliography(
     } catch (error) {
       console.log(`書誌を確かめられなかった: ${slug}: ${error instanceof Error ? error.message : String(error)}`)
     }
+    // この段階は 1 つのターンで終わるので、途中では抜けられない。終わってから見て、
+    // 止められていたら次を積まずに抜ける(#329)。
+    if (signal.aborted) throw new Stopped()
     if (deps.ingests.advance(slug, 'translate')) deps.onDone(slug)
   })
 }

@@ -63,7 +63,11 @@ const SECTIONS_AT_ONCE = 8
 /** 訳し終えた節。abstract も 1 つの節として同じ並びに入る。 */
 type Translated = SectionOutcome & { markdown: string; isAbstract: boolean }
 
-export async function translatePaper(slug: string, deps: TranslateDeps): Promise<SectionOutcome[]> {
+export async function translatePaper(
+  slug: string,
+  deps: TranslateDeps,
+  signal?: AbortSignal,
+): Promise<SectionOutcome[]> {
   const paper = await readPaper(deps.dataDir, slug)
   if (paper === null) throw new Error(`論文が読めない: ${slug}`)
   const sections = splitSections(paper.body)
@@ -94,7 +98,7 @@ export async function translatePaper(slug: string, deps: TranslateDeps): Promise
   const done: Translated[] = await inBatches(work, SECTIONS_AT_ONCE, async (item) => {
     const result = await translateSection(item.request, deps)
     return { index: item.request.index, heading: item.heading, isAbstract: item.isAbstract, ...result }
-  })
+  }, signal)
 
   const body = done.filter((d) => !d.isAbstract)
   await writePaperSideFile(deps.dataDir, slug, 'bodyJa', joinSections(body.map((d) => d.markdown)), 'ja')

@@ -6,7 +6,7 @@ import { deletePaperDir, readPaper, writePaper, writePaperSideFile, type PaperMe
 import { buildSlug } from '../data/slug.ts'
 import type { IndexDb } from '../db/index-db.ts'
 import { fetchOriginal, looksLikePdf } from './fetch.ts'
-import { readOriginalHead, type HeadPaths, type OriginalHead } from './head.ts'
+import { countPages, readOriginalHead, type HeadPaths, type OriginalHead } from './head.ts'
 import { judgeOriginal, type AskedPaper } from './judge.ts'
 import { scanForPdfLinks } from './links.ts'
 import { findSamePaper, type Candidate } from './same-paper.ts'
@@ -195,6 +195,20 @@ async function readHtmlHead(path: string): Promise<OriginalHead> {
   return { kind: 'text', text }
 }
 
+/**
+ * 取ってきた原本のページ数を記録に入れる(#328)。
+ *
+ * 数えられなくても取り込みは続ける。ページ数は原本の長さを人に見せるためのもので、
+ * 取り込みの成否を決めるものではない。
+ */
+async function recordPages(slug: string, pdf: string, deps: IngestDeps): Promise<void> {
+  try {
+    deps.ingests.setPages(slug, await countPages(pdf, deps.head))
+  } catch {
+    // 読めない原本でも、変換の段階が同じものを読んで改めて失敗する。
+  }
+}
+
 /** すべての所在で取れなかったときの失敗。別の所在を探し直すために、内訳を持たせる。 */
 export class FetchAllFailed extends Error {
   readonly failures: string[]
@@ -340,6 +354,7 @@ export async function ingestFromUrl(url: string, deps: IngestDeps): Promise<Inge
     if (taken.url !== source.originalUrl) {
       await writePaper(deps.dataDir, { ...toMeta(slug, source, sourceUrl), pdfUrl: taken.url }, '')
     }
+    if (source.kind !== 'html') await recordPages(slug, taken.path, deps)
     deps.ingests.advance(slug, 'convert')
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
@@ -422,6 +437,7 @@ export async function ingestFromUpload(staged: StagedOriginal, deps: IngestDeps)
 
     await mkdir(paperDir(deps.dataDir, slug), { recursive: true })
     await moveFile(staged.path, paperOriginalPdf(deps.dataDir, slug))
+    await recordPages(slug, paperOriginalPdf(deps.dataDir, slug), deps)
     deps.ingests.advance(slug, 'convert')
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)

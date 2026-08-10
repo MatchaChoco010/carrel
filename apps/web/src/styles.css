@@ -1041,6 +1041,13 @@ body {
   user-select: text;
 }
 
+/* 取り込む原本のページ数(#328)。長さの桁が違えば目に留まるように、経過時間の隣へ置く。 */
+.ingest__pages {
+  flex: none;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 .ingest__total {
   display: inline-flex;
   align-items: center;
@@ -1149,6 +1156,32 @@ body {
 
 .ingest__discard:hover {
   color: var(--text);
+}
+
+/* 走っている取り込みを止めるボタン(#329)。捨てるボタンと同じ並びに置く。 */
+.ingest__stop {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  padding: 0 2px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+
+.ingest__stop:hover {
+  color: var(--text);
+}
+
+/* 止める前の確認と、止めている間の断り(#329)。 */
+.ingest__confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
 /* --- 知らせ(トースト) --- */

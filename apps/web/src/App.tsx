@@ -303,6 +303,7 @@ export function App() {
                   }}
                   revision={revision}
                   onChanged={() => setRevision((n) => n + 1)}
+                  subscribe={subscribe}
                 />
               </div>
             )}

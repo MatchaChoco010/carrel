@@ -432,3 +432,29 @@ test('解決は受け付けた時刻に積まれ、走り出した時刻から�
     h.close()
   }
 })
+
+test('原本のページ数を記録に残す(#328)', () => {
+  const h = harness()
+  try {
+    h.ingests.start({ slug: 'a2020-x', sourceUrl: 'u', arxivId: null, originalUrl: null })
+    assert.equal(h.ingests.get('a2020-x')?.pages, null)
+
+    h.ingests.setPages('a2020-x', 884)
+    assert.equal(h.ingests.get('a2020-x')?.pages, 884)
+  } finally {
+    h.close()
+  }
+})
+
+test('同じ slug を取り込み直すと、前のページ数は残らない(#328)', () => {
+  const h = harness()
+  try {
+    h.ingests.start({ slug: 'a2020-x', sourceUrl: 'u', arxivId: null, originalUrl: null })
+    h.ingests.setPages('a2020-x', 884)
+
+    h.ingests.start({ slug: 'a2020-x', sourceUrl: 'u2', arxivId: null, originalUrl: null })
+    assert.equal(h.ingests.get('a2020-x')?.pages, null)
+  } finally {
+    h.close()
+  }
+})
