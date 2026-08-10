@@ -11,6 +11,13 @@ export type IngestRecord = {
   /** 解決が読み取った題。索引に載る前でも同じ論文かを引けるようにする(#263)。 */
   title: string | null
   doi: string | null
+  /**
+   * 取り込む原本のページ数(#328)。数える前と、ページを持たない原本では null。
+   *
+   * 章の名前の付いた PDF に本が一冊入っていることがある。変換が始まる前に出しておけば、
+   * 桁違いに長い原本を人が見つけて止められる。
+   */
+  pages: number | null
   stage: IngestStage
   status: IngestStatus
   startedAt: number
@@ -25,6 +32,7 @@ type Row = {
   original_url: string | null
   title: string | null
   doi: string | null
+  pages: number | null
   stage: string
   status: string
   started_at: number
@@ -40,6 +48,7 @@ function toRecord(row: Row): IngestRecord {
     originalUrl: row.original_url,
     title: row.title,
     doi: row.doi,
+    pages: row.pages,
     stage: row.stage as IngestStage,
     status: row.status as IngestStatus,
     startedAt: row.started_at,
@@ -64,7 +73,10 @@ export class IngestStore {
    * 現在時刻にすると、解決にかかった時間が記録から抜け落ちる(#238)。
    */
   start(
-    record: Omit<IngestRecord, 'stage' | 'status' | 'startedAt' | 'updatedAt' | 'lastError' | 'title' | 'doi'> &
+    record: Omit<
+      IngestRecord,
+      'stage' | 'status' | 'startedAt' | 'updatedAt' | 'lastError' | 'title' | 'doi' | 'pages'
+    > &
       Partial<Pick<IngestRecord, 'title' | 'doi'>>,
     at?: number,
   ): IngestRecord {
@@ -82,6 +94,8 @@ export class IngestStore {
            original_url = excluded.original_url,
            title = excluded.title,
            doi = excluded.doi,
+           -- 別の原本を取り直すので、前のページ数は捨てる(#328)。
+           pages = null,
            status = 'inProgress',
            updated_at = excluded.updated_at,
            last_error = null
@@ -280,6 +294,11 @@ export class IngestStore {
       .prepare(`select slug from ingests where status <> 'done' and title is null`)
       .all() as Array<{ slug: string }>
     return rows.map((r) => r.slug)
+  }
+
+  /** 取ってきた原本のページ数を記録に入れる(#328)。 */
+  setPages(slug: string, pages: number): void {
+    this.#db.prepare('update ingests set pages = ? where slug = ?').run(pages, slug)
   }
 
   /** 記録に題と DOI を入れる。突き合わせの材料が後から分かったときに使う(#271)。 */
