@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { forkThread } from '../chat/branch.ts'
 import type { CodexClient } from './client.ts'
-import { resumeThread, startConversationThread } from './threads.ts'
+import { resumeThread, runTurn, startConversationThread } from './threads.ts'
 
 /** 投げられた要求を控えるだけの代役。 */
 function recorder(fail = false): { client: CodexClient; sent: Array<{ method: string; params: unknown }> } {
@@ -61,4 +61,67 @@ test('写して分けるときにも道具を渡す(#313)', async () => {
   assert.equal(params.threadId, 'th_1')
   assert.equal(params.lastTurnId, 'turn_3')
   assert.equal(params.config?.mcp_servers?.['carrel']?.url, MCP_URL)
+})
+
+/** ターンの通知を順に流す代役。`turn/completed` の中身を差し替えられる。 */
+function turnRunner(turns: Array<{ status: string; error?: { message: string } }>): {
+  client: CodexClient
+  calls: () => number
+} {
+  let at = 0
+  const handlers: Array<(n: { method: string; params: unknown }) => void> = []
+  const client = {
+    onThread(_id: string, hooks: { notify: (n: { method: string; params: unknown }) => void }) {
+      handlers.push(hooks.notify)
+      return () => {
+        const i = handlers.indexOf(hooks.notify)
+        if (i >= 0) handlers.splice(i, 1)
+      }
+    },
+    async request(method: string) {
+      if (method !== 'turn/start') return {}
+      const turn = turns[Math.min(at, turns.length - 1)]
+      at += 1
+      queueMicrotask(() => {
+        for (const notify of [...handlers]) {
+          notify({ method: 'item/completed', params: { item: { type: 'agentMessage', phase: 'final_answer', text: '{}' } } })
+          notify({ method: 'turn/completed', params: { turn } })
+        }
+      })
+      return {}
+    },
+  }
+  return { client: client as unknown as CodexClient, calls: () => at }
+}
+
+test('完了したターンはそのまま返る(#325)', async () => {
+  const { client } = turnRunner([{ status: 'completed' }])
+  const outcome = await runTurn(client, { threadId: 'th_1', input: [] }, { retryDelaysMs: [] })
+  assert.equal(outcome.status, 'completed')
+  assert.equal(outcome.text, '{}')
+})
+
+test('完了しなかったターンは、空の本文を返さず投げる(#325)', async () => {
+  const { client } = turnRunner([{ status: 'failed', error: { message: 'Selected model is at capacity.' } }])
+  await assert.rejects(
+    () => runTurn(client, { threadId: 'th_1', input: [] }, { retryDelaysMs: [] }),
+    (error: Error) => {
+      assert.equal(error.name, 'TurnFailedError')
+      // 論文の問題ではなく Codex の問題だと分かる文言にする。
+      assert.match(error.message, /Codex がターンを完了できなかった/)
+      assert.match(error.message, /at capacity/)
+      return true
+    },
+  )
+})
+
+test('理由が添えられていなくても、Codex の問題だと分かる(#325)', async () => {
+  const { client } = turnRunner([{ status: 'interrupted' }])
+  await assert.rejects(
+    () => runTurn(client, { threadId: 'th_1', input: [] }, { retryDelaysMs: [] }),
+    (error: Error) => {
+      assert.match(error.message, /Codex がターンを完了できなかった。時間を置いてやり直すこと。$/)
+      return true
+    },
+  )
 })

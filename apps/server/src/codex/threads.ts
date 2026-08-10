@@ -114,10 +114,58 @@ export async function startWorkThread(
  * 最終的な本文は `turn/completed` ではなく `item/completed` に載る
  * (`turn/completed` の items は空で返るため)。
  */
-export function runTurn(
+/**
+ * ターンが完了しなかったことを表す(#325)。
+ *
+ * 完了しなかった時点で、原因は Codex の側にある。容量不足も接続の切断もここに入る。
+ * どの種類かは分けない。呼ぶ側が知りたいのは、その論文の問題ではないということだけである。
+ */
+export class TurnFailedError extends Error {
+  constructor(detail: string | null) {
+    const tail = detail === null ? '' : `(${detail})`
+    super(`Codex がターンを完了できなかった。時間を置いてやり直すこと。${tail}`)
+    this.name = 'TurnFailedError'
+  }
+}
+
+/** 流し直す間隔(ミリ秒)。ここまで待って通らなければ諦め、ユーザーの手に返す。 */
+const RETRY_DELAYS_MS = [30_000, 60_000, 120_000, 240_000, 480_000]
+
+const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
+
+/**
+ * ターンを流す。完了しなかったら間隔を空けて流し直す(#325)。
+ *
+ * 失敗したターンは何も残さないので、同じスレッドへもう一度流してよい。待つのは失敗した
+ * ターンだけで、他の仕事は止めない。容量不足は通るものと通らないものが混ざるためである。
+ */
+export async function runTurn(
   client: CodexClient,
   params: TurnStartParams,
-  hooks: { onDelta?: (delta: string) => void; onStarted?: (turnId: string) => void } = {},
+  options: {
+    onDelta?: (delta: string) => void
+    onStarted?: (turnId: string) => void
+    /** 流し直す間隔。試験で差し替える。 */
+    retryDelaysMs?: number[]
+  } = {},
+): Promise<TurnOutcome> {
+  const hooks = { onDelta: options.onDelta, onStarted: options.onStarted }
+  for (const delay of options.retryDelaysMs ?? RETRY_DELAYS_MS) {
+    try {
+      return await runTurnOnce(client, params, hooks)
+    } catch (error) {
+      if (!(error instanceof TurnFailedError)) throw error
+      console.warn(`${error.message} ${delay / 1000} 秒後に流し直す`)
+      await wait(delay)
+    }
+  }
+  return await runTurnOnce(client, params, hooks)
+}
+
+function runTurnOnce(
+  client: CodexClient,
+  params: TurnStartParams,
+  hooks: { onDelta?: ((delta: string) => void) | undefined; onStarted?: ((turnId: string) => void) | undefined } = {},
 ): Promise<TurnOutcome> {
   return new Promise<TurnOutcome>((resolve, reject) => {
     let text = ''
@@ -158,13 +206,16 @@ export function runTurn(
         }
         case NOTIFICATIONS.turnCompleted: {
           const turn = (payload['turn'] ?? {}) as Record<string, unknown>
-          finish({
-            threadId: params.threadId,
-            turnId,
-            status: typeof turn['status'] === 'string' ? turn['status'] : 'unknown',
-            text,
-            compacted,
-          })
+          const status = typeof turn['status'] === 'string' ? turn['status'] : 'unknown'
+          // 完了しなかったターンは本文を持たない。空の本文を返すと、受け取った側が
+          // 応答の形が違うと誤って報告する(#325)。
+          if (status !== 'completed') {
+            off()
+            const detail = (turn['error'] ?? null) as { message?: unknown } | null
+            reject(new TurnFailedError(typeof detail?.message === 'string' ? detail.message : null))
+            return
+          }
+          finish({ threadId: params.threadId, turnId, status, text, compacted })
           return
         }
         default:
