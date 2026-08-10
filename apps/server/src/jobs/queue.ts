@@ -44,6 +44,8 @@ export class JobQueue {
   #started = false
   #quotaTimer: NodeJS.Timeout | null = null
   #inFlight = new Set<Promise<void>>()
+  /** 走っている仕事を止めるための合図と、その仕事が片付くまで(#329)。 */
+  #running = new Map<number, { stop: AbortController; settled: Promise<void> }>()
 
   constructor(store: JobStore, options: JobQueueOptions = {}) {
     this.#store = store
@@ -105,6 +107,29 @@ export class JobQueue {
     return this.#store.cancelPending(target)
   }
 
+  /**
+   * その対象の仕事を、待っているものも走っているものも止める(#329)。
+   *
+   * 走っている仕事が片付くまで待ってから返る。片付いた仕事は記録ごと消すので、
+   * 呼んだ側は残骸を片付けてよい。
+   *
+   * 止まるまでにかかる時間は仕事による。変換器は子プロセスを終わらせるので即座に、
+   * Codex を使う段階は束の切れ目までかかる。
+   */
+  async cancel(target: string): Promise<{ cancelled: number; stopped: number }> {
+    const running = this.#store.list(['running']).filter((job) => job.target === target)
+    const { cancelled } = this.#store.cancelPending(target)
+    const waits: Promise<void>[] = []
+    for (const job of running) {
+      const entry = this.#running.get(job.id)
+      if (entry === undefined) continue
+      entry.stop.abort()
+      waits.push(entry.settled)
+    }
+    await Promise.all(waits)
+    return { cancelled, stopped: running.length }
+  }
+
   onQuotaChanged(): void {
     if (this.#quota.blocked()) {
       const moved = this.#store.markWaitingForQuota(QUOTA_BOUND)
@@ -155,13 +180,25 @@ export class JobQueue {
     const running = this.#store.setState(job.id, 'running')
     if (running !== null) this.#onChange(running)
 
-    const task = handler(job)
+    const stop = new AbortController()
+
+    const task = handler(job, stop.signal)
       .then(() => {
+        // 止めた仕事は、抜け方が投げるか返すかによらず記録ごと消す(#329)。
+        if (stop.signal.aborted) {
+          this.#store.drop(job.id)
+          return
+        }
         const done = this.#store.setState(job.id, 'done')
         if (done !== null) this.#onChange(done)
         this.#store.pruneFinished(KEEP_FINISHED, FINISHED_MAX_AGE_MS)
       })
       .catch((error: unknown) => {
+        // 止めた仕事は失敗ではない。やり直しにも一覧にも残さない(#329)。
+        if (stop.signal.aborted) {
+          this.#store.drop(job.id)
+          return
+        }
         const message = error instanceof Error ? error.message : String(error)
         // 投げられた場所も残す。文言だけでは、どの段階のどの行で落ちたのかを後から
         // 追えない(#285)。一覧に出すのは文言だけで、こちらはログに残す。
@@ -173,9 +210,11 @@ export class JobQueue {
       })
       .finally(() => {
         this.#inFlight.delete(task)
+        this.#running.delete(job.id)
         this.pump()
       })
 
     this.#inFlight.add(task)
+    this.#running.set(job.id, { stop, settled: task })
   }
 }

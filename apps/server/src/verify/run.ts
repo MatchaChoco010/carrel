@@ -105,7 +105,7 @@ const PAGES_AT_ONCE = 8
  *
  * `paper.raw.md` は残す。照合前との差分を見られるようにするためである(0004)。
  */
-export async function verifyPaper(slug: string, deps: VerifyDeps): Promise<void> {
+export async function verifyPaper(slug: string, deps: VerifyDeps, signal?: AbortSignal): Promise<void> {
   const document = parseDocument(await readFile(paperBlocksFile(deps.dataDir, slug), 'utf8'))
   const layer = await readTextLayer(paperOriginalPdf(deps.dataDir, slug), document.blocks, deps.textLayer)
   const work = buildPageWork(document, layer, ASSETS_DIR_NAME)
@@ -120,7 +120,7 @@ export async function verifyPaper(slug: string, deps: VerifyDeps): Promise<void>
     const remaining = needsFocus(after) ? after : null
 
     return { markdown, report: { page: page.page, changes: result.changes, remaining, transcribed: page.input.transcribe } }
-  })
+  }, signal)
 
   const parts = done.map((d) => d.markdown.trim()).filter((text) => text.length > 0)
   const reports: PageReport[] = done.map((d) => d.report)

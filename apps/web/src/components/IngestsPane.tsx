@@ -1,4 +1,4 @@
-import { Check, CircleDashed, Ellipsis, Eraser, Loader2, RotateCcw, Trash2, X } from 'lucide-react'
+import { Check, CircleDashed, Ellipsis, Eraser, Loader2, RotateCcw, Square, Trash2, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api, type Ingest, type IngestStage } from '../api.ts'
 import { clockFor, stageElapsed, stageState, totalElapsed } from '../ingest-timing.ts'
@@ -100,6 +100,10 @@ export function IngestsPane({ ingests, waiting, onChanged }: IngestsPaneProps) {
   const [busy, setBusy] = useState(false)
   /** やり直しを断られた理由。走っている取り込みや、原本の残っていないものがある。 */
   const [error, setError] = useState<string | null>(null)
+  /** 止め終わるのを待っている取り込み(#329)。待つ間、その行に断りを出す。 */
+  const [stopping, setStopping] = useState<Set<string>>(() => new Set())
+  /** 止める前に確かめている取り込み。押し間違いで途中の成果を捨てないため(#329)。 */
+  const [confirming, setConfirming] = useState<string | null>(null)
   const done = ingests.filter((i) => i.status === 'done').length
 
   const clear = (): void => {
@@ -126,12 +130,27 @@ export function IngestsPane({ ingests, waiting, onChanged }: IngestsPaneProps) {
       .finally(() => setBusy(false))
   }
 
+  /**
+   * 取り込みを捨てる。走っているものは止めてから捨てる(#223、#329)。
+   *
+   * 止まるまで待つので、Codex を使う段階では返るまでに 1 分ほどかかることがある。
+   * その間ボタンは押せなくなる。
+   */
   const discard = (slug: string): void => {
     setBusy(true)
+    setStopping((previous) => new Set(previous).add(slug))
     void api
       .discardIngest(slug)
       .then(onChanged)
-      .finally(() => setBusy(false))
+      .catch((error: unknown) => setError(error instanceof Error ? error.message : String(error)))
+      .finally(() => {
+        setBusy(false)
+        setStopping((previous) => {
+          const next = new Set(previous)
+          next.delete(slug)
+          return next
+        })
+      })
   }
 
   if (ingests.length === 0 && waiting.length === 0) {
@@ -139,9 +158,10 @@ export function IngestsPane({ ingests, waiting, onChanged }: IngestsPaneProps) {
   }
 
   // 待っているものを先に置く。押した直後のものが目に入るようにするためである。
+  // 記録になっていない行は slug を持たないので、止めることも捨てることもできない(#329)。
   const rows = [
-    ...waiting.map((job) => ({ key: `waiting-${job.id}`, ingest: pending(job) })),
-    ...ingests.map((ingest) => ({ key: ingest.slug, ingest })),
+    ...waiting.map((job) => ({ key: `waiting-${job.id}`, ingest: pending(job), recorded: false })),
+    ...ingests.map((ingest) => ({ key: ingest.slug, ingest, recorded: true })),
   ]
 
   return (
@@ -155,7 +175,7 @@ export function IngestsPane({ ingests, waiting, onChanged }: IngestsPaneProps) {
           </button>
         </div>
       )}
-      {rows.map(({ key, ingest }) => {
+      {rows.map(({ key, ingest, recorded }) => {
         const byStage = new Map(ingest.stages.map((s) => [s.stage, s]))
         const at = STAGES.indexOf(ingest.stage)
         const clock = clockFor(ingest, now)
@@ -194,7 +214,40 @@ export function IngestsPane({ ingests, waiting, onChanged }: IngestsPaneProps) {
                   <Trash2 size={ICON} aria-hidden />
                 </button>
               )}
+              {/* 走っている取り込みは、止めて残骸ごと捨てられる(#329)。 */}
+              {recorded && ingest.status === 'inProgress' && (
+                <button
+                  type="button"
+                  className="ingest__stop"
+                  onClick={() => setConfirming(ingest.slug)}
+                  disabled={busy}
+                  title="この取り込みを止めて捨てる"
+                  aria-label={`${ingest.slug} の取り込みを止める`}
+                >
+                  <Square size={ICON} aria-hidden />
+                </button>
+              )}
             </header>
+
+            {confirming === ingest.slug && (
+              <p className="ingest__confirm">
+                この取り込みを止めて、途中までの成果物も捨てます。止まるまでに 1 分ほどかかることがあります。
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirming(null)
+                    discard(ingest.slug)
+                  }}
+                >
+                  止める
+                </button>
+                <button type="button" onClick={() => setConfirming(null)}>
+                  やめる
+                </button>
+              </p>
+            )}
+
+            {stopping.has(ingest.slug) && <p className="ingest__confirm">止めています。</p>}
 
             <ol className="ingest__stages">
               {STAGES.map((stage, index) => {

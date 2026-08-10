@@ -1,3 +1,4 @@
+import { Stopped } from '../batches.ts'
 import type { IngestStore } from '../ingest/store.ts'
 import type { JobQueue } from '../jobs/queue.ts'
 import type { Job, Priority } from '../jobs/types.ts'
@@ -19,7 +20,7 @@ export function registerReferences(
   queue: JobQueue,
   deps: ReferencesDeps & { ingests: IngestStore; onDone: (slug: string) => void },
 ): void {
-  queue.register(REFERENCES_JOB, async (job) => {
+  queue.register(REFERENCES_JOB, async (job, signal) => {
     const slug = job.target
     // 取り込みの途中で走ったときだけ、取り込みの状態を動かす。積み直しでは、
     // 終わっている取り込みを途中の状態へ戻さない。
@@ -34,6 +35,10 @@ export function registerReferences(
       if (inChain) deps.ingests.fail(slug, error instanceof Error ? error.message : String(error))
       throw error
     }
+
+    // この段階は 1 つのターンで終わるので、途中では抜けられない。終わってから見て、
+    // 止められていたら次を積まずに抜ける(#329)。
+    if (signal.aborted) throw new Stopped()
 
     if (!inChain) {
       deps.ingests.finishStage(slug, 'references')

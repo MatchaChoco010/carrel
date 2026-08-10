@@ -58,7 +58,7 @@ async function exists(path: string): Promise<boolean> {
 }
 
 export function registerConvert(queue: JobQueue, deps: ConvertDeps): void {
-  queue.register(CONVERT_JOB, async (job) => {
+  queue.register(CONVERT_JOB, async (job, signal) => {
     const slug = job.target
     deps.ingests.beginStage(slug, 'convert')
     const work = await mkdtemp(join(tmpdir(), `carrel-convert-${slug}-`))
@@ -68,13 +68,14 @@ export function registerConvert(queue: JobQueue, deps: ConvertDeps): void {
 
       const document =
         kind === 'pdf'
-          ? await runConverter({ pdf: paperOriginalPdf(deps.dataDir, slug), outDir: work, paths: deps.paths })
+          ? await runConverter({ pdf: paperOriginalPdf(deps.dataDir, slug), outDir: work, paths: deps.paths, signal })
           : await runHtmlConverter({
               html: paperOriginalHtml(deps.dataDir, slug),
               // 図の相対の場所は、原本を取った場所から解く。
               baseUrl: (await readPaper(deps.dataDir, slug))?.meta.pdfUrl ?? null,
               outDir: work,
               paths: { python: deps.paths.python, script: deps.htmlScript },
+              signal,
             })
       await storeConversion(deps.dataDir, slug, work, document)
       deps.ingests.advance(slug, 'verify')

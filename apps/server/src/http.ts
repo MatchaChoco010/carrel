@@ -509,14 +509,22 @@ export function createApp(deps: AppDeps): Hono {
   // 完了した取り込みの記録を消す。論文は残る(#223)。
   app.post('/api/ingests/clear', (c) => c.json({ cleared: deps.ingests.clearDone() }))
 
-  // 失敗した取り込みを捨てる。半端な成果物も一緒に消す(#223)。
+  /**
+   * 取り込みを止めて、半端な成果物も一緒に捨てる(#223、#329)。
+   *
+   * 走っている仕事は、止めた合図が届いて片付くまで待ってから捨てる。待たずに捨てると、
+   * 止まりかけの仕事が消したはずの場所へ書き戻す。
+   *
+   * 変換器は子プロセスを終わらせるので即座に止まる。Codex を使う段階は束の切れ目まで
+   * かかるので、返るまでに 1 分ほどかかることがある。
+   */
   app.delete('/api/ingests/:slug', async (c) => {
     const slug = c.req.param('slug')
     const record = deps.ingests.get(slug)
     if (record === null) return c.json({ error: `取り込みの記録が無い: ${slug}` }, 404)
-    const jobs = deps.jobs.cancelPending(slug)
+    const jobs = await deps.jobs.cancel(slug)
     await discardIngest(deps.dataDir, slug, deps.ingests)
-    return c.json({ discarded: slug, cancelledJobs: jobs.cancelled })
+    return c.json({ discarded: slug, cancelledJobs: jobs.cancelled, stoppedJobs: jobs.stopped })
   })
 
   /**

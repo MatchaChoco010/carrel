@@ -360,3 +360,79 @@ test('実行中の仕事は取り消さずに数だけ返す', () => {
     h.close()
   }
 })
+
+test('止めると、走っている仕事に合図が届いて記録ごと消える(#329)', async () => {
+  const h = makeHarness()
+  try {
+    const queue = new JobQueue(h.store)
+    let told: AbortSignal | null = null
+    queue.register('verify', async (_job, signal) => {
+      told = signal
+      // 束の切れ目で合図を見る段階と同じように、立ってから抜ける。
+      await new Promise<void>((resolve) => {
+        signal.addEventListener('abort', () => resolve(), { once: true })
+      })
+      throw new Error('止めた')
+    })
+    queue.start()
+    queue.enqueue({ kind: 'verify', target: '消す論文', resource: 'codex' })
+    await tick()
+
+    const result = await queue.cancel('消す論文')
+
+    assert.equal(result.stopped, 1)
+    assert.equal((told as AbortSignal | null)?.aborted, true)
+    // 止めた仕事は失敗として残さない。やり直しの対象にも一覧にも出さない。
+    assert.deepEqual(h.store.list(), [])
+  } finally {
+    h.close()
+  }
+})
+
+test('止めると、待っている仕事も消える(#329)', async () => {
+  const h = makeHarness()
+  try {
+    const queue = new JobQueue(h.store)
+    queue.register('verify', async (_job, signal) => {
+      await new Promise<void>((resolve) => {
+        signal.addEventListener('abort', () => resolve(), { once: true })
+      })
+    })
+    queue.start()
+    // Codex の同時実行は 4 本なので、5 本目は走り出さずに待つ(0003)。
+    for (let i = 0; i < 5; i += 1) queue.enqueue({ kind: 'verify', target: '消す論文', resource: 'codex' })
+    queue.enqueue({ kind: 'verify', target: '残す論文', resource: 'codex' })
+    await tick()
+
+    const result = await queue.cancel('消す論文')
+
+    assert.equal(result.cancelled, 1)
+    assert.equal(result.stopped, 4)
+    assert.deepEqual(
+      h.store.list().map((j) => j.target),
+      ['残す論文'],
+    )
+  } finally {
+    h.close()
+  }
+})
+
+test('止めていない仕事の失敗は、今まで通りやり直しに回る(#329)', async () => {
+  const h = makeHarness()
+  try {
+    const queue = new JobQueue(h.store, { retryDelayMs: 1000 })
+    queue.register('verify', async () => {
+      throw new Error('落ちた')
+    })
+    queue.start()
+    queue.enqueue({ kind: 'verify', target: '論文', resource: 'codex' })
+    await tick()
+
+    const job = h.store.list()[0]
+    assert.equal(job?.state, 'pending')
+    assert.equal(job?.attempts, 1)
+    assert.equal(job?.lastError, '落ちた')
+  } finally {
+    h.close()
+  }
+})
