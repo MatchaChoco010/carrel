@@ -1041,6 +1041,13 @@ body {
   user-select: text;
 }
 
+/* 取り込む原本のページ数(#328)。長さの桁が違えば目に留まるように、経過時間の隣へ置く。 */
+.ingest__pages {
+  flex: none;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 .ingest__total {
   display: inline-flex;
   align-items: center;

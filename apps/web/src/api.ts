@@ -55,6 +55,8 @@ export type Ingest = {
   status: 'inProgress' | 'failed' | 'done'
   /** 解決が読み取った題。失敗した取り込みを探し直すときの手掛かりに出す(#279)。 */
   title: string | null
+  /** 取り込む原本のページ数(#328)。取ってくる前と、ページを持たない原本では null。 */
+  pages: number | null
   startedAt: number
   updatedAt: number
   lastError: string | null

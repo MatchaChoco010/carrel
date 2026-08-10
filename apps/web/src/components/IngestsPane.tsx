@@ -77,6 +77,8 @@ function pending(job: { id: number; target: string; createdAt: number; running: 
     stage: 'resolve',
     status: 'inProgress',
     title: null,
+    // 原本をまだ取っていないので、ページ数は分からない(#328)。
+    pages: null,
     startedAt: job.createdAt,
     updatedAt: job.createdAt,
     lastError: null,
@@ -163,6 +165,8 @@ export function IngestsPane({ ingests, waiting, onChanged }: IngestsPaneProps) {
           <article key={key} className={`ingest ingest--${ingest.status}`} title={ingest.sourceUrl}>
             <header>
               <code>{ingest.slug}</code>
+              {/* 章のつもりで本を一冊取ってきていないかを、変換が始まる前に見せる(#328)。 */}
+              {ingest.pages !== null && <span className="ingest__pages">{ingest.pages} ページ</span>}
               <span className="ingest__total">{duration(total)}</span>
               {/* 失敗した取り込みは、続きからやり直せる(#285)。 */}
               {ingest.status === 'failed' && (
