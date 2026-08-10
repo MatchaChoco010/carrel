@@ -9,6 +9,7 @@ export type ChatsPaneProps = {
   onOpen: (id: string | null) => void
   revision: number
   onChanged: () => void
+  subscribe: (handler: (event: { type: string; payload: unknown }) => void) => () => void
 }
 
 const ICON = 14
@@ -65,7 +66,7 @@ function fromHit(hit: ChatSearchHit): Row {
   }
 }
 
-export function ChatsPane({ active, onOpen, revision, onChanged }: ChatsPaneProps) {
+export function ChatsPane({ active, onOpen, revision, onChanged, subscribe }: ChatsPaneProps) {
   const [chats, setChats] = useState<ChatSummary[]>([])
   const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
@@ -86,6 +87,23 @@ export function ChatsPane({ active, onOpen, revision, onChanged }: ChatsPaneProp
   }, [])
 
   useEffect(load, [load, revision])
+
+  /**
+   * 一覧は続きを話せるかを持たずに返るので、分かった行から埋める(#327)。
+   *
+   * 読み直しを挟まないのは、埋まるたびに会話の数だけ一覧を引き直すことになるためである。
+   */
+  useEffect(
+    () =>
+      subscribe((event) => {
+        if (event.type !== 'chat.state') return
+        const { threadId, state } = event.payload as { threadId: string; state: ChatState }
+        setChats((previous) =>
+          previous.map((chat) => (chat.codex_thread_id === threadId ? { ...chat, state } : chat)),
+        )
+      }),
+    [subscribe],
+  )
 
   useEffect(() => {
     const text = query.trim()

@@ -95,7 +95,9 @@ export type ChatSummary = {
   title: string
   summary: string
   archived: boolean
-  state: ChatState
+  codex_thread_id: string | null
+  /** まだ調べ終えていなければ null(#327)。分かった時点で押し出される。 */
+  state: ChatState | null
 }
 
 export type ChatSearchHit = {
