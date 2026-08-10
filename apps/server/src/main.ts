@@ -357,6 +357,7 @@ async function main(): Promise<void> {
     ingests,
     feed,
     chats,
+    onChatState: (threadId, state) => hub.broadcast({ type: 'chat.state', payload: { threadId, state } }),
     models: () => listModels(codex.client),
     reindexChat: (absolutePath) => collection.reloadChat(absolutePath),
     setArchived: (absolutePath, archived) =>
