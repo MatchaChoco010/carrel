@@ -44,7 +44,13 @@ export type NewJob = {
   orderKey?: number | undefined
 }
 
-export type JobHandler = (job: Job) => Promise<void>
+/**
+ * 仕事の中身。
+ *
+ * `signal` は止められたときに立つ(#329)。子プロセスへ渡すか、束の切れ目で見て抜ける。
+ * 見ない仕事は最後まで走るので、止まるのがその仕事の終わりまで遅れる。
+ */
+export type JobHandler = (job: Job, signal: AbortSignal) => Promise<void>
 
 /** 枠が尽きているかどうかを、キューへ伝える口。 */
 export type QuotaGate = {

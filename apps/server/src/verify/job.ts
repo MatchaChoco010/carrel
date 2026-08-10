@@ -21,7 +21,7 @@ export function registerVerify(
   queue: JobQueue,
   deps: VerifyDeps & { ingests: IngestStore; onDone: (slug: string) => void },
 ): void {
-  queue.register(VERIFY_JOB, async (job) => {
+  queue.register(VERIFY_JOB, async (job, signal) => {
     const slug = job.target
     deps.ingests.beginStage(slug, 'verify')
     try {
@@ -33,7 +33,7 @@ export function registerVerify(
         if (deps.ingests.advance(slug, 'bibliography')) deps.onDone(slug)
         return
       }
-      await verifyPaper(slug, deps)
+      await verifyPaper(slug, deps, signal)
       if (deps.ingests.advance(slug, 'bibliography')) deps.onDone(slug)
     } catch (error) {
       deps.ingests.fail(slug, error instanceof Error ? error.message : String(error))

@@ -212,4 +212,9 @@ export class JobStore {
     const result = this.#db.prepare(`delete from jobs where state in ('done', 'failed')`).run()
     return Number(result.changes)
   }
+
+  /** 仕事の記録を消す。止めた仕事に使う(#329)。 */
+  drop(id: number): void {
+    this.#db.prepare('delete from jobs where id = ?').run(id)
+  }
 }

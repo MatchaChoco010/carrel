@@ -14,11 +14,11 @@ export function registerTranslate(
   queue: JobQueue,
   deps: TranslateDeps & { ingests: IngestStore; onDone: (slug: string) => void },
 ): void {
-  queue.register(TRANSLATE_JOB, async (job) => {
+  queue.register(TRANSLATE_JOB, async (job, signal) => {
     const slug = job.target
     deps.ingests.beginStage(slug, 'translate')
     try {
-      const outcomes = await translatePaper(slug, deps)
+      const outcomes = await translatePaper(slug, deps, signal)
       const breached = outcomes.filter((o) => o.breach !== null)
       if (breached.length > 0) {
         // 契約に反した節は訳を採ったうえで記録する。訳が無いより、どこが原文
