@@ -72,6 +72,7 @@ export async function resumeThread(
   threadId: string,
   options: { mcpUrl?: string } = {},
 ): Promise<boolean> {
+  await unarchiveThread(client, threadId)
   try {
     const params: Record<string, unknown> = { threadId }
     if (options.mcpUrl !== undefined) params.config = mcpConfig(options.mcpUrl)
@@ -93,10 +94,10 @@ export type WorkThreadOptions = {
 }
 
 /**
- * 使い捨てのスレッドを立て、`run` が終わったら app-server から降ろす(#333)。
+ * 使い捨てのスレッドを立て、`run` が終わったら消す(#333)。
  *
- * 降ろさないと、スレッドは app-server に読み込まれたまま残り、Codex がスレッドごとに
- * 立てる MCP サーバーの子プロセスも生き続ける。仕事が失敗しても止められても降ろす。
+ * 消さないと、スレッドは app-server に読み込まれたまま残り、Codex がスレッドごとに
+ * 立てる MCP サーバーの子プロセスも生き続ける。
  */
 export async function withWorkThread<T>(
   client: CodexClient,
@@ -107,28 +108,64 @@ export async function withWorkThread<T>(
   try {
     return await run(threadId)
   } finally {
-    await dropThread(client, threadId)
+    await deleteThread(client, threadId)
   }
 }
 
 /**
- * スレッドを app-server から降ろす。rollout も一緒に消える。
- *
- * 降ろせなくても仕事の結果は変えない。app-server が落ちた後に来ることがあり、
- * そのときはスレッドも既に無い。
+ * 消せなくても仕事の結果は変えない。app-server が落ちた後に来ることがあり、そのときは
+ * スレッドも既に無い。
  */
-async function dropThread(client: CodexClient, threadId: string): Promise<void> {
+async function deleteThread(client: CodexClient, threadId: string): Promise<void> {
   try {
     await client.request(METHODS.threadDelete, { threadId })
   } catch (error) {
-    console.warn(`スレッドを降ろせなかった(${threadId}): ${error instanceof Error ? error.message : String(error)}`)
+    console.warn(`スレッドを消せなかった(${threadId}): ${error instanceof Error ? error.message : String(error)}`)
   }
+}
+
+/**
+ * スレッドが Codex 側に残っているか(#335)。
+ *
+ * `thread/resume` でも分かるが、それはスレッドを app-server に読み込み、スレッドごとの
+ * MCP サーバーを立てる。`thread/read` は履歴を読むだけで、どちらもしない。
+ */
+export async function threadExists(client: CodexClient, threadId: string): Promise<boolean> {
+  try {
+    await client.request(METHODS.threadRead, { threadId, includeTurns: false })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * 会話のスレッドをターンの合間に archive する(#335)。
+ *
+ * 読み込まれたスレッドは、会話の数だけ MCP サーバーを立てたままにする。archive すると
+ * 読み込みが解かれ、履歴は残る。archive できなくても会話は続けられる。
+ */
+export async function archiveThread(client: CodexClient, threadId: string): Promise<void> {
+  try {
+    await client.request(METHODS.threadArchive, { threadId })
+  } catch (error) {
+    console.warn(`スレッドを archive できなかった(${threadId}): ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
+/**
+ * archive したスレッドは resume も fork もできないので、その前に unarchive する(#335)。
+ *
+ * archive していないスレッドには失敗するが、そのまま resume や fork に進んでよいので握る。
+ */
+export async function unarchiveThread(client: CodexClient, threadId: string): Promise<void> {
+  await client.request(METHODS.threadUnarchive, { threadId }).catch(() => undefined)
 }
 
 /**
  * 1 つのジョブに対応する使い捨てのスレッド。指示と道具を最小にする。
  *
- * ephemeral にはしない。ephemeral なスレッドは `thread/delete` で降ろせない(#333)。
+ * ephemeral にはしない。ephemeral なスレッドは `thread/delete` で消せない(#333)。
  */
 async function startWorkThread(client: CodexClient, options: WorkThreadOptions): Promise<string> {
   const params: ThreadStartParams = {

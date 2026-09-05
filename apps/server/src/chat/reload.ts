@@ -1,6 +1,6 @@
 import type { CodexClient } from '../codex/client.ts'
 import { imagesAndTextInput } from '../codex/protocol.ts'
-import { runTurn, startConversationThread } from '../codex/threads.ts'
+import { archiveThread, runTurn, startConversationThread } from '../codex/threads.ts'
 import { readChat, withoutTurnIds, writeChat, type Chat } from '../data/chat.ts'
 import { nowIsoDateTime } from '../data/datetime.ts'
 import { paperDir } from '../data/layout.ts'
@@ -77,6 +77,7 @@ export async function reloadChat(absolutePath: string, deps: ReloadDeps): Promis
     threadId,
     input: imagesAndTextInput(images, buildReloadInput(chat, deps.dataDir, deps.knownSlug)),
   })
+  await archiveThread(deps.codex, threadId)
 
   await writeChat(deps.dataDir, {
     path: chat.path,

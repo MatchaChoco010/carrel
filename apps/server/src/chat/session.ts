@@ -1,6 +1,12 @@
 import type { CodexClient } from '../codex/client.ts'
 import { imagesAndTextInput, METHODS } from '../codex/protocol.ts'
-import { resumeThread, runTurn, startConversationThread } from '../codex/threads.ts'
+import {
+  archiveThread,
+  resumeThread,
+  runTurn,
+  startConversationThread,
+  threadExists,
+} from '../codex/threads.ts'
 import { nowIsoDateTime } from '../data/datetime.ts'
 import { readChat, writeChat, type Chat, type ChatMessage } from '../data/chat.ts'
 import { storeImages, withAttachments, type IncomingImage } from './attachments.ts'
@@ -80,9 +86,9 @@ export class ChatSessions {
   /**
    * スレッドが Codex 側に残っているか。一度調べた結果を覚える。
    *
-   * 調べるには resume を投げるほかなく、一覧を出すたびに会話の数だけ投げることに
-   * なるので、結果を持ち回す。失われたスレッドが後から戻ることは無いので、
-   * 否定の結果も覚えてよい。読み込み直しをしたときだけ書き換わる。
+   * 一覧を出すたびに会話の数だけ Codex に訊くことになるので、結果を持ち回す。
+   * 失われたスレッドが後から戻ることは無いので、否定の結果も覚えてよい。
+   * 読み込み直しをしたときだけ書き換わる。
    */
   readonly #alive = new Map<string, boolean>()
   /** いま調べている最中のスレッド。同じものを二重に調べないために持つ(#327)。 */
@@ -125,8 +131,7 @@ export class ChatSessions {
   /**
    * 既に調べ終えている状態だけを返す。まだなら null(#327)。
    *
-   * 調べるには resume を投げるほかなく、会話の数だけ Codex に履歴を読み込ませることに
-   * なる。一覧はこれで即座に返し、まだ分からないものは {@link resolveStates} に任せる。
+   * 一覧はこれで即座に返し、まだ分からないものは {@link resolveStates} に任せる。
    */
   knownStateOfThread(threadId: string | null): ChatState | null {
     if (threadId === null) return 'new'
@@ -159,7 +164,7 @@ export class ChatSessions {
   async #isAlive(threadId: string): Promise<boolean> {
     const known = this.#alive.get(threadId)
     if (known !== undefined) return known
-    const alive = await resumeThread(this.#deps.codex, threadId, { mcpUrl: this.#deps.mcpUrl })
+    const alive = await threadExists(this.#deps.codex, threadId)
     this.#alive.set(threadId, alive)
     return alive
   }
@@ -307,6 +312,8 @@ export class ChatSessions {
       const message = error instanceof Error ? error.message : String(error)
       this.#deps.onEvent({ type: 'chat.turn.failed', id: chat.meta.id, message })
       throw error
+    } finally {
+      await archiveThread(this.#deps.codex, threadId)
     }
   }
 
@@ -328,16 +335,18 @@ export class ChatSessions {
   }
 
   /**
-   * 対応するスレッドを返す。無ければ新しく立てる。
+   * 対応するスレッドを読み込み直して返す。無ければ新しく立てる。
    *
-   * app-server を起動し直すとスレッドは記憶から降りるので、ターンを流す前に一度
-   * 読み込み直す。降りたままターンを始めても届かない。
+   * ターンの合間は archive してあるので(#335)、読み込み直さずにターンを始めても届かない。
    */
   async #threadFor(chat: Chat, model: string): Promise<string> {
     const existing = chat.meta.codexThreadId
     if (existing !== null) {
-      if (await this.#isAlive(existing)) return existing
-      throw new Error('この会話の実行状態は残っていない。読み込み直しが要る')
+      if (!(await this.#isAlive(existing))) throw new Error('この会話の実行状態は残っていない。読み込み直しが要る')
+      if (!(await resumeThread(this.#deps.codex, existing, { mcpUrl: this.#deps.mcpUrl }))) {
+        throw new Error('この会話のスレッドを読み込み直せなかった')
+      }
+      return existing
     }
     // 空のモデルでもスレッドは立つが、ターンは何も返さずに終わる。
     if (model.length === 0) throw new Error('モデルが決まっていない。設定の chat.defaultModel を確かめること')

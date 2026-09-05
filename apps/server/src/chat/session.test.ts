@@ -4,12 +4,18 @@ import type { CodexClient } from '../codex/client.ts'
 import { ChatSessions, type ChatState } from './session.ts'
 import type { InstructionStore } from './instruction-store.ts'
 
-/** resume に答えるだけの代役。何回投げられたかを数える。 */
+/**
+ * thread/read に答えるだけの代役。どのスレッドを訊かれたかを控える。
+ *
+ * 残っているかは読み込まずに確かめる(#335)。resume が来たら、確かめるだけの経路で
+ * 会話を読み込んでいるので投げる。
+ */
 function sessions(alive: (threadId: string) => boolean): { chats: ChatSessions; resumed: string[] } {
   const resumed: string[] = []
   const client = {
     async request(method: string, params?: unknown) {
-      if (method !== 'thread/resume') return {}
+      if (method === 'thread/resume') throw new Error('確かめるだけなのに読み込んだ')
+      if (method !== 'thread/read') return {}
       const threadId = (params as { threadId: string }).threadId
       resumed.push(threadId)
       if (!alive(threadId)) throw new Error('スレッドが残っていない')
