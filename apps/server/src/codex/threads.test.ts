@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { forkThread } from '../chat/branch.ts'
 import type { CodexClient } from './client.ts'
-import { resumeThread, runTurn, startConversationThread } from './threads.ts'
+import { resumeThread, runTurn, startConversationThread, withWorkThread } from './threads.ts'
 
 /** 投げられた要求を控えるだけの代役。 */
 function recorder(fail = false): { client: CodexClient; sent: Array<{ method: string; params: unknown }> } {
@@ -124,4 +124,60 @@ test('理由が添えられていなくても、Codex の問題だと分かる(#
       return true
     },
   )
+})
+
+test('使い捨てのスレッドは、仕事が終わったら降ろす(#333)', async () => {
+  const { client, sent } = recorder()
+  const got = await withWorkThread(client, { instructions: '指示', model: 'gpt-5.4-mini' }, async (threadId) => {
+    assert.equal(threadId, 'th_1')
+    assert.equal(sent.length, 1)
+    return 'できた'
+  })
+  assert.equal(got, 'できた')
+  assert.deepEqual(
+    sent.map((s) => s.method),
+    ['thread/start', 'thread/delete'],
+  )
+  assert.deepEqual(sent[1]?.params, { threadId: 'th_1' })
+})
+
+test('使い捨てのスレッドは ephemeral にしない。ephemeral だと降ろせない(#333)', async () => {
+  const { client, sent } = recorder()
+  await withWorkThread(client, { instructions: '指示', model: 'gpt-5.4-mini' }, async () => undefined)
+  const params = sent[0]?.params as { ephemeral?: boolean }
+  assert.equal(params.ephemeral, undefined)
+})
+
+test('仕事が失敗しても降ろしてから投げる(#333)', async () => {
+  const { client, sent } = recorder()
+  await assert.rejects(
+    () =>
+      withWorkThread(client, { instructions: '指示', model: 'gpt-5.4-mini' }, async () => {
+        throw new Error('形の違う応答')
+      }),
+    /形の違う応答/,
+  )
+  assert.equal(sent[1]?.method, 'thread/delete')
+})
+
+test('降ろせなくても仕事の結果は返す(#333)', async () => {
+  const sent: string[] = []
+  const client = {
+    async request(method: string) {
+      sent.push(method)
+      if (method === 'thread/start') return { threadId: 'th_1' }
+      throw new Error('app-server が起動していない')
+    },
+  } as unknown as CodexClient
+  const warn = console.warn
+  const warned: string[] = []
+  console.warn = (message: string) => warned.push(message)
+  try {
+    const got = await withWorkThread(client, { instructions: '指示', model: 'gpt-5.4-mini' }, async () => 'できた')
+    assert.equal(got, 'できた')
+  } finally {
+    console.warn = warn
+  }
+  assert.deepEqual(sent, ['thread/start', 'thread/delete'])
+  assert.match(warned[0] ?? '', /降ろせなかった/)
 })

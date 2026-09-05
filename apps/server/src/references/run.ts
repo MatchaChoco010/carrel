@@ -1,6 +1,6 @@
 import type { CodexClient } from '../codex/client.ts'
 import { textInput } from '../codex/protocol.ts'
-import { runTurn, startWorkThread } from '../codex/threads.ts'
+import { runTurn, withWorkThread } from '../codex/threads.ts'
 import { readPaper } from '../data/paper.ts'
 import { writeReferences, type Reference } from '../data/references.ts'
 import { buildReferencesPrompt, REFERENCES_INSTRUCTIONS, REFERENCES_SCHEMA } from './prompt.ts'
@@ -73,17 +73,17 @@ export async function structureReferences(slug: string, deps: ReferencesDeps): P
     return []
   }
 
-  const threadId = await startWorkThread(deps.codex, {
-    instructions: REFERENCES_INSTRUCTIONS,
-    model: deps.model,
-    serviceTier: deps.serviceTier,
-  })
-  const outcome = await runTurn(deps.codex, {
-    threadId,
-    input: textInput(buildReferencesPrompt(section)),
-    effort: deps.effort,
-    outputSchema: REFERENCES_SCHEMA,
-  })
+  const outcome = await withWorkThread(
+    deps.codex,
+    { instructions: REFERENCES_INSTRUCTIONS, model: deps.model, serviceTier: deps.serviceTier },
+    (threadId) =>
+      runTurn(deps.codex, {
+        threadId,
+        input: textInput(buildReferencesPrompt(section)),
+        effort: deps.effort,
+        outputSchema: REFERENCES_SCHEMA,
+      }),
+  )
 
   const references = parseReferences(outcome.text)
   if (references === null) throw new Error(`参考文献を JSON として読めなかった: ${slug}`)
