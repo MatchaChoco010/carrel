@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { inBatches } from '../batches.ts'
 import type { CodexClient } from '../codex/client.ts'
 import { imagesAndTextInput } from '../codex/protocol.ts'
-import { runTurn, startWorkThread } from '../codex/threads.ts'
+import { runTurn, withWorkThread } from '../codex/threads.ts'
 import { parseDocument } from '../convert/runner.ts'
 import { ASSETS_DIR_NAME, paperBlocksFile } from '../convert/store.ts'
 import { paperFile, paperOriginalPdf, paperPagesDir } from '../data/layout.ts'
@@ -64,17 +64,21 @@ export function parsePageResult(text: string): VerifyPageResult | null {
  * 前のページの内容が残っていると、そのページに無いものを補う方へ働きうる。
  */
 async function verifyPage(work: PageWork, imagePath: string, deps: VerifyDeps): Promise<VerifyPageResult> {
-  const threadId = await startWorkThread(deps.codex, {
-    instructions: work.input.transcribe ? TRANSCRIBE_INSTRUCTIONS : VERIFY_INSTRUCTIONS,
-    model: deps.model,
-    serviceTier: deps.serviceTier,
-  })
-  const outcome = await runTurn(deps.codex, {
-    threadId,
-    input: imagesAndTextInput([imagePath], buildVerifyPrompt(work.input)),
-    outputSchema: VERIFY_OUTPUT_SCHEMA,
-    effort: deps.effort,
-  })
+  const outcome = await withWorkThread(
+    deps.codex,
+    {
+      instructions: work.input.transcribe ? TRANSCRIBE_INSTRUCTIONS : VERIFY_INSTRUCTIONS,
+      model: deps.model,
+      serviceTier: deps.serviceTier,
+    },
+    (threadId) =>
+      runTurn(deps.codex, {
+        threadId,
+        input: imagesAndTextInput([imagePath], buildVerifyPrompt(work.input)),
+        outputSchema: VERIFY_OUTPUT_SCHEMA,
+        effort: deps.effort,
+      }),
+  )
   const result = parsePageResult(outcome.text)
   if (result === null) throw new Error(`${work.page + 1} ページ目の照合が形の違う応答を返した`)
   return result

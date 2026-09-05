@@ -1,6 +1,6 @@
 import type { CodexClient } from '../codex/client.ts'
 import { imagesAndTextInput, textInput } from '../codex/protocol.ts'
-import { runTurn, startWorkThread } from '../codex/threads.ts'
+import { runTurn, withWorkThread } from '../codex/threads.ts'
 import type { OriginalHead } from './head.ts'
 
 /** 判定に渡す、頼んだ論文の書誌(0025)。 */
@@ -90,17 +90,18 @@ export type JudgeDeps = {
  * しているものが素通りするためである。
  */
 export async function judgeOriginal(head: OriginalHead, asked: AskedPaper, deps: JudgeDeps): Promise<Judgement> {
-  const threadId = await startWorkThread(deps.codex, { instructions: INSTRUCTIONS, model: deps.model })
   const question = `次の論文を探している。\n\n${describe(asked)}\n\n取れた文書の先頭は次のとおりである。この文書はその論文そのものか。`
-  const outcome = await runTurn(deps.codex, {
-    threadId,
-    input:
-      head.kind === 'text'
-        ? textInput(`${question}\n\n${head.text.slice(0, HEAD_CHARS)}`)
-        : imagesAndTextInput(head.files, question),
-    effort: 'low',
-    outputSchema: OUTPUT_SCHEMA,
-  })
+  const outcome = await withWorkThread(deps.codex, { instructions: INSTRUCTIONS, model: deps.model }, (threadId) =>
+    runTurn(deps.codex, {
+      threadId,
+      input:
+        head.kind === 'text'
+          ? textInput(`${question}\n\n${head.text.slice(0, HEAD_CHARS)}`)
+          : imagesAndTextInput(head.files, question),
+      effort: 'low',
+      outputSchema: OUTPUT_SCHEMA,
+    }),
+  )
 
   const judged = parse(outcome.text)
   if (judged === null) throw new Error('取れた原本が頼んだ論文かを判じられなかった')

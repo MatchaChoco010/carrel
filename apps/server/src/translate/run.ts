@@ -1,7 +1,7 @@
 import { inBatches } from '../batches.ts'
 import type { CodexClient } from '../codex/client.ts'
 import { textInput } from '../codex/protocol.ts'
-import { runTurn, startWorkThread } from '../codex/threads.ts'
+import { runTurn, withWorkThread } from '../codex/threads.ts'
 import { readPaper, readPaperSideFile, writePaperSideFile } from '../data/paper.ts'
 import { checkContract, describeBreaches } from './contract.ts'
 import { buildTranslatePrompt, TRANSLATE_INSTRUCTIONS } from './prompt.ts'
@@ -36,26 +36,27 @@ async function translateSection(
   request: Parameters<typeof buildTranslatePrompt>[0],
   deps: TranslateDeps,
 ): Promise<{ markdown: string; breach: string | null }> {
-  const threadId = await startWorkThread(deps.codex, {
-    instructions: TRANSLATE_INSTRUCTIONS,
-    model: deps.model,
-    serviceTier: deps.serviceTier,
-  })
-  let breach: string | null = null
-  let last = ''
-  for (let attempt = 0; attempt <= RETRIES; attempt += 1) {
-    const prompt = breach === null ? request : { ...request, breach }
-    const outcome = await runTurn(deps.codex, {
-      threadId,
-      input: textInput(buildTranslatePrompt(prompt)),
-      effort: deps.effort,
-    })
-    last = outcome.text.trim()
-    const breaches = checkContract(request.markdown, last)
-    if (breaches.length === 0) return { markdown: last, breach: null }
-    breach = describeBreaches(breaches)
-  }
-  return { markdown: last, breach }
+  return withWorkThread(
+    deps.codex,
+    { instructions: TRANSLATE_INSTRUCTIONS, model: deps.model, serviceTier: deps.serviceTier },
+    async (threadId) => {
+      let breach: string | null = null
+      let last = ''
+      for (let attempt = 0; attempt <= RETRIES; attempt += 1) {
+        const prompt = breach === null ? request : { ...request, breach }
+        const outcome = await runTurn(deps.codex, {
+          threadId,
+          input: textInput(buildTranslatePrompt(prompt)),
+          effort: deps.effort,
+        })
+        last = outcome.text.trim()
+        const breaches = checkContract(request.markdown, last)
+        if (breaches.length === 0) return { markdown: last, breach: null }
+        breach = describeBreaches(breaches)
+      }
+      return { markdown: last, breach }
+    },
+  )
 }
 
 const SECTIONS_AT_ONCE = 8

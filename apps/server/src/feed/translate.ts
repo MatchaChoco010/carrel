@@ -1,7 +1,7 @@
 import { inBatches } from '../batches.ts'
 import type { CodexClient } from '../codex/client.ts'
 import { textInput } from '../codex/protocol.ts'
-import { runTurn, startWorkThread } from '../codex/threads.ts'
+import { runTurn, withWorkThread } from '../codex/threads.ts'
 import type { FeedStore } from './store.ts'
 
 /**
@@ -42,16 +42,16 @@ export async function translateFeed(deps: FeedTranslateDeps): Promise<number> {
   if (pending.length === 0) return 0
 
   const done = await inBatches(pending, ITEMS_AT_ONCE, async (item) => {
-    const threadId = await startWorkThread(deps.codex, {
-      instructions: INSTRUCTIONS,
-      model: deps.model,
-      serviceTier: deps.serviceTier,
-    })
-    const outcome = await runTurn(deps.codex, {
-      threadId,
-      input: textInput(buildPrompt(item.title, item.abstract ?? '')),
-      effort: deps.effort,
-    })
+    const outcome = await withWorkThread(
+      deps.codex,
+      { instructions: INSTRUCTIONS, model: deps.model, serviceTier: deps.serviceTier },
+      (threadId) =>
+        runTurn(deps.codex, {
+          threadId,
+          input: textInput(buildPrompt(item.title, item.abstract ?? '')),
+          effort: deps.effort,
+        }),
+    )
     return { arxivId: item.arxivId, markdown: stripHeading(outcome.text.trim()) }
   })
 

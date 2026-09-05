@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import type { CodexClient } from '../codex/client.ts'
 import { textInput } from '../codex/protocol.ts'
-import { runTurn, startWorkThread } from '../codex/threads.ts'
+import { runTurn, withWorkThread } from '../codex/threads.ts'
 import { readChat, writeChat, type Chat, type ChatMessage } from '../data/chat.ts'
 import { nowIsoDateTime } from '../data/datetime.ts'
 
@@ -130,16 +130,11 @@ export async function digestChat(absolutePath: string, deps: ChatDigestDeps): Pr
   const chat = await readChat(deps.dataDir, absolutePath)
   if (chat === null || chat.messages.length === 0) return null
 
-  const threadId = await startWorkThread(deps.codex, {
-    instructions: INSTRUCTIONS,
-    model: deps.model,
-    serviceTier: deps.serviceTier,
-  })
-  const outcome = await runTurn(deps.codex, {
-    threadId,
-    input: textInput(buildDigestInput(chat)),
-    effort: deps.effort,
-  })
+  const outcome = await withWorkThread(
+    deps.codex,
+    { instructions: INSTRUCTIONS, model: deps.model, serviceTier: deps.serviceTier },
+    (threadId) => runTurn(deps.codex, { threadId, input: textInput(buildDigestInput(chat)), effort: deps.effort }),
+  )
   const digest = parseDigest(outcome.text)
 
   // 生成の間に届いた発言を落とさないよう、書き込みの直前に読み直す。

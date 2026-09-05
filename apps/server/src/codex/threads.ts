@@ -82,21 +82,56 @@ export async function resumeThread(
   }
 }
 
-/** 1 つのジョブに対応する使い捨てのスレッド。指示と道具を最小にする。 */
-export async function startWorkThread(
+export type WorkThreadOptions = {
+  instructions: string
+  model: string
+  cwd?: string
+  approvalPolicy?: AskForApproval
+  serviceTier?: string | null
+  /** web を検索させる。既定では道具を渡さない。 */
+  webSearch?: boolean
+}
+
+/**
+ * 使い捨てのスレッドを立て、`run` が終わったら app-server から降ろす(#333)。
+ *
+ * 降ろさないと、スレッドは app-server に読み込まれたまま残り、Codex がスレッドごとに
+ * 立てる MCP サーバーの子プロセスも生き続ける。仕事が失敗しても止められても降ろす。
+ */
+export async function withWorkThread<T>(
   client: CodexClient,
-  options: {
-    instructions: string
-    model: string
-    cwd?: string
-    approvalPolicy?: AskForApproval
-    serviceTier?: string | null
-    /** web を検索させる。既定では道具を渡さない。 */
-    webSearch?: boolean
-  },
-): Promise<string> {
+  options: WorkThreadOptions,
+  run: (threadId: string) => Promise<T>,
+): Promise<T> {
+  const threadId = await startWorkThread(client, options)
+  try {
+    return await run(threadId)
+  } finally {
+    await dropThread(client, threadId)
+  }
+}
+
+/**
+ * スレッドを app-server から降ろす。rollout も一緒に消える。
+ *
+ * 降ろせなくても仕事の結果は変えない。app-server が落ちた後に来ることがあり、
+ * そのときはスレッドも既に無い。
+ */
+async function dropThread(client: CodexClient, threadId: string): Promise<void> {
+  try {
+    await client.request(METHODS.threadDelete, { threadId })
+  } catch (error) {
+    console.warn(`スレッドを降ろせなかった(${threadId}): ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
+/**
+ * 1 つのジョブに対応する使い捨てのスレッド。指示と道具を最小にする。
+ *
+ * ephemeral にはしない。ephemeral なスレッドは `thread/delete` で降ろせない(#333)。
+ */
+async function startWorkThread(client: CodexClient, options: WorkThreadOptions): Promise<string> {
   const params: ThreadStartParams = {
-    ephemeral: true,
     cwd: options.cwd ?? '/tmp',
     sandbox: 'read-only',
     model: options.model,

@@ -1,7 +1,7 @@
 import type { CodexClient } from '../codex/client.ts'
 import { imagesAndTextInput, textInput } from '../codex/protocol.ts'
 import { normalizeDoi } from '../data/doi.ts'
-import { runTurn, startWorkThread } from '../codex/threads.ts'
+import { runTurn, withWorkThread } from '../codex/threads.ts'
 import { extractArxivId, isArxivUrl, lookupArxiv } from './arxiv.ts'
 import { readOriginalHead, type HeadPaths } from './head.ts'
 import { readPageHint, type PageHint } from './links.ts'
@@ -178,23 +178,18 @@ export async function resolveSource(sourceUrl: string, deps: ResolveDeps): Promi
     }
   }
 
-  const threadId = await startWorkThread(deps.codex, {
-    instructions: AGENT_INSTRUCTIONS,
-    model: deps.model,
-    webSearch: true,
-  })
   const asked = looksLikeUrl(sourceUrl)
     ? [
         `次の URL が指す論文の原本と書誌情報を調べよ: ${sourceUrl}`,
         ...describeHint(await readPageHint(sourceUrl)),
       ].join('\n')
     : `次の題名の論文を探し、取得できる原本と書誌情報を返せ: ${sourceUrl}`
-  const outcome = await runTurn(deps.codex, {
-    threadId,
-    input: textInput(asked),
-    effort: 'low',
-    outputSchema: OUTPUT_SCHEMA,
-  })
+  const outcome = await withWorkThread(
+    deps.codex,
+    { instructions: AGENT_INSTRUCTIONS, model: deps.model, webSearch: true },
+    (threadId) =>
+      runTurn(deps.codex, { threadId, input: textInput(asked), effort: 'low', outputSchema: OUTPUT_SCHEMA }),
+  )
 
   const source = parseAgentResult(outcome.text)
   if (source === null) {
@@ -279,18 +274,22 @@ export type ResolveOriginalDeps = ResolveDeps & {
  */
 export async function resolveFromOriginal(pdf: string, deps: ResolveOriginalDeps): Promise<ResolveOutcome> {
   const head = await readOriginalHead(pdf, deps.head)
-  const threadId = await startWorkThread(deps.codex, { instructions: HEAD_INSTRUCTIONS, model: deps.model })
   try {
     const asked = '次の原本の先頭から、論文の書誌情報を読み取れ。'
-    const outcome = await runTurn(deps.codex, {
-      threadId,
-      input:
-        head.kind === 'text'
-          ? textInput(`${asked}\n\n${head.text.slice(0, HEAD_CHARS)}`)
-          : imagesAndTextInput(head.files, asked),
-      effort: 'low',
-      outputSchema: HEAD_SCHEMA,
-    })
+    const outcome = await withWorkThread(
+      deps.codex,
+      { instructions: HEAD_INSTRUCTIONS, model: deps.model },
+      (threadId) =>
+        runTurn(deps.codex, {
+          threadId,
+          input:
+            head.kind === 'text'
+              ? textInput(`${asked}\n\n${head.text.slice(0, HEAD_CHARS)}`)
+              : imagesAndTextInput(head.files, asked),
+          effort: 'low',
+          outputSchema: HEAD_SCHEMA,
+        }),
+    )
 
     const source = parseHeadResult(outcome.text)
     if (source === null) throw new Error('原本の先頭から書誌を読み取れなかった')
@@ -384,11 +383,6 @@ export async function findMoreSources(
   failures: string,
   deps: MoreSourcesDeps,
 ): Promise<string[]> {
-  const threadId = await startWorkThread(deps.codex, {
-    instructions: MORE_INSTRUCTIONS,
-    model: deps.model,
-    webSearch: true,
-  })
   const asked = [
     `題名: ${source.title}`,
     source.authors.length > 0 ? `著者: ${source.authors.join(', ')}` : null,
@@ -400,12 +394,11 @@ export async function findMoreSources(
     .filter((line): line is string => line !== null)
     .join('\n')
 
-  const outcome = await runTurn(deps.codex, {
-    threadId,
-    input: textInput(asked),
-    effort: 'low',
-    outputSchema: MORE_SCHEMA,
-  })
+  const outcome = await withWorkThread(
+    deps.codex,
+    { instructions: MORE_INSTRUCTIONS, model: deps.model, webSearch: true },
+    (threadId) => runTurn(deps.codex, { threadId, input: textInput(asked), effort: 'low', outputSchema: MORE_SCHEMA }),
+  )
 
   let raw: unknown
   try {
@@ -444,11 +437,6 @@ export async function findArticlePages(
   failures: string,
   deps: MoreSourcesDeps,
 ): Promise<string[]> {
-  const threadId = await startWorkThread(deps.codex, {
-    instructions: ARTICLE_INSTRUCTIONS,
-    model: deps.model,
-    webSearch: true,
-  })
   const asked = [
     `題名: ${source.title}`,
     source.authors.length > 0 ? `著者: ${source.authors.join(', ')}` : null,
@@ -460,12 +448,11 @@ export async function findArticlePages(
     .filter((line): line is string => line !== null)
     .join('\n')
 
-  const outcome = await runTurn(deps.codex, {
-    threadId,
-    input: textInput(asked),
-    effort: 'low',
-    outputSchema: MORE_SCHEMA,
-  })
+  const outcome = await withWorkThread(
+    deps.codex,
+    { instructions: ARTICLE_INSTRUCTIONS, model: deps.model, webSearch: true },
+    (threadId) => runTurn(deps.codex, { threadId, input: textInput(asked), effort: 'low', outputSchema: MORE_SCHEMA }),
+  )
 
   let raw: unknown
   try {

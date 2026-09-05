@@ -1,6 +1,6 @@
 import type { CodexClient } from '../codex/client.ts'
 import { textInput } from '../codex/protocol.ts'
-import { runTurn, startWorkThread } from '../codex/threads.ts'
+import { runTurn, withWorkThread } from '../codex/threads.ts'
 import { normalizeDoi } from '../data/doi.ts'
 import { readPaper, writePaper, type PaperMeta } from '../data/paper.ts'
 import { extractArxivId } from '../ingest/arxiv.ts'
@@ -113,47 +113,51 @@ export async function lookupBibliography(slug: string, deps: BibliographyDeps): 
   const paper = await readPaper(deps.dataDir, slug)
   if (paper === null) throw new Error(`論文が読めない: ${slug}`)
 
-  const threadId = await startWorkThread(deps.codex, {
-    instructions: BIBLIOGRAPHY_INSTRUCTIONS,
-    model: deps.model,
-    serviceTier: deps.serviceTier,
-    webSearch: true,
-  })
-  const outcome = await runTurn(deps.codex, {
-    threadId,
-    input: textInput(
-      buildBibliographyPrompt({
-        head: paper.body,
-        title: paper.meta.title,
-        authors: paper.meta.authors,
-        year: paper.meta.year,
-      }),
-    ),
-    effort: deps.effort,
-    outputSchema: BIBLIOGRAPHY_SCHEMA,
-  })
-
-  const found = parseBibliography(outcome.text)
-  if (found === null) return null
-
-  // 挙がった DOI がこの論文を指しているかを確かめる(#287)。同じ予稿集の中の別の論文の
-  // 番号が入ることがあり、組み立てられる形なので当てずっぽうでも DOI らしく見える。
-  // 判断は同じスレッドに尋ねる。本文と検索の結果を見た文脈がそのまま残っている。
-  const doi = found.doi
-  const pointsHere =
-    doi === null ||
-    (await doiPointsAtPaper(doi, deps.lookupDoi ?? lookupDoi, async (record) => {
-      const answer = await runTurn(deps.codex, {
+  const verified = await withWorkThread(
+    deps.codex,
+    { instructions: BIBLIOGRAPHY_INSTRUCTIONS, model: deps.model, serviceTier: deps.serviceTier, webSearch: true },
+    async (threadId) => {
+      const outcome = await runTurn(deps.codex, {
         threadId,
         input: textInput(
-          buildDoiCheckPrompt({ title: found.title ?? paper.meta.title, authors: found.authors }, { doi, ...record }),
+          buildBibliographyPrompt({
+            head: paper.body,
+            title: paper.meta.title,
+            authors: paper.meta.authors,
+            year: paper.meta.year,
+          }),
         ),
         effort: deps.effort,
-        outputSchema: DOI_CHECK_SCHEMA,
+        outputSchema: BIBLIOGRAPHY_SCHEMA,
       })
-      return parseDoiCheck(answer.text)
-    }))
-  const verified = pointsHere ? found : { ...found, doi: null }
+
+      const found = parseBibliography(outcome.text)
+      if (found === null) return null
+
+      // 挙がった DOI がこの論文を指しているかを確かめる(#287)。同じ予稿集の中の別の論文の
+      // 番号が入ることがあり、組み立てられる形なので当てずっぽうでも DOI らしく見える。
+      // 判断は同じスレッドに尋ねる。本文と検索の結果を見た文脈がそのまま残っている。
+      const doi = found.doi
+      const pointsHere =
+        doi === null ||
+        (await doiPointsAtPaper(doi, deps.lookupDoi ?? lookupDoi, async (record) => {
+          const answer = await runTurn(deps.codex, {
+            threadId,
+            input: textInput(
+              buildDoiCheckPrompt(
+                { title: found.title ?? paper.meta.title, authors: found.authors },
+                { doi, ...record },
+              ),
+            ),
+            effort: deps.effort,
+            outputSchema: DOI_CHECK_SCHEMA,
+          })
+          return parseDoiCheck(answer.text)
+        }))
+      return pointsHere ? found : { ...found, doi: null }
+    },
+  )
+  if (verified === null) return null
 
   const merged = mergeBibliography(paper.meta, verified)
   await writePaper(deps.dataDir, merged, paper.body)
