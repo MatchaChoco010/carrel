@@ -1,6 +1,12 @@
 import type { CodexClient } from '../codex/client.ts'
 import { imagesAndTextInput, METHODS } from '../codex/protocol.ts'
-import { archiveThread, resumeThread, runTurn, startConversationThread, threadExists } from '../codex/threads.ts'
+import {
+  archiveThread,
+  resumeThread,
+  runTurn,
+  startConversationThread,
+  threadExists,
+} from '../codex/threads.ts'
 import { nowIsoDateTime } from '../data/datetime.ts'
 import { readChat, writeChat, type Chat, type ChatMessage } from '../data/chat.ts'
 import { storeImages, withAttachments, type IncomingImage } from './attachments.ts'
