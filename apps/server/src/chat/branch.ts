@@ -131,7 +131,6 @@ export async function forkThread(
   lastTurn: string,
   mcpUrl: string,
 ): Promise<string> {
-  // 降ろしたスレッドは写せないので、先に戻す(#335)。
   await unarchiveThread(codex, threadId)
   const result = (await codex.request(METHODS.threadFork, {
     threadId,
@@ -142,7 +141,7 @@ export async function forkThread(
   }
   const id = result.thread?.id
   if (typeof id !== 'string') throw new Error('thread/fork がスレッドを返さなかった')
-  // 写した先は載った状態で返る。次の発言まで使わないので降ろす(#335)。
+  // fork した先は読み込まれた状態で返る(#335)。
   await archiveThread(codex, id)
   return id
 }

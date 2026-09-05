@@ -31,7 +31,7 @@ test('スレッドを立てるときに道具を渡す', async () => {
 test('読み込み直すときにも道具を渡す(#277)', async () => {
   const { client, sent } = recorder()
   assert.equal(await resumeThread(client, 'th_1', { mcpUrl: MCP_URL }), true)
-  // 降ろしてあるスレッドは、戻してから載せる(#335)。
+  // archive してあるスレッドは unarchive してから resume する(#335)。
   assert.deepEqual(
     sent.map((s) => s.method),
     ['thread/unarchive', 'thread/resume'],
@@ -56,7 +56,7 @@ test('写して分けるときにも道具を渡す(#313)', async () => {
   const { client, sent } = recorder()
   await forkThread(client, 'th_1', 'turn_3', MCP_URL)
 
-  // 元は戻してから写し、写した先は次の発言まで降ろす(#335)。
+  // 元を unarchive してから fork し、fork した先は archive する(#335)。
   assert.deepEqual(
     sent.map((s) => s.method),
     ['thread/unarchive', 'thread/fork', 'thread/archive'],
@@ -135,7 +135,7 @@ test('理由が添えられていなくても、Codex の問題だと分かる(#
   )
 })
 
-test('使い捨てのスレッドは、仕事が終わったら降ろす(#333)', async () => {
+test('使い捨てのスレッドは、仕事が終わったら消す(#333)', async () => {
   const { client, sent } = recorder()
   const got = await withWorkThread(client, { instructions: '指示', model: 'gpt-5.4-mini' }, async (threadId) => {
     assert.equal(threadId, 'th_1')
@@ -150,14 +150,14 @@ test('使い捨てのスレッドは、仕事が終わったら降ろす(#333)',
   assert.deepEqual(sent[1]?.params, { threadId: 'th_1' })
 })
 
-test('使い捨てのスレッドは ephemeral にしない。ephemeral だと降ろせない(#333)', async () => {
+test('使い捨てのスレッドは ephemeral にしない。ephemeral だと消せない(#333)', async () => {
   const { client, sent } = recorder()
   await withWorkThread(client, { instructions: '指示', model: 'gpt-5.4-mini' }, async () => undefined)
   const params = sent[0]?.params as { ephemeral?: boolean }
   assert.equal(params.ephemeral, undefined)
 })
 
-test('仕事が失敗しても降ろしてから投げる(#333)', async () => {
+test('仕事が失敗しても消してから投げる(#333)', async () => {
   const { client, sent } = recorder()
   await assert.rejects(
     () =>
@@ -169,7 +169,7 @@ test('仕事が失敗しても降ろしてから投げる(#333)', async () => {
   assert.equal(sent[1]?.method, 'thread/delete')
 })
 
-test('降ろせなくても仕事の結果は返す(#333)', async () => {
+test('消せなくても仕事の結果は返す(#333)', async () => {
   const sent: string[] = []
   const client = {
     async request(method: string) {
@@ -188,10 +188,10 @@ test('降ろせなくても仕事の結果は返す(#333)', async () => {
     console.warn = warn
   }
   assert.deepEqual(sent, ['thread/start', 'thread/delete'])
-  assert.match(warned[0] ?? '', /降ろせなかった/)
+  assert.match(warned[0] ?? '', /消せなかった/)
 })
 
-test('残っているかは thread/read で確かめ、載せない(#335)', async () => {
+test('残っているかは thread/read で確かめ、読み込まない(#335)', async () => {
   const { client, sent } = recorder()
   assert.equal(await threadExists(client, 'th_1'), true)
   assert.deepEqual(
@@ -205,7 +205,7 @@ test('thread/read が失敗したスレッドは残っていない(#335)', async
   assert.equal(await threadExists(client, 'th_1'), false)
 })
 
-test('降ろせなくても投げず、警告に留める(#335)', async () => {
+test('archive できなくても投げず、警告に留める(#335)', async () => {
   const { client } = recorder(true)
   const warn = console.warn
   const warned: string[] = []
@@ -215,5 +215,5 @@ test('降ろせなくても投げず、警告に留める(#335)', async () => {
   } finally {
     console.warn = warn
   }
-  assert.match(warned[0] ?? '', /降ろせなかった/)
+  assert.match(warned[0] ?? '', /archive できなかった/)
 })

@@ -313,7 +313,6 @@ export class ChatSessions {
       this.#deps.onEvent({ type: 'chat.turn.failed', id: chat.meta.id, message })
       throw error
     } finally {
-      // 次の発言まで載せておく理由が無い。載せたままだと会話の数だけ MCP が立つ(#335)。
       await archiveThread(this.#deps.codex, threadId)
     }
   }
@@ -336,17 +335,16 @@ export class ChatSessions {
   }
 
   /**
-   * 対応するスレッドを app-server に載せて返す。無ければ新しく立てる。
+   * 対応するスレッドを読み込み直して返す。無ければ新しく立てる。
    *
-   * 会話のスレッドはターンの合間は降ろしてあるので(#335)、ターンを流す前に載せる。
-   * 降りたままターンを始めても届かない。
+   * ターンの合間は archive してあるので(#335)、読み込み直さずにターンを始めても届かない。
    */
   async #threadFor(chat: Chat, model: string): Promise<string> {
     const existing = chat.meta.codexThreadId
     if (existing !== null) {
       if (!(await this.#isAlive(existing))) throw new Error('この会話の実行状態は残っていない。読み込み直しが要る')
       if (!(await resumeThread(this.#deps.codex, existing, { mcpUrl: this.#deps.mcpUrl }))) {
-        throw new Error('この会話のスレッドを app-server に載せられなかった')
+        throw new Error('この会話のスレッドを読み込み直せなかった')
       }
       return existing
     }
