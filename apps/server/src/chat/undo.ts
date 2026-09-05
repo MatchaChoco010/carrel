@@ -1,6 +1,6 @@
 import type { CodexClient } from '../codex/client.ts'
 import { imagesAndTextInput } from '../codex/protocol.ts'
-import { runTurn, startConversationThread } from '../codex/threads.ts'
+import { archiveThread, runTurn, startConversationThread } from '../codex/threads.ts'
 import { nowIsoDateTime } from '../data/datetime.ts'
 import { readChat, withoutTurnIds, writeChat, type Chat, type ChatMessage } from '../data/chat.ts'
 import { attachmentPaths, referencedAttachments } from './attachments.ts'
@@ -103,6 +103,7 @@ async function rewind(
     threadId,
     input: imagesAndTextInput(images, buildReloadInput({ ...chat, messages: remaining }, deps.dataDir, deps.knownSlug)),
   })
+  await archiveThread(deps.codex, threadId)
   deps.markResumed(threadId)
   return { threadId, forked: false }
 }

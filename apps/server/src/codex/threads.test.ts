@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { forkThread } from '../chat/branch.ts'
 import type { CodexClient } from './client.ts'
-import { resumeThread, runTurn, startConversationThread, withWorkThread } from './threads.ts'
+import { archiveThread, resumeThread, runTurn, startConversationThread, threadExists, withWorkThread } from './threads.ts'
 
 /** 投げられた要求を控えるだけの代役。 */
 function recorder(fail = false): { client: CodexClient; sent: Array<{ method: string; params: unknown }> } {
@@ -31,8 +31,12 @@ test('スレッドを立てるときに道具を渡す', async () => {
 test('読み込み直すときにも道具を渡す(#277)', async () => {
   const { client, sent } = recorder()
   assert.equal(await resumeThread(client, 'th_1', { mcpUrl: MCP_URL }), true)
-  assert.equal(sent[0]?.method, 'thread/resume')
-  const params = sent[0]?.params as { threadId: string; config?: { mcp_servers?: Record<string, { url: string }> } }
+  // 降ろしてあるスレッドは、戻してから載せる(#335)。
+  assert.deepEqual(
+    sent.map((s) => s.method),
+    ['thread/unarchive', 'thread/resume'],
+  )
+  const params = sent[1]?.params as { threadId: string; config?: { mcp_servers?: Record<string, { url: string }> } }
   assert.equal(params.threadId, 'th_1')
   assert.equal(params.config?.mcp_servers?.['carrel']?.url, MCP_URL)
 })
@@ -40,7 +44,7 @@ test('読み込み直すときにも道具を渡す(#277)', async () => {
 test('道具の場所を渡さなければ、余計な設定を送らない', async () => {
   const { client, sent } = recorder()
   await resumeThread(client, 'th_1')
-  assert.deepEqual(sent[0]?.params, { threadId: 'th_1' })
+  assert.deepEqual(sent[1]?.params, { threadId: 'th_1' })
 })
 
 test('残っていないスレッドは false になる', async () => {
@@ -52,8 +56,13 @@ test('写して分けるときにも道具を渡す(#313)', async () => {
   const { client, sent } = recorder()
   await forkThread(client, 'th_1', 'turn_3', MCP_URL)
 
-  assert.equal(sent[0]?.method, 'thread/fork')
-  const params = sent[0]?.params as {
+  // 元は戻してから写し、写した先は次の発言まで降ろす(#335)。
+  assert.deepEqual(
+    sent.map((s) => s.method),
+    ['thread/unarchive', 'thread/fork', 'thread/archive'],
+  )
+  assert.deepEqual(sent[2]?.params, { threadId: 'th_2' })
+  const params = sent[1]?.params as {
     threadId: string
     lastTurnId: string
     config?: { mcp_servers?: Record<string, { url: string }> }
@@ -179,5 +188,32 @@ test('降ろせなくても仕事の結果は返す(#333)', async () => {
     console.warn = warn
   }
   assert.deepEqual(sent, ['thread/start', 'thread/delete'])
+  assert.match(warned[0] ?? '', /降ろせなかった/)
+})
+
+test('残っているかは thread/read で確かめ、載せない(#335)', async () => {
+  const { client, sent } = recorder()
+  assert.equal(await threadExists(client, 'th_1'), true)
+  assert.deepEqual(
+    sent.map((s) => s.method),
+    ['thread/read'],
+  )
+})
+
+test('thread/read が失敗したスレッドは残っていない(#335)', async () => {
+  const { client } = recorder(true)
+  assert.equal(await threadExists(client, 'th_1'), false)
+})
+
+test('降ろせなくても投げず、警告に留める(#335)', async () => {
+  const { client } = recorder(true)
+  const warn = console.warn
+  const warned: string[] = []
+  console.warn = (message: string) => warned.push(message)
+  try {
+    await archiveThread(client, 'th_1')
+  } finally {
+    console.warn = warn
+  }
   assert.match(warned[0] ?? '', /降ろせなかった/)
 })

@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import type { CodexClient } from '../codex/client.ts'
 import { METHODS, imagesAndTextInput } from '../codex/protocol.ts'
-import { mcpConfig, runTurn, startConversationThread } from '../codex/threads.ts'
+import { archiveThread, mcpConfig, runTurn, startConversationThread, unarchiveThread } from '../codex/threads.ts'
 import {
   chatPathFor,
   newChatId,
@@ -131,6 +131,8 @@ export async function forkThread(
   lastTurn: string,
   mcpUrl: string,
 ): Promise<string> {
+  // 降ろしたスレッドは写せないので、先に戻す(#335)。
+  await unarchiveThread(codex, threadId)
   const result = (await codex.request(METHODS.threadFork, {
     threadId,
     lastTurnId: lastTurn,
@@ -140,6 +142,8 @@ export async function forkThread(
   }
   const id = result.thread?.id
   if (typeof id !== 'string') throw new Error('thread/fork がスレッドを返さなかった')
+  // 写した先は載った状態で返る。次の発言まで使わないので降ろす(#335)。
+  await archiveThread(codex, id)
   return id
 }
 
@@ -164,6 +168,7 @@ async function primeThread(
     threadId,
     input: imagesAndTextInput(images, buildReloadInput({ ...source, messages }, deps.dataDir, deps.knownSlug)),
   })
+  await archiveThread(deps.codex, threadId)
   return threadId
 }
 

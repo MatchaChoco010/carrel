@@ -66,12 +66,14 @@ export async function startConversationThread(
  * 起動し直すとスレッドは記憶から降りるので、ターンを流す前に一度ここを通す。
  *
  * 道具の宣言は読み込み直しのたびに渡す(#277。→ `mcpConfig`)。
+ * ターンの合間に降ろしてあるスレッドは、戻してから載せる(#335)。
  */
 export async function resumeThread(
   client: CodexClient,
   threadId: string,
   options: { mcpUrl?: string } = {},
 ): Promise<boolean> {
+  await unarchiveThread(client, threadId)
   try {
     const params: Record<string, unknown> = { threadId }
     if (options.mcpUrl !== undefined) params.config = mcpConfig(options.mcpUrl)
@@ -123,6 +125,44 @@ async function dropThread(client: CodexClient, threadId: string): Promise<void> 
   } catch (error) {
     console.warn(`スレッドを降ろせなかった(${threadId}): ${error instanceof Error ? error.message : String(error)}`)
   }
+}
+
+/**
+ * スレッドが Codex 側に残っているか(#335)。
+ *
+ * `thread/read` は履歴を読むだけで、スレッドを app-server に載せない。載せると
+ * スレッドごとの MCP サーバーが付いてくるので、確かめるだけの経路では載せない。
+ */
+export async function threadExists(client: CodexClient, threadId: string): Promise<boolean> {
+  try {
+    await client.request(METHODS.threadRead, { threadId, includeTurns: false })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * 会話のスレッドをターンの合間に降ろす(#335)。
+ *
+ * 履歴は残り、次に載せるとき {@link resumeThread} が戻す。降ろせなくても会話は
+ * 続けられるので、失敗は警告に留める。
+ */
+export async function archiveThread(client: CodexClient, threadId: string): Promise<void> {
+  try {
+    await client.request(METHODS.threadArchive, { threadId })
+  } catch (error) {
+    console.warn(`スレッドを降ろせなかった(${threadId}): ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
+/**
+ * 降ろしたスレッドを、載せたり写したりできる状態に戻す。
+ *
+ * 降ろしていないスレッドには失敗する。それは載せる側が改めて知ることなので握る。
+ */
+export async function unarchiveThread(client: CodexClient, threadId: string): Promise<void> {
+  await client.request(METHODS.threadUnarchive, { threadId }).catch(() => undefined)
 }
 
 /**
